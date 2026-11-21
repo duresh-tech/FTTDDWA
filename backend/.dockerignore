@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+.env.*
+public/uploads
+*.log
+.dev-server-run.log
+.dev-server.err.log
+.dev-server.log
+# Windows-host port killer, pointless (and confusing) inside a container
+scripts/free-port.js

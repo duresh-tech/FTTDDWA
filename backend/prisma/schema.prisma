@@ -1,0 +1,813 @@
+// PostgreSQL schema. Conventions:
+//   - Primary keys are CHAR(36) UUIDv7 strings generated in app code
+//     (src/common/utils/id.util.ts), not database defaults. CHAR is
+//     blank-padded in Postgres, which is harmless here because every value is
+//     exactly 36 characters.
+//   - Timestamps are UNIX epoch seconds in BIGINT columns, serialized via the
+//     BigInt.prototype.toJSON patch in src/main.ts.
+//   - Soft deletes use a `status` enum plus `deletedAt`, never row removal.
+// Schema changes go through `prisma migrate dev`; containers apply them with
+// `prisma migrate deploy` (see backend/docker/entrypoint.sh). Postgres enum
+// changes require a migration, so avoid `prisma db push` here.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PermissionStatus {
+  ACTIVE
+  INACTIVE
+  DELETED
+}
+
+enum RoleStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+  DELETED
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+  DELETED
+}
+
+model Permission {
+  id            String           @id @db.Char(36) // UUIDv7, generated in app code
+  systemCode    String           @unique @db.VarChar(30)
+  displayName   String           @db.VarChar(100) // Ex. Delete Roles
+  moduleName    String           @db.VarChar(50) // Ex. roles
+  permissionKey String           @unique @db.VarChar(100) // Ex. roles:delete
+  description   String?          @db.VarChar(50)
+  isSystem      Boolean          @default(false) // System permission, cannot be deleted
+  status        PermissionStatus @default(ACTIVE)
+  createdAt     BigInt // UNIX timestamp (seconds)
+  updatedAt     BigInt // UNIX timestamp (seconds)
+  deletedAt     BigInt? // UNIX timestamp (seconds)
+
+  rolePermissions RolePermission[]
+
+  @@index([moduleName])
+  @@index([status])
+  @@map("permissions")
+}
+
+model Role {
+  id               String     @id @db.Char(36) // UUIDv7
+  systemCode       String     @unique @db.VarChar(30)
+  roleKey          String     @unique @db.VarChar(100) // Ex. TENANT_SUPER_ADMIN
+  displayName      String     @db.VarChar(100)
+  isSystem         Boolean    @default(false) // System role, cannot be deleted
+  visibleToTenants Boolean    @default(false)
+  status           RoleStatus @default(ACTIVE)
+  createdAt        BigInt
+  updatedAt        BigInt
+  deletedAt        BigInt?
+
+  rolePermissions RolePermission[]
+  systemUsers     SystemUser[]
+  tenantUsers     TenantUser[]
+
+  @@index([status])
+  @@map("roles")
+}
+
+model RolePermission {
+  roleId       String @db.Char(36)
+  permissionId String @db.Char(36)
+  createdAt    BigInt
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model SystemUser {
+  id           String     @id @db.Char(36) // UUIDv7
+  systemCode   String     @unique @db.VarChar(30)
+  fName        String     @db.VarChar(100)
+  username     String     @unique @db.VarChar(50)
+  email        String     @unique @db.VarChar(191)
+  passwordHash String     @db.VarChar(255) // Argon2id
+  roleId       String     @db.Char(36)
+  status       UserStatus @default(ACTIVE)
+  createdAt    BigInt
+  updatedAt    BigInt
+  deletedAt    BigInt?
+
+  role          Role           @relation(fields: [roleId], references: [id])
+  refreshTokens RefreshToken[]
+
+  @@index([status])
+  @@index([roleId])
+  @@map("system_users")
+}
+
+model TenantUser {
+  id           String     @id @db.Char(36) // UUIDv7
+  systemCode   String     @unique @db.VarChar(30)
+  fName        String     @db.VarChar(100)
+  username     String     @unique @db.VarChar(50)
+  email        String     @unique @db.VarChar(191)
+  phone        String?    @db.VarChar(20)
+  avatarPath   String?    @db.VarChar(255)
+  passwordHash String     @db.VarChar(255) // Argon2id
+  roleId       String     @db.Char(36) // Must reference a role with visibleToTenants=true
+  status       UserStatus @default(ACTIVE)
+  createdAt    BigInt
+  updatedAt    BigInt
+  deletedAt    BigInt?
+
+  role             Role                   @relation(fields: [roleId], references: [id])
+  mappedBusinesses TenantMappedBusiness[]
+  refreshTokens    TenantRefreshToken[]
+
+  @@index([status])
+  @@index([roleId])
+  @@map("tenant_users")
+}
+
+enum TenantBusinessStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+  DELETED
+}
+
+model TenantBusiness {
+  id               String               @id @db.Char(36) // UUIDv7
+  systemCode       String               @unique @db.VarChar(30)
+  name             String               @db.VarChar(150)
+  tagLine          String?              @db.VarChar(200)
+  email            String               @db.VarChar(150)
+  phone            String               @db.VarChar(20)
+  country          String               @db.VarChar(100)
+  countryCode      String               @db.VarChar(10)
+  state            String               @db.VarChar(100)
+  city             String               @db.VarChar(100)
+  pincode          String               @db.VarChar(20)
+  addressLine1     String               @db.VarChar(255)
+  addressLine2     String?              @db.VarChar(255)
+  logoPath         String?              @db.VarChar(255)
+  taxNumber        String?              @db.VarChar(50)
+  isParentBusiness Boolean              @default(false)
+  status           TenantBusinessStatus @default(ACTIVE)
+  createdAt        BigInt
+  updatedAt        BigInt
+  deletedAt        BigInt?
+
+  mappedTenantUsers TenantMappedBusiness[]
+  mailConfigs       TenantMailConfig[]
+  places            TenantPlace[]
+  streets           TenantStreet[]
+  customers         TenantCustomer[]
+  domains           TenantBusinessDomain[]
+  apiKeys           ApiKey[]
+  settings          TenantBusinessSetting[]
+  settingSyncLogs   TenantBusinessSettingSyncLog[]
+
+  @@index([status])
+  @@index([country])
+  @@index([isParentBusiness])
+  @@map("tenant_business")
+}
+
+/// A hostname a tenant business's portal is served on. The Caddy edge gets an
+/// HTTPS certificate for each on its first visit, after asking the API whether
+/// the hostname is one we serve (see src/site/).
+///
+/// Deliberately HARD-deleted, unlike every other model here, and deliberately
+/// system-admin-only with no tenant self-service twin:
+///
+///   - A soft-deleted row would keep holding the unique hostname and block a
+///     legitimate re-claim. `enabled` already covers turning one off without
+///     losing it.
+///   - Letting a tenant add hostnames would let them assert ownership of a
+///     name they do not control and have the edge request a certificate for
+///     it, so claiming a hostname stays a system-admin action.
+model TenantBusinessDomain {
+  id               String  @id @db.Char(36) // UUIDv7
+  tenantBusinessId String  @db.Char(36)
+  /// Lowercase, no scheme, port or path - normalized on write AND on lookup
+  /// by normalizeHost() in src/site/site.service.ts. Plain VarChar rather
+  /// than citext: that would need the Postgres extension plus Prisma's
+  /// postgresqlExtensions preview flag, for no behavioural gain once every
+  /// read lowercases first.
+  hostname         String  @unique @db.VarChar(253)
+  /// Turns a domain off without losing it. A disabled domain stops getting
+  /// certificates renewed and stops resolving to its business.
+  enabled          Boolean @default(true)
+  createdBySystemUserId String? @db.Char(36)
+  createdAt        BigInt
+  updatedAt        BigInt
+
+  tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
+
+  @@index([tenantBusinessId])
+  @@map("tenant_business_domains")
+}
+
+enum TenantMailDriver {
+  SMTP
+}
+
+enum TenantMailEncryption {
+  NONE
+  SSL
+  TLS
+  SMTP
+  SMTPS
+}
+
+model TenantMailConfig {
+  id               String               @id @db.Char(36) // UUIDv7
+  systemCode       String               @unique @db.VarChar(30)
+  tenantBusinessId String               @db.Char(36)
+  mailDriver       TenantMailDriver     @default(SMTP)
+  mailHost         String?              @db.VarChar(255)
+  mailPort         Int?
+  mailUsername     String?              @db.VarChar(150)
+  mailPassword     String?              @db.VarChar(255)
+  mailEncryption   TenantMailEncryption @default(NONE)
+  fromMailAddress  String?              @db.VarChar(150)
+  fromMailName     String?              @db.VarChar(150)
+  createdAt        BigInt
+  updatedAt        BigInt
+  deletedAt        BigInt?
+
+  tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
+
+  @@index([tenantBusinessId])
+  @@map("tenant_mail_config")
+}
+
+enum TenantMappedBusinessStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+  DELETED
+}
+
+model TenantMappedBusiness {
+  id               String                     @id @db.Char(36) // UUIDv7
+  systemCode       String                     @unique @db.VarChar(30)
+  tenantUserId     String                     @db.Char(36)
+  tenantBusinessId String                     @db.Char(36)
+  status           TenantMappedBusinessStatus @default(ACTIVE)
+  createdAt        BigInt
+  updatedAt        BigInt
+  deletedAt        BigInt?
+
+  tenantUser     TenantUser     @relation(fields: [tenantUserId], references: [id])
+  tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
+
+  @@unique([tenantUserId]) // one business per tenant user
+  @@index([status])
+  @@index([tenantBusinessId])
+  @@map("tenant_mapped_business")
+}
+
+model RefreshToken {
+  id         String  @id @db.Char(36) // UUIDv7
+  userId     String  @db.Char(36)
+  tokenHash  String  @db.VarChar(128) // SHA-256 hex of the refresh JWT
+  deviceType String? @db.VarChar(30) // website | androidApp | iosApp | desktopApp
+  expiresAt  BigInt
+  revokedAt  BigInt?
+  createdAt  BigInt
+
+  user SystemUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+model TenantRefreshToken {
+  id           String  @id @db.Char(36) // UUIDv7
+  tenantUserId String  @db.Char(36)
+  tokenHash    String  @db.VarChar(128) // SHA-256 hex of the refresh JWT
+  deviceType   String? @db.VarChar(30) // website | androidApp | iosApp | desktopApp
+  expiresAt    BigInt
+  revokedAt    BigInt?
+  createdAt    BigInt
+
+  tenantUser TenantUser @relation(fields: [tenantUserId], references: [id], onDelete: Cascade)
+
+  @@index([tenantUserId])
+  @@index([tokenHash])
+  @@map("tenant_refresh_tokens")
+}
+
+enum AppSettingDataType {
+  STRING
+  TEXT
+  INTEGER
+  DECIMAL
+  BOOLEAN
+  JSON
+  DATE
+  DATETIME
+  TIME
+  FILE
+}
+
+enum AppSettingStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+  DELETED
+}
+
+model AppSetting {
+  id          String             @id @db.Char(36) // UUIDv7
+  key         String             @unique @db.VarChar(150)
+  dataType    AppSettingDataType
+  value       String             @db.Text
+  description String?            @db.VarChar(255)
+  status      AppSettingStatus   @default(ACTIVE)
+  createdAt   BigInt
+  updatedAt   BigInt
+  deletedAt   BigInt?
+
+  @@index([status])
+  @@map("app_settings")
+}
+
+enum TenantPlaceStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+  DELETED
+}
+
+model TenantPlace {
+  id               String            @id @db.Char(36) // UUIDv7
+  systemCode       String            @unique @db.VarChar(30)
+  tenantBusinessId String            @db.Char(36)
+  placeName        String            @db.VarChar(100)
+  remark           String?           @db.VarChar(255)
+  latitude         Decimal?          @db.Decimal(10, 8)
+  longitude        Decimal?          @db.Decimal(11, 8)
+  radiusMeters     Int               @default(100)
+  status           TenantPlaceStatus @default(ACTIVE)
+  createdAt        BigInt
+  updatedAt        BigInt
+  deletedAt        BigInt?
+
+  tenantBusiness TenantBusiness   @relation(fields: [tenantBusinessId], references: [id])
+  streets        TenantStreet[]
+  customers      TenantCustomer[]
+
+  @@index([status])
+  @@index([tenantBusinessId])
+  @@map("tenant_places")
+}
+
+enum TenantStreetStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+  DELETED
+}
+
+model TenantStreet {
+  id               String             @id @db.Char(36) // UUIDv7
+  systemCode       String             @unique @db.VarChar(30)
+  tenantBusinessId String             @db.Char(36)
+  tenantPlaceId    String             @db.Char(36)
+  streetCode       String             @db.Char(3) // 3 uppercase letters (A-Z), unique per business
+  streetName       String             @db.VarChar(100)
+  latitude         Decimal?           @db.Decimal(10, 8)
+  longitude        Decimal?           @db.Decimal(11, 8)
+  remark           String?            @db.VarChar(255)
+  status           TenantStreetStatus @default(ACTIVE)
+  createdAt        BigInt
+  updatedAt        BigInt
+  deletedAt        BigInt?
+
+  tenantBusiness TenantBusiness   @relation(fields: [tenantBusinessId], references: [id])
+  tenantPlace    TenantPlace      @relation(fields: [tenantPlaceId], references: [id])
+  customers      TenantCustomer[]
+
+  @@unique([tenantBusinessId, streetCode])
+  @@index([status])
+  @@index([tenantBusinessId])
+  @@index([tenantPlaceId])
+  @@map("tenant_streets")
+}
+
+enum TenantCustomerGender {
+  MALE
+  FEMALE
+  TRANSGENDER
+  NOT_TO_SAY
+  NONE
+}
+
+enum TenantCustomerType {
+  INDIVIDUAL
+  BUSINESS
+}
+
+enum TenantCustomerStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+  DELETED
+}
+
+model TenantCustomer {
+  id                String               @id @db.Char(36) // UUIDv7
+  systemCode        String               @unique @db.VarChar(30)
+  tenantBusinessId  String               @db.Char(36)
+  customerCode      String               @db.VarChar(30)
+  fName             String               @db.VarChar(100)
+  lName             String?              @db.VarChar(100)
+  fatherName        String?              @db.VarChar(150)
+  gender            TenantCustomerGender @default(NONE)
+  dateOfBirth       DateTime?            @db.Date
+  primaryMobile     String               @db.VarChar(20)
+  secondaryMobile   String?              @db.VarChar(20)
+  email             String?              @db.VarChar(255)
+  customerType      TenantCustomerType   @default(INDIVIDUAL)
+  tenantPlaceId     String?              @db.Char(36)
+  tenantStreetId    String?              @db.Char(36)
+  addressLine1      String               @db.VarChar(255)
+  addressLine2      String?              @db.VarChar(255)
+  city              String?              @db.VarChar(100)
+  state             String?              @db.VarChar(100)
+  country           String?              @db.VarChar(100)
+  pincode           String?              @db.VarChar(15)
+  latitude          Decimal?             @db.Decimal(10, 8)
+  longitude         Decimal?             @db.Decimal(11, 8)
+  customerPicture   String?              @db.VarChar(500)
+  idProofType       String?              @db.VarChar(50)
+  idProofNumber     String?              @db.VarChar(100)
+  idProofFile       String?              @db.VarChar(500)
+  taxType           String?              @db.VarChar(50)
+  taxNumber         String?              @db.VarChar(100)
+  notifyViaSMS      Boolean              @default(true)
+  notifyViaWhatsApp Boolean              @default(true)
+  notifyViaRCS      Boolean              @default(false)
+  allowPortalAccess Boolean              @default(true)
+  remark            String?              @db.Text
+  status            TenantCustomerStatus @default(ACTIVE)
+  createdAt         BigInt
+  updatedAt         BigInt
+  deletedAt         BigInt?
+
+  tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
+  tenantPlace    TenantPlace?   @relation(fields: [tenantPlaceId], references: [id])
+  tenantStreet   TenantStreet?  @relation(fields: [tenantStreetId], references: [id])
+
+  @@unique([tenantBusinessId, customerCode])
+  @@index([status])
+  @@index([tenantBusinessId])
+  @@index([tenantPlaceId])
+  @@index([tenantStreetId])
+  @@map("tenant_customers")
+}
+
+// ------------------------------------------------------------------
+// API keys: machine credentials for external apps.
+//
+// A key authenticates the calling APPLICATION. On console routes the signed-in
+// user's RBAC is still what authorises the request; only app-facing routes
+// state scopes and are authorised by the key alone.
+// ------------------------------------------------------------------
+
+enum ApiKeyType {
+  LIVE
+  TEST
+}
+
+/// Deliberately no EXPIRED member: expiry is a function of expiresAt and the
+/// clock, so storing it too gives two sources of truth that drift. A key past
+/// its expiry with status=ACTIVE would be ambiguous. These three are the
+/// states a human sets on purpose.
+enum ApiKeyStatus {
+  ACTIVE
+  SUSPENDED
+  REVOKED
+}
+
+/// A machine credential for an external app.
+///
+/// tenantBusinessId set means a business key: it acts for that business and
+/// appears in its tenant portal. NULL means a platform-level key issued from
+/// the system console, which no tenant can see - every tenant query is scoped
+/// to a business id, and no business id matches NULL.
+///
+/// The secret is NOT stored. Only a SHA-256 hash is kept, alongside a public
+/// prefix used to find the row and the last four characters for display.
+/// SHA-256 rather than Argon2id on purpose: the secret is 32 bytes of CSPRNG
+/// output, so there is no low-entropy guess space for a slow KDF to protect,
+/// and hashing slowly on every request would hand an attacker a cheap way to
+/// exhaust the CPU by posting garbage keys. Human passwords elsewhere in this
+/// schema stay on Argon2id for exactly the opposite reason.
+model ApiKey {
+  id         String @id @db.Char(36) // UUIDv7
+  systemCode String @unique @db.VarChar(30)
+
+  /// The business this key acts for, or NULL for a platform-level key.
+  tenantBusinessId String? @db.Char(36)
+
+  title       String     @db.VarChar(150)
+  description String?    @db.VarChar(255)
+  keyType     ApiKeyType @default(TEST)
+
+  /// Public identifier, safe to display and log, ex. "fttddwa_test_9f3a1c72".
+  /// Unique so verification is a single indexed lookup rather than a scan.
+  keyPrefix   String @unique @db.VarChar(64)
+  /// SHA-256 hex of the secret - 64 characters. Emptied on revoke.
+  secretHash  String @db.VarChar(64)
+  /// Last four characters of the secret, so a key is recognisable in a list
+  /// without holding anything that helps an attacker.
+  secretLast4 String @db.VarChar(8)
+
+  status        ApiKeyStatus @default(ACTIVE)
+  /// Null means no expiry. A bounded life is the safer default.
+  expiresAt     BigInt?
+  lastUsedAt    BigInt?
+  /// Wide enough for IPv6. Helps spot a leaked key being used elsewhere.
+  lastUsedIp    String?      @db.VarChar(45)
+  usageCount    BigInt       @default(0)
+  rotatedAt     BigInt?
+  revokedAt     BigInt?
+  revokedReason String?      @db.VarChar(255)
+
+  /// Audit: who created it. Separate from ownership above - a system admin
+  /// can mint a key that belongs to a tenant business.
+  createdBySystemUserId String? @db.Char(36)
+  createdByTenantUserId String? @db.Char(36)
+
+  createdAt BigInt
+  updatedAt BigInt
+  deletedAt BigInt?
+
+  tenantBusiness TenantBusiness? @relation(fields: [tenantBusinessId], references: [id])
+
+  scopes ApiKeyScope[]
+
+  @@index([status])
+  @@index([tenantBusinessId])
+  @@index([expiresAt])
+  @@map("api_keys")
+}
+
+/// What a key is allowed to do, as permission keys from the existing RBAC
+/// vocabulary (ex. "tenant-places:list").
+///
+/// A key is a SUBSET of its owner's authority, never an escalation: the
+/// issuer cannot grant a scope they do not hold, and the verifier intersects
+/// these scopes with the owner's CURRENT role permissions - so revoking a
+/// permission from a role immediately narrows every key that leaned on it.
+/// An empty scope list means the key can do nothing on a scoped route, which
+/// is a safer default than inheriting everything.
+model ApiKeyScope {
+  apiKeyId      String @db.Char(36)
+  permissionKey String @db.VarChar(100)
+  createdAt     BigInt
+
+  apiKey ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  @@id([apiKeyId, permissionKey])
+  @@index([permissionKey])
+  @@map("api_key_scopes")
+}
+
+enum ApiKeyScopeTemplateStatus {
+  ACTIVE
+  INACTIVE
+  DELETED
+}
+
+/// A named bundle of scopes, so nobody has to assemble one from the whole
+/// permission catalogue.
+///
+/// Curated in the system console only. Tenants consume them but cannot create
+/// them, which is the point: it lets an operator offer "Reporting client" as a
+/// choice without also offering every permission in the system as a checkbox.
+///
+/// Applied as a COPY at creation time, not a live link: keys already issued
+/// keep their scopes, so editing a template never silently changes what an
+/// existing credential can do.
+model ApiKeyScopeTemplate {
+  id          String  @id @db.Char(36) // UUIDv7
+  systemCode  String  @unique @db.VarChar(30)
+  name        String  @unique @db.VarChar(150)
+  description String? @db.VarChar(255)
+
+  /// Offered in the tenant portal. A template without this is system-only,
+  /// which is how scopes a tenant must never hold stay out of reach.
+  isTenant Boolean @default(false)
+
+  /// Ordering in the picker; lower first. Ties fall back to name.
+  displayOrder Int @default(0)
+
+  status    ApiKeyScopeTemplateStatus @default(ACTIVE)
+  createdAt BigInt
+  updatedAt BigInt
+  deletedAt BigInt?
+
+  items ApiKeyScopeTemplateItem[]
+
+  @@index([status])
+  @@index([isTenant])
+  @@map("api_key_scope_templates")
+}
+
+/// The permission keys a template carries.
+model ApiKeyScopeTemplateItem {
+  templateId    String @db.Char(36)
+  permissionKey String @db.VarChar(100)
+  createdAt     BigInt
+
+  template ApiKeyScopeTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@id([templateId, permissionKey])
+  @@index([permissionKey])
+  @@map("api_key_scope_template_items")
+}
+
+// ---------------------------------------------------------------------------
+// Per-business settings.
+//
+// `app_settings` above is the PLATFORM layer: one global row per key, system
+// staff only. These three tables are the per-business layer, and they are a
+// catalogue plus one copy per business rather than a single table, so that a
+// setting can be defined once and still hold a different value for every
+// business.
+//
+// The per-business row deliberately DUPLICATES settingLabel / valueType /
+// validationRules from its definition rather than joining. A definition may
+// later be re-worded or retired, and an already-configured business must keep
+// rendering and validating against the terms it was set up with.
+// ---------------------------------------------------------------------------
+
+/// The control a setting renders as, and what its stored string must parse to.
+///
+/// Deliberately NOT the same enum as `AppSettingDataType`: that one describes
+/// the platform store and carries TEXT, while this one drops TEXT and adds the
+/// richer types the per-business settings screen knows how to render. Keeping
+/// them separate means re-wording one layer cannot disturb the other.
+enum SettingValueType {
+  STRING
+  INTEGER
+  DECIMAL
+  BOOLEAN
+  JSON
+  ARRAY
+  OBJECT
+  DATE
+  DATETIME
+  TIME
+  COLOR
+  FILE
+  URL
+  EMAIL
+  PHONE
+}
+
+enum SettingDefinitionStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum TenantBusinessSettingStatus {
+  ACTIVE
+  INACTIVE
+  DELETED
+}
+
+enum SettingSyncAction {
+  INSERTED
+  SKIPPED
+  FAILED
+}
+
+/// The catalogue: every setting a business can hold, defined once by system
+/// staff. Retiring one is `status = INACTIVE`, never a row delete, because
+/// businesses still hold copies that must keep working.
+model SettingDefinition {
+  id          String  @id @db.Char(36) // UUIDv7
+  systemCode  String  @unique @db.VarChar(30)
+  category    String  @db.VarChar(50)
+  subCategory String? @db.VarChar(50)
+  settingKey  String  @unique @db.VarChar(150)
+  settingLabel String @db.VarChar(150)
+  description String? @db.VarChar(255)
+  valueType   SettingValueType
+  defaultValue String? @db.Text
+
+  /// JSON object: { min, max, minLength, maxLength, pattern, enum[], multiEnum[] }.
+  /// An `enum` makes the settings screen render a dropdown with no UI code.
+  /// The screen also reads UI-only hints here (`ref`, `accept`) that the
+  /// backend validator ignores by design.
+  validationRules String? @db.Text
+
+  isRequired Boolean @default(false)
+
+  /// Value is stored AES-256-GCM encrypted and masked in every API response.
+  isEncrypted Boolean @default(false)
+
+  /// Tenants may read but not change it. The per-business row carries its own
+  /// copy of this flag, so one business can be locked without the others.
+  isReadonly Boolean @default(false)
+
+  /// Kept off the settings screen. The API still returns it, because app code
+  /// may need to read a setting the user is not meant to edit.
+  isVisible Boolean @default(true)
+
+  /// Whether creating this definition backfills it to businesses that already
+  /// exist, instead of only reaching ones created afterwards.
+  autoSyncToExistingTenants Boolean @default(false)
+
+  sortOrder Int                     @default(0)
+  status    SettingDefinitionStatus @default(ACTIVE)
+  createdAt BigInt
+  updatedAt BigInt
+  deletedAt BigInt?
+
+  tenantBusinessSettings TenantBusinessSetting[]
+  syncLogs               TenantBusinessSettingSyncLog[]
+
+  @@index([status])
+  @@index([category])
+  @@map("setting_definitions")
+}
+
+/// One business's value for one definition. Created from the definition's
+/// default when the business is created, or backfilled later by settings sync.
+model TenantBusinessSetting {
+  id                  String @id @db.Char(36) // UUIDv7
+  systemCode          String @unique @db.VarChar(30)
+  tenantBusinessId    String @db.Char(36)
+  settingDefinitionId String @db.Char(36)
+
+  // Copied from the definition at creation - see the note above.
+  category        String           @db.VarChar(50)
+  subCategory     String?          @db.VarChar(50)
+  settingKey      String           @db.VarChar(150)
+  settingLabel    String           @db.VarChar(150)
+  valueType       SettingValueType
+  description     String?          @db.VarChar(255)
+  validationRules String?          @db.Text
+
+  /// Always a string, whatever the valueType says. Null means never set;
+  /// readers must NOT assume the definition's default, which is applied at
+  /// copy time only.
+  settingValue String? @db.Text
+
+  isEncrypted Boolean @default(false)
+  isReadonly  Boolean @default(false)
+  isVisible   Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  status    TenantBusinessSettingStatus @default(ACTIVE)
+  createdBy String?                     @db.Char(36)
+  updatedBy String?                     @db.Char(36)
+  createdAt BigInt
+  updatedAt BigInt
+  deletedAt BigInt?
+
+  tenantBusiness    TenantBusiness    @relation(fields: [tenantBusinessId], references: [id])
+  settingDefinition SettingDefinition @relation(fields: [settingDefinitionId], references: [id])
+
+  /// What the counter allocator locks on, and what makes a backfill a no-op
+  /// the second time it runs.
+  @@unique([tenantBusinessId, settingKey])
+  @@index([status])
+  @@index([tenantBusinessId])
+  @@index([settingDefinitionId])
+  @@map("tenant_business_settings")
+}
+
+/// One row per definition per business per sync run. Not soft-deleted: it is
+/// an audit trail of what the backfill did, including what it skipped.
+model TenantBusinessSettingSyncLog {
+  id                  String            @id @db.Char(36) // UUIDv7
+  tenantBusinessId    String            @db.Char(36)
+  settingDefinitionId String            @db.Char(36)
+  action              SettingSyncAction
+  remarks             String?           @db.VarChar(255)
+  syncedBy            String?           @db.Char(36)
+  syncedAt            BigInt
+
+  tenantBusiness    TenantBusiness    @relation(fields: [tenantBusinessId], references: [id])
+  settingDefinition SettingDefinition @relation(fields: [settingDefinitionId], references: [id])
+
+  @@index([tenantBusinessId])
+  @@index([settingDefinitionId])
+  @@map("tenant_business_setting_sync_logs")
+}

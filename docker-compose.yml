@@ -1,0 +1,66 @@
+# ---------------------------------------------------------------------------
+# The whole system, one command - locally and in production.
+#
+#   docker compose up -d --build
+#
+# then open http://localhost:3000. On a new install the console redirects to
+# /setup, a first-run wizard that creates the SYSTEM_SUPER_ADMIN role with all
+# 118 permissions, the first administrator account and the branding. There are
+# no default credentials.
+#
+# What runs (each stack keeps its own file, and can still run on its own):
+#
+#   backend/docker/data       postgres                     127.0.0.1:5433
+#   backend/docker/services   api (+ migrate, on demand)   no published port
+#   console                   console-gateway + console     :3000
+#   backend/docker/edge       edge (Caddy): HTTPS for every  :80, :443
+#                             business domain               (docs/guide/domains)
+#
+# Containers: fttddwa-postgres, fttddwa-api, fttddwa-console, fttddwa-console-gateway,
+# fttddwa-edge.
+#
+# Configuration is per app, each with a committed .example template:
+#   backend/.env   the API, the database it creates (POSTGRES_*), the gateway
+#   console/.env   the console's runtime config
+# The stacks read backend/.env for their ${...}; see docs/guide/configuration.
+#
+# ONE ORIGIN. The console's nginx gateway is the only published entry point:
+# it serves the console and proxies /api and /uploads to the API, so every
+# browser request is same-origin. CORS does not apply to the browser path, and
+# the sameSite=strict auth cookies work on any hostname. That is why
+# console/.env sets a RELATIVE APP_API_URL=/api/v1, and why the API publishes
+# no port of its own.
+#
+# Native mobile apps use the same entry point, spelled absolutely:
+# https://<host>/api/v1 - see docs/guide/mobile-clients.
+#
+# The browser reaches the console on :3000 directly, or on 443 through the
+# edge; both work. The edge gives each tenant business domain its own HTTPS
+# certificate, issued on first visit and only for hostnames the API confirms
+# (docs/guide/domains). Locally it needs no DNS: *.localhost works out of the
+# box with Caddy's own CA.
+#
+# Everyday:
+#   docker compose up -d --build                  start or rebuild everything
+#   docker compose up -d postgres                 only the database, for npm run dev
+#   docker compose logs -f api console console-gateway
+#   docker compose logs -f edge                   certificates, HTTPS
+#   docker compose --profile setup run --rm migrate    apply migrations explicitly
+#   docker compose down                           stop; every volume survives
+#
+# `down -v` here deletes EVERYTHING - the database AND the edge's
+# certificates, unlike `down -v` on the services or console stack alone.
+# Re-requesting every certificate runs into Let's Encrypt's rate limit of 5
+# per domain per week, so never do it on a server with real domains.
+# ---------------------------------------------------------------------------
+
+name: fttddwa
+
+include:
+  - path: backend/docker/data/compose.yml
+  - path: backend/docker/services/compose.yml
+  - path: console/docker-compose.yml
+    env_file: backend/.env
+  # HTTPS for the business domains, on 80/443: docs/guide/domains
+  - path: backend/docker/edge/compose.yml
+    env_file: backend/.env

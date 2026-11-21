@@ -1,0 +1,35 @@
+# ---------------------------------------------------------------------------
+# FTTDDWA backend services - production-style Docker stack.
+#
+#   api      the NestJS API, the only published port here
+#   migrate  one-off migrate / seed job (profile "setup", never starts with up)
+#
+# PostgreSQL is NOT here: it is the data stack in ../data, with a lifecycle of
+# its own, so `down` or `up --build` here never touches the database. The API
+# reaches it as "postgres" over the shared fttddwa-data network. The
+# repository-root docker-compose.yml runs both stacks and the console with one
+# command; run this file on its own only for a split deployment, after the
+# data stack.
+#
+# A new database needs no manual step: the API applies migrations on boot
+# (backend/docker/entrypoint.sh), then the console's /setup wizard creates the
+# SYSTEM_SUPER_ADMIN role, the first administrator and the branding.
+#
+# ONE .env FILE. Every ${...} below is read from backend/.env (the env_file
+# lines in `include`), and the containers load the same file through their own
+# env_file. The few values that must differ inside Docker are separate keys in
+# that same file (DOCKER_DATABASE_URL and friends) and are mapped in
+# api/compose.yml, so `npm run dev` on the host keeps working from it too.
+#
+# Usage (from backend/docker/services/):
+#   docker compose up -d --build                      start the API
+#   docker compose --profile setup run --rm migrate    apply migrations explicitly
+#   docker compose logs -f api
+#   docker compose down                                stop; the data stack keeps running
+# ---------------------------------------------------------------------------
+
+name: fttddwa-backend
+
+include:
+  - path: api/compose.yml
+    env_file: ../../.env

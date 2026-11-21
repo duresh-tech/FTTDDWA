@@ -1,0 +1,136 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --radius: 0.5rem;
+  --background: #F4F6FB;
+  --foreground: #0F172A;
+  --card: #FFFFFF;
+  --card-foreground: #0F172A;
+  --popover: #FFFFFF;
+  --popover-foreground: #0F172A;
+  --primary: #4F46E5; /* Indigo */
+  --primary-hover: #4338CA;
+  --primary-active: #3730A3;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F1F5F9;
+  --secondary-foreground: #334155;
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
+  --accent: #F1F5F9;
+  --accent-foreground: #0F172A;
+  --info: #0EA5E9; /* Sky - informational badges, links, secondary highlights */
+  --info-foreground: #FFFFFF;
+  --success: #16A34A;
+  --success-foreground: #FFFFFF;
+  --warning: #D97706;
+  --warning-foreground: #FFFFFF;
+  --destructive: #DC2626;
+  --destructive-foreground: #FFFFFF;
+  --border: #E2E8F0;
+  --input: #E2E8F0;
+  --ring: #4F46E5;
+
+  /* Sidebar is a fixed dark gradient regardless of light/dark app theme */
+  --sidebar: #111827;
+  --sidebar-foreground: #CBD5E1;
+  --sidebar-active-bg: rgba(79, 70, 229, 0.18);
+  --sidebar-active-border: #4F46E5;
+
+  --gradient-sidebar: linear-gradient(180deg, #111827 0%, #1E1B4B 100%);
+  --gradient-header: linear-gradient(90deg, #4F46E5 0%, #0EA5E9 100%);
+  --gradient-stat-border: linear-gradient(90deg, #4F46E5, #0EA5E9);
+
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.06);
+  --shadow-card-hover: 0 8px 24px rgba(79, 70, 229, 0.12);
+  --shadow-sidebar: 2px 0 12px rgba(0, 0, 0, 0.15);
+}
+
+.dark {
+  --background: #0B0F19;
+  --foreground: #E2E8F0;
+  --card: #151B2B;
+  --card-foreground: #E2E8F0;
+  --popover: #151B2B;
+  --popover-foreground: #E2E8F0;
+  --primary: #4F46E5;
+  --primary-hover: #4338CA;
+  --primary-active: #3730A3;
+  --primary-foreground: #FFFFFF;
+  --secondary: #1F2A3D;
+  --secondary-foreground: #E2E8F0;
+  --muted: #1F2A3D;
+  --muted-foreground: #94A3B8;
+  --accent: #1F2A3D;
+  --accent-foreground: #E2E8F0;
+  --info: #0EA5E9;
+  --info-foreground: #FFFFFF;
+  --success: #16A34A;
+  --success-foreground: #FFFFFF;
+  --warning: #D97706;
+  --warning-foreground: #FFFFFF;
+  --destructive: #DC2626;
+  --destructive-foreground: #FFFFFF;
+  --border: #1F2A3D;
+  --input: #1F2A3D;
+  --ring: #4F46E5;
+
+  --sidebar: #111827;
+  --sidebar-foreground: #CBD5E1;
+  --sidebar-active-bg: rgba(79, 70, 229, 0.18);
+  --sidebar-active-border: #4F46E5;
+
+  --gradient-sidebar: linear-gradient(180deg, #111827 0%, #1E1B4B 100%);
+  --gradient-header: linear-gradient(90deg, #4F46E5 0%, #0EA5E9 100%);
+  --gradient-stat-border: linear-gradient(90deg, #4F46E5, #0EA5E9);
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.24);
+  --shadow-card-hover: 0 8px 24px rgba(79, 70, 229, 0.24);
+  --shadow-sidebar: 2px 0 12px rgba(0, 0, 0, 0.4);
+}
+
+@theme inline {
+  --font-sans: var(--font-inter), "SF Pro Display", system-ui, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+}

@@ -1,0 +1,73 @@
+# PostgreSQL 17. Included by ../compose.yml - run that, not this file.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: ${LOG_MAX_SIZE:-10m}
+    max-file: ${LOG_MAX_FILE:-5}
+
+services:
+  postgres:
+    container_name: fttddwa-postgres
+    image: postgres:17-alpine
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      # Read only when the volume is first created. Changing them later does
+      # NOT change the database - you would need `down -v` and a fresh setup.
+      POSTGRES_USER: ${POSTGRES_USER:-fttddwa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in backend/.env}
+      POSTGRES_DB: ${POSTGRES_DB:-fttddwa_db}
+    # Run as postgres (UID 70 in the alpine image) from the start, so no
+    # capabilities are needed: the image's data directory, and so a new volume,
+    # is already owned by postgres. Started as root, the entrypoint would need
+    # CHOWN/SETUID/SETGID to drop privileges itself.
+    user: postgres
+    ports:
+      # 127.0.0.1 only: host-native `npm run dev`, psql and Prisma Studio can
+      # reach it, nothing else on the network can. 5433 by default so a native
+      # Postgres already owning 5432 does not collide.
+      - '127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    read_only: true
+    tmpfs:
+      # The Unix socket and lock file. A tmpfs mounts owned by root, so hand
+      # it to postgres explicitly.
+      - /var/run/postgresql:uid=70,gid=70
+      - /tmp
+    # Room for parallel queries; Docker's 64m default is tight.
+    shm_size: ${POSTGRES_SHM_SIZE:-256m}
+    # A shutdown checkpoint can outlast Docker's 10s default on a busy
+    # database, and a SIGKILL then means crash recovery on the next start.
+    stop_grace_period: 60s
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: *logging
+    networks:
+      # data: how the api reaches it, by the name "postgres".
+      # host-port: only so the 127.0.0.1 port above can be published - an
+      # internal network cannot publish one.
+      - data
+      - host-port
+
+networks:
+  # Defined identically in every stack that uses it, so whichever starts
+  # first creates it. Internal: no route to the internet through it.
+  data:
+    name: fttddwa-data
+    internal: true
+  # Holds postgres alone, for its 127.0.0.1 published port.
+  host-port:
+
+volumes:
+  # A fixed name, so the data does not depend on the folder or project name
+  # this stack happens to run under.
+  postgres-data:
+    name: fttddwa-postgres-data

@@ -1,0 +1,14 @@
+{
+  "name": "fttddwa-docs",
+  "private": true,
+  "description": "FTTDDWA documentation (VitePress). Its own package so the docs tooling never reaches the backend's or console's dependencies or Docker images.",
+  "type": "module",
+  "scripts": {
+    "docs:dev": "vitepress dev",
+    "docs:build": "vitepress build",
+    "docs:preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.3"
+  }
+}

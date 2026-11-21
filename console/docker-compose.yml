@@ -1,0 +1,165 @@
+# ---------------------------------------------------------------------------
+# System console - Docker stack.
+#
+#   console-gateway  nginx: reverse proxy, the only published port. Serves the
+#                    console at / and forwards /api and /uploads to the API.
+#   console          the Next.js standalone server, reachable only through
+#                    the gateway.
+#
+# The API is NOT in this file; the repository-root docker-compose.yml includes
+# both. The gateway reaches api:4000 over the shared fttddwa-app network.
+#
+# ONE ORIGIN FOR THE BROWSER. Everything the browser needs is served from this
+# stack's single port, so no request is ever cross-origin: CORS does not apply
+# to the browser path, and the auth cookies (sameSite=strict, no explicit
+# domain) work on any hostname - including each tenant business domain, which
+# gets its own cookie jar. That is why console/.env sets a RELATIVE
+# APP_API_URL=/api/v1.
+#
+# Configuration is read at RUN time, not build time. `next build` inlines
+# every NEXT_PUBLIC_* read into the client bundle, which would pin a built
+# image to one API URL; instead the Next server publishes the real values at
+# /runtime-config.js and src/lib/runtime-config.ts reads them in the browser.
+# So changing APP_API_URL is a restart, not a --build.
+#
+# Usually started by the root docker-compose.yml. On its own, after the
+# backend stacks (from console/):
+#   docker compose up -d --build
+#   docker compose logs -f console-gateway console
+#   docker compose down
+# ---------------------------------------------------------------------------
+
+name: ${COMPOSE_PROJECT_NAME:-fttddwa-console}
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: ${LOG_MAX_SIZE:-10m}
+    max-file: ${LOG_MAX_FILE:-5}
+
+x-hardening: &hardening
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+services:
+  console-gateway:
+    <<: *hardening
+    container_name: fttddwa-console-gateway
+    image: nginxinc/nginx-unprivileged:1.29-alpine
+    restart: unless-stopped
+    init: true
+    ports:
+      # The only published port of this stack. Set CONSOLE_HTTP_BIND=127.0.0.1
+      # when the edge fronts it in production - Docker's published ports
+      # bypass a host firewall such as UFW, so a firewall rule alone does not
+      # close them.
+      - '${CONSOLE_HTTP_BIND:-0.0.0.0}:${CONSOLE_HTTP_PORT:-3000}:8080'
+    environment:
+      NGINX_API_UPSTREAM: ${NGINX_API_UPSTREAM:-api:4000}
+      NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY_SIZE:-10m}
+      NGINX_PROXY_TIMEOUT: ${NGINX_PROXY_TIMEOUT:-60s}
+      NGINX_EDGE_IP: ${PROXY_EDGE_IP:-172.31.251.20}
+      # Restricts envsubst to NGINX_* names. Without it, envsubst would also
+      # replace nginx's own $host, $remote_addr, $scheme and $request_id with
+      # empty strings and silently break every forwarded header.
+      NGINX_ENVSUBST_FILTER: '^NGINX_'
+    volumes:
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ./nginx/snippets:/etc/nginx/snippets:ro
+    read_only: true
+    tmpfs:
+      # The uid/gid are NOT optional. A tmpfs mounts root-owned, and the
+      # official entrypoint renders the template into this directory as UID
+      # 101 - without them it cannot write, and nginx starts with no server
+      # block at all, reporting healthy while serving its built-in default.
+      #   docker exec fttddwa-console-gateway ls -la /etc/nginx/conf.d
+      # must list default.conf owned by 101.
+      - /etc/nginx/conf.d:uid=101,gid=101
+      - /tmp
+    depends_on:
+      console:
+        condition: service_healthy
+    healthcheck:
+      # busybox wget ships in the alpine image; curl does not. Targets the
+      # self-answered location, so it stays green while an upstream restarts.
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8080/nginx-health']
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      # Long enough to cover the console's own 25s start_period, which
+      # depends_on waits out before this container is even created.
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '${CONSOLE_GATEWAY_CPUS:-0.5}'
+          memory: ${CONSOLE_GATEWAY_MEMORY:-128m}
+    logging: *logging
+    networks:
+      # app: reaches both api:4000 and console:3000.
+      # proxy: where the edge reaches this gateway, from PROXY_EDGE_IP.
+      - app
+      - proxy
+
+  console:
+    container_name: fttddwa-console
+    build:
+      context: .
+      target: prod
+    image: ${IMAGE_REGISTRY:-}fttddwa-console:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    init: true
+    # Console-only configuration, kept separate from the backend's .env so
+    # each app owns its own. Read by the Next SERVER and published to the
+    # browser by src/app/runtime-config.js/route.ts.
+    env_file:
+      - ./.env
+    environment:
+      NODE_ENV: production
+    # No published port: only the gateway reaches it.
+    read_only: true
+    tmpfs:
+      - /tmp
+      # Next writes here at runtime; the root filesystem is read-only. UID
+      # 1000 is the image's `node` user.
+      - /app/.next/cache:uid=1000,gid=1000
+    stop_grace_period: 30s
+    healthcheck:
+      # /system/login rather than / (which redirects), and it needs no
+      # backend. Node 22 has global fetch, so nothing extra is installed.
+      test:
+        - CMD
+        - node
+        - -e
+        # $$ escapes the $ so compose leaves the JS template literal alone.
+        - 'fetch(`http://127.0.0.1:$${process.env.PORT||3000}/system/login`).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))'
+      interval: 15s
+      timeout: 5s
+      start_period: 25s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '${CONSOLE_CPUS:-1}'
+          memory: ${CONSOLE_MEMORY:-512m}
+    logging: *logging
+    networks:
+      - app
+
+networks:
+  app:
+    name: fttddwa-app
+  # Declared IDENTICALLY in backend/docker/edge/compose.yml - same name, same
+  # subnet default - so whichever stack starts first creates it and `include:`
+  # merges them without conflict. Change the subnet in BOTH or compose errors.
+  proxy:
+    name: fttddwa-proxy
+    ipam:
+      config:
+        - subnet: ${PROXY_NETWORK_SUBNET:-172.31.251.0/24}

@@ -1,0 +1,66 @@
+# ---------------------------------------------------------------------------
+# The edge: HTTPS for every tenant business domain and the console host, in
+# front of the console gateway. See docs/guide/domains.
+#
+# Certificates are issued ON DEMAND, on a hostname's first visit, and only for
+# hostnames the API knows: an enabled tenant business domain, or one listed in
+# SYSTEM_PORTAL_HOSTS. Caddy asks the API before every new certificate, so
+# nobody can point DNS at this server and have it request certificates for
+# names of their choosing.
+#
+# Every request goes to the console gateway, which serves the console and
+# forwards /api and /uploads to the API. The browser therefore only ever talks
+# to the hostname it is already on - which is what keeps every tenant domain
+# same-origin and CORS-free.
+#
+# There is no per-tenant routing here and no injected header: the business
+# identity travels in the Host header, which nginx preserves.
+# ---------------------------------------------------------------------------
+{
+	# "email <ACME_EMAIL>" when ACME_EMAIL is set (Let's Encrypt expiry
+	# notices). Compose injects the WHOLE LINE, so an unset value omits the
+	# directive instead of leaving "email" with an empty argument, which
+	# would fail to parse.
+	{$EDGE_ACME_EMAIL}
+	# Optional (EDGE_TLS=local_certs): Caddy's own authority for every name -
+	# a staging server with no public DNS. Empty, the default: Let's Encrypt
+	# for public domains, and Caddy's own CA for the localhost names below.
+	{$EDGE_TLS}
+	on_demand_tls {
+		# Straight to the API over the shared app network, by container name
+		# (so this works whether the stack runs merged from the repository
+		# root or on its own). The console gateway hard-404s this path, so a
+		# browser can never reach it; `key` is a shared secret from
+		# backend/.env, and Caddy appends ?domain=<host> alongside it.
+		ask http://fttddwa-api:4000/api/v1/public/site/allowed?key={$EDGE_ASK_KEY}
+	}
+}
+
+# Local names (this machine only, RFC 6761): certificates from Caddy's own
+# authority, so a local run needs no DNS and no setup. Let's Encrypt is never
+# asked for these, and never could issue for them.
+#
+# MUST stay before the catch-all below - Caddy matches the most specific site
+# block, and these names would otherwise fall into on-demand TLS and be
+# refused until they were added as business domains.
+localhost, *.localhost {
+	tls internal
+	encode gzip
+	reverse_proxy fttddwa-console-gateway:8080
+}
+
+# Every other hostname: a Let's Encrypt certificate on first visit, once the
+# API confirms it is an enabled business domain or a system portal host.
+https:// {
+	tls {
+		on_demand
+	}
+	encode gzip
+	reverse_proxy fttddwa-console-gateway:8080
+}
+
+# Plain HTTP: redirect to HTTPS for every hostname. Port 80 must stay open
+# regardless, because Let's Encrypt validates over HTTP-01 on it.
+http:// {
+	redir https://{host}{uri} permanent
+}

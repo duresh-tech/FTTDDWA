@@ -1,0 +1,31 @@
+# ---------------------------------------------------------------------------
+# FTTDDWA data stack: the database, on its own.
+#
+#   postgres  PostgreSQL 17 - the only datastore this app uses
+#
+# Separate from the services stack (../services) so the data has its own
+# lifecycle: `down` or `up --build` on the API never stops, recreates or
+# rebuilds the database.
+#
+# It reads backend/.env for ${...} - the same file the services stack and
+# `npm run dev` use, so the credentials live in exactly one place. The
+# database NAME comes from POSTGRES_DB there and nowhere else; the API's
+# DATABASE_URL is composed from it in ../services/api/compose.yml.
+#
+# Usually started by the repository-root docker-compose.yml, with everything
+# else. Run on its own, it is the database for `npm run dev`. Its fttddwa-data
+# network is defined the same way in every stack that uses it, so whichever
+# starts first creates it.
+#
+# Usage (from backend/docker/data/):
+#   docker compose up -d
+#   docker compose logs -f postgres
+#   docker compose down        stop; the named volume survives
+#   docker compose down -v     DELETES the database
+# ---------------------------------------------------------------------------
+
+name: fttddwa-data
+
+include:
+  - path: postgres/compose.yml
+    env_file: ../../.env

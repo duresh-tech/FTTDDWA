@@ -1,0 +1,27 @@
+# OS / editor junk
+.DS_Store
+Thumbs.db
+*.swp
+
+# Claude Code local machine settings (not shared)
+.claude/settings.local.json
+
+# graphify: generated/derived knowledge graph, local cache, and machine-
+# specific interpreter/root paths. Regenerate with `graphify extract .
+# --code-only` then `graphify cluster-only .` — don't commit (large, goes
+# stale on every code change, and cost.json/manifest.json track purely local
+# usage). graphify-out/ covers the default output; the root-level patterns
+# cover the same artifacts when a custom --out directory is used.
+graphify-out/
+.graphify_*.json
+.graphify_root
+
+# Per-app env files (hold real secrets). Templates are committed as
+# backend/.env.example and console/.env.example.
+backend/.env
+console/.env
+console/.env.local
+
+# Host dev-server logs
+backend/.dev-server*.log
+console/.dev-server*.log

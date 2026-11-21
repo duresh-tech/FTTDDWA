@@ -1,0 +1,132 @@
+# ---------------------------------------------------------------------------
+# Gateway for the console. One origin for the browser.
+#
+#   /                 the Next.js console
+#   /_next/static/    content-hashed build output, cached forever
+#   /api/v1/...       the API        -> api:4000
+#   /uploads/...      stored files   -> api:4000
+#
+# Because everything is one origin the browser never makes a cross-origin
+# request: CORS does not come into it, and the auth cookies (sameSite=strict,
+# no explicit domain) just work on any hostname - including each tenant
+# business domain, which gets its own cookie jar. console/.env therefore sets
+# APP_API_URL=/api/v1, and src/lib/runtime-config.ts derives the uploads
+# origin as "" from it.
+#
+# Native mobile apps use this same origin (https://<host>/api/v1), so they
+# inherit its TLS and host routing - see docs/guide/mobile-clients.md.
+#
+# Swagger is NOT proxied: the OpenAPI spec is served from a permission-gated
+# route inside the API instead (docs/guide/security.md).
+#
+# This file is a TEMPLATE, rendered at container start by the official
+# entrypoint's envsubst. Only NGINX_* variables are substituted
+# (NGINX_ENVSUBST_FILTER in docker-compose.yml), so nginx's own $host,
+# $remote_addr and $request_id pass through untouched.
+# ---------------------------------------------------------------------------
+
+# Docker's embedded DNS, so api and console can be recreated without an nginx
+# reload. Requires the `resolve` flag on the upstream servers below, which in
+# turn requires `zone`.
+resolver 127.0.0.11 valid=10s ipv6=off;
+resolver_timeout 5s;
+
+upstream console {
+    zone console 64k;
+    server console:3000 resolve;
+    keepalive 16;
+}
+
+upstream api {
+    zone api 64k;
+    server ${NGINX_API_UPSTREAM} resolve;
+    keepalive 16;
+}
+
+# The edge (Caddy, backend/docker/edge, compose profile "edge") terminates
+# HTTPS and forwards here. Believe its X-Forwarded-For so $remote_addr below
+# is the real client; snippets/proxy.conf then passes that single value on,
+# which is what makes TRUST_PROXY=1 correct with OR without the edge running.
+# Without the edge nothing arrives from this address and this is inert.
+set_real_ip_from ${NGINX_EDGE_IP};
+real_ip_header X-Forwarded-For;
+
+server {
+    # 8080: the unprivileged image runs as UID 101 and cannot bind below 1024.
+    # Compose maps CONSOLE_HTTP_PORT on the host onto it. Every hostname is
+    # this one server: the console host and each tenant business domain.
+    listen 8080;
+    server_name _;
+
+    access_log /dev/stdout;
+    error_log  /dev/stderr warn;
+    server_tokens off;
+
+    # Uploads pass through here on their way to the API. nginx defaults to 1m,
+    # which is BELOW the API's own 5 MB limit (src/uploads/uploads.controller.ts
+    # and src/app-settings/app-settings.service.ts) - leave this unset and a
+    # logo over 1 MB becomes a 413 before the API ever sees it.
+    client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};
+
+    proxy_connect_timeout 5s;
+    proxy_read_timeout    ${NGINX_PROXY_TIMEOUT};
+    proxy_send_timeout    ${NGINX_PROXY_TIMEOUT};
+
+    gzip on;
+    gzip_types application/json text/plain text/css application/javascript image/svg+xml;
+    gzip_min_length 1024;
+    gzip_proxied any;
+
+    # Answered by nginx itself, so it stays green while an upstream restarts.
+    location = /nginx-health {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    # ---- API ---------------------------------------------------------------
+    # Caddy's on-demand TLS check. The edge calls the API directly over the
+    # fttddwa-app network; this must never be reachable from a browser on the
+    # public port.
+    location ~ ^/api/v[0-9]+/public/site/allowed$ {
+        return 404;
+    }
+
+    # /api/vN/...  the API itself
+    # /uploads/... stored files (getUploadsOrigin() is "" once APP_API_URL is
+    #              relative, so uploadUrl() produces /uploads/<path>)
+    # No trailing path on proxy_pass inside a regex location, so the original
+    # URI reaches the API unrewritten.
+    location ~ ^/(api/|uploads/) {
+        include /etc/nginx/snippets/proxy.conf;
+
+        # No x-api-key injection here. The API requires a key on every /api
+        # call, but the console sends its own (src/lib/console-key.ts), which
+        # it reads from GET /system/setup/status at run time. One mechanism in
+        # Docker and in `npm run dev`, nothing for this file to hold, and a
+        # reissued key needs no rebuild.
+        #
+        # /uploads is served by app.useStaticAssets(), which mounts on the
+        # Express adapter OUTSIDE Nest's guard pipeline - so stored files need
+        # no key and an <img src> works, which it could not if they did.
+        proxy_pass http://api;
+    }
+
+    # ---- Console -----------------------------------------------------------
+    # Content-hashed build output: a changed file gets a new name, so it can be
+    # cached forever. /runtime-config.js is deliberately NOT here - it sends
+    # its own no-store and must stay uncached, or one environment's API URL
+    # would be served to another.
+    location /_next/static/ {
+        include /etc/nginx/snippets/proxy.conf;
+        proxy_pass http://console;
+        # Replace the console's own Cache-Control rather than duplicating it.
+        proxy_hide_header Cache-Control;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
+    location / {
+        include /etc/nginx/snippets/proxy.conf;
+        proxy_pass http://console;
+    }
+}

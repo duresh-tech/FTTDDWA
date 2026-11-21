@@ -1,0 +1,9 @@
+node_modules
+.next
+out
+.env
+.env.*
+*.log
+.dev-server-run.log
+tsconfig.tsbuildinfo
+.agents

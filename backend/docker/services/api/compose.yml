@@ -1,0 +1,154 @@
+# The API and the one-off migrate/seed job - one image, built from
+# backend/Dockerfile. Included by ../compose.yml - run that, not this file.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: ${LOG_MAX_SIZE:-10m}
+    max-file: ${LOG_MAX_FILE:-5}
+
+# Everything the API and the migrate job share: one image, one configuration.
+x-api: &api
+  # Baseline hardening: no privilege escalation through setuid binaries, and
+  # no Linux capabilities.
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  build:
+    # backend/ - the Dockerfile's context.
+    context: ../../..
+    target: prod
+  # Built once, tagged, and reused by both services - and by a registry push
+  # when this moves to a server.
+  image: ${IMAGE_REGISTRY:-}fttddwa-api:${IMAGE_TAG:-latest}
+  # Everything in backend/.env: JWT secrets, CORS_ORIGINS, storage, Swagger.
+  # The `environment:` block on each service then overrides the few values
+  # that must differ inside Docker. (A YAML merge replaces a map wholesale, so
+  # `environment` lives on each service, not here.)
+  env_file:
+    - ../../../.env
+  logging: *logging
+  networks:
+    - app
+    - data
+
+# The handful of values that differ inside the container. backend/.env is
+# written for the host (localhost:5433), so these override it.
+x-api-env: &api-env
+  # The data stack's postgres, by service name. DOCKER_DATABASE_URL points
+  # the API at a different PostgreSQL instead (a managed one, say); it must be
+  # a postgresql:// URL, since the schema is Postgres-only.
+  #
+  # POSTGRES_DB is the single source of the database name - the data stack
+  # creates that database, and this composes the URL from the same value.
+  DATABASE_URL: ${DOCKER_DATABASE_URL:-postgresql://${POSTGRES_USER:-fttddwa}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in backend/.env}@postgres:5432/${POSTGRES_DB:-fttddwa_db}?schema=public&connection_limit=${API_DB_POOL:-10}}
+  PORT: '4000'
+
+services:
+  api:
+    <<: *api
+    container_name: fttddwa-api
+    restart: unless-stopped
+    # No depends_on postgres: it lives in another stack (../../data), which
+    # compose cannot wait on when this file runs on its own. If the database
+    # is not up yet the API exits and `restart` retries it until it is.
+    environment:
+      <<: *api-env
+      # CORS_ORIGINS and COOKIE_SECURE come from backend/.env: they describe
+      # how the BROWSER reaches things, which Docker does not change.
+      APP_ENV: ${APP_ENV:-development}
+    # PID 1 reaping and signal forwarding, so `docker stop` reaches Nest's
+    # shutdown hooks and Prisma closes its connections cleanly.
+    init: true
+    volumes:
+      # Local-storage uploads (STORAGE_DRIVER=local). UPLOADS_HOST_DIR, an
+      # absolute folder on the server, puts them there instead of the named
+      # volume. The image creates and chowns this path before dropping to the
+      # `node` user, which is what keeps a fresh volume writable.
+      - ${UPLOADS_HOST_DIR:-uploads}:/app/public/uploads
+    # The code and dependencies never change at runtime, so the root
+    # filesystem is read-only; only the uploads volume and /tmp are writable.
+    read_only: true
+    tmpfs:
+      - /tmp
+    # Long enough for in-flight requests to finish after SIGTERM.
+    stop_grace_period: 30s
+    # NO published port. The console gateway proxies /api and /uploads to
+    # this service over fttddwa-app, and that gateway is the single public entry
+    # point - for browsers and for native mobile apps alike
+    # (docs/guide/mobile-clients.md). The OpenAPI spec is served from a
+    # permission-gated route inside the portal rather than an open /docs.
+    #
+    # For host-native development run the API on the host instead
+    # (cd backend && npm run dev), which binds 4000 directly.
+    healthcheck:
+      # The header is required: DeviceHeaderGuard is global, and its one
+      # bypass exists only for Caddy's TLS check - a probe without
+      # x-device-type gets a 400. Node 22 has global fetch, so nothing extra
+      # is installed in the image.
+      #
+      # $$ escapes the $ so compose leaves the JS template literal alone.
+      # Unescaped, compose expands ${v} to "" and the probe silently hits
+      # /api/v/system/health - a healthcheck that can never pass.
+      test:
+        - CMD
+        - node
+        - -e
+        - "const v=process.env.API_VERSION||'1';fetch(`http://127.0.0.1:4000/api/v$${v}/system/health`,{headers:{'x-device-type':'website'}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      start_period: 40s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '${API_CPUS:-1.5}'
+          memory: ${API_MEMORY:-768m}
+
+  # One-off schema and seed job. In the "setup" profile, so it never starts
+  # with `up`:
+  #   docker compose --profile setup run --rm migrate
+  #   docker compose --profile setup run --rm --entrypoint node migrate dist/prisma/seed
+  #
+  # `--entrypoint node` on the second one is NOT optional: this service pins
+  # `entrypoint: ['npx', 'prisma']` below, so a bare `run ... migrate node
+  # dist/prisma/seed` becomes `npx prisma node dist/prisma/seed` and just
+  # prints Prisma's help text, exit 0, having seeded nothing.
+  #
+  # The api container already applies migrations on boot (docker/entrypoint.sh),
+  # so this is for running them deliberately - before a rollout, or to seed an
+  # instance instead of using the /setup wizard.
+  migrate:
+    <<: *api
+    profiles:
+      - setup
+    # Same as api: postgres is another stack. This is a deliberate one-off
+    # command, so a connection error is immediate and obvious.
+    environment:
+      <<: *api-env
+    # Skip the image's entrypoint (which would migrate and then start the
+    # server) and run just the command.
+    entrypoint: ['npx', 'prisma']
+    command: ['migrate', 'deploy']
+    restart: 'no'
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ${UPLOADS_HOST_DIR:-uploads}:/app/public/uploads
+
+networks:
+  # Reached by the console stack and anything else that needs the API.
+  app:
+    name: fttddwa-app
+  # The data stack's internal network, defined identically there.
+  data:
+    name: fttddwa-data
+    internal: true
+
+volumes:
+  # Fixed name, so uploads do not depend on the project name this stack runs
+  # under. Ignored when UPLOADS_HOST_DIR names a host folder.
+  uploads:
+    name: fttddwa-uploads

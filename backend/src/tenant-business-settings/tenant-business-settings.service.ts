@@ -1,0 +1,377 @@
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { decryptValue, encryptValue } from '../common/utils/encryption.util';
+import { newId, newSystemCode, now } from '../common/utils/id.util';
+import { listResponse, paginate } from '../common/dto/query.dto';
+import { validateValueForValueType } from '../setting-definitions/dto/setting-definition.dto';
+import {
+  BatchUpdateTenantBusinessSettingDto,
+  UpdateTenantBusinessSettingDto,
+} from './dto/tenant-business-setting.dto';
+import { TenantBusinessSettingListQueryDto } from './dto/tenant-business-setting-query.dto';
+
+type SettingRow = {
+  isEncrypted: boolean;
+  settingValue: string | null;
+};
+
+/**
+ * Blanks encrypted values on the way out. The ciphertext never leaves the
+ * server, and a blank on the way back in means "unchanged" rather than
+ * "clear it" - see update().
+ */
+function mask<T extends SettingRow>(row: T): T {
+  if (!row.isEncrypted || row.settingValue === null) return row;
+  return { ...row, settingValue: '' };
+}
+
+/**
+ * A FILE setting holds a RELATIVE storage path, never a URL and never an
+ * absolute or escaping path. Returns a message fragment, or null when fine.
+ *
+ * This is all the checking a path gets here. The richer model - per-business
+ * folders, and proving a path belongs to the business that is saving it -
+ * needs an upload-folder subsystem this project does not have; uploads land in
+ * one place and are addressed by the path the upload endpoint returned.
+ */
+function checkSettingPath(value: string): string | null {
+  if (value === '') return null;
+  if (value.startsWith('/') || value.includes('\\')) {
+    return 'value must be a relative storage path';
+  }
+  if (value.split('/').includes('..')) {
+    return 'value must not contain ".."';
+  }
+  if (/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(value)) {
+    return 'value must be a storage path, not a URL';
+  }
+  return null;
+}
+
+@Injectable()
+export class TenantBusinessSettingsService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  // ---------- Business-creation hook ----------
+
+  /**
+   * Gives a new tenant business its own full, independently-editable copy of
+   * every ACTIVE setting definition.
+   *
+   * Takes a transaction client and MUST be called inside the same transaction
+   * that creates the business, so a failure here rolls the business back too -
+   * a business with no settings rows would render an empty settings screen and
+   * break any code that reads a setting by key.
+   */
+  async copyDefaultsForBusiness(
+    tx: Prisma.TransactionClient,
+    tenantBusinessId: string,
+    actorId?: string,
+  ) {
+    const definitions = await tx.settingDefinition.findMany({
+      where: { status: 'ACTIVE' },
+    });
+    if (definitions.length === 0) return;
+
+    const timestamp = now();
+    // Every column here must match the backfill in SettingsSyncService, or a
+    // business created now renders differently from one backfilled later.
+    await tx.tenantBusinessSetting.createMany({
+      data: definitions.map((def) => ({
+        id: newId(),
+        systemCode: newSystemCode('TBS'),
+        tenantBusinessId,
+        settingDefinitionId: def.id,
+        category: def.category,
+        subCategory: def.subCategory,
+        settingKey: def.settingKey,
+        settingLabel: def.settingLabel,
+        valueType: def.valueType,
+        settingValue: def.defaultValue,
+        description: def.description,
+        validationRules: def.validationRules,
+        isEncrypted: def.isEncrypted,
+        isReadonly: def.isReadonly,
+        isVisible: def.isVisible,
+        sortOrder: def.sortOrder,
+        createdBy: actorId,
+        updatedBy: actorId,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })),
+    });
+  }
+
+  // ---------- How application code reads settings ----------
+
+  /**
+   * Decrypted `key -> value` map for a business. Pass `keys` to limit the
+   * query. This is how application code reads settings; it deliberately does
+   * not mask, because the caller is the server itself.
+   *
+   * It does NOT fall back to the definition's defaultValue. The default is
+   * applied once, when the row is created; a missing or null row reads as
+   * absent here and every caller must supply its own fallback. Assuming
+   * otherwise is the easy mistake - a business whose row was never created
+   * would silently take the catalogue's current default instead of the one it
+   * was set up with.
+   */
+  async getSettingsMapForBusiness(
+    tenantBusinessId: string,
+    keys?: string[],
+  ): Promise<Record<string, string>> {
+    const rows = await this.prisma.tenantBusinessSetting.findMany({
+      where: {
+        tenantBusinessId,
+        status: 'ACTIVE',
+        ...(keys ? { settingKey: { in: keys } } : {}),
+      },
+    });
+    const map: Record<string, string> = {};
+    for (const row of rows) {
+      if (row.settingValue === null) continue;
+      map[row.settingKey] = row.isEncrypted
+        ? decryptValue(row.settingValue)
+        : row.settingValue;
+    }
+    return map;
+  }
+
+  /**
+   * Atomically allocates the next number in a per-business counter setting
+   * (`customer.nextCode`), returning the number it consumed.
+   *
+   * A read-then-write will not do: two concurrent callers inside their own
+   * transactions both read the same number. `SELECT ... FOR UPDATE` takes a
+   * locking read of the latest committed row and serialises them for the short
+   * critical section.
+   *
+   * Must be called inside the caller's own transaction, so consuming the
+   * number is part of the same unit of work as the record that uses it -
+   * otherwise a failed insert burns a number. Formatting (prefix,
+   * zero-padding) is the caller's concern.
+   */
+  async consumeSequenceNumber(
+    tx: Prisma.TransactionClient,
+    tenantBusinessId: string,
+    counterKey: string,
+  ): Promise<number> {
+    // Columns are quoted because PostgreSQL folds unquoted names to lower
+    // case. No ::citext cast: settingKey is a plain VarChar here, so a text
+    // parameter already compares correctly.
+    const rows = await tx.$queryRaw<{ id: string; settingValue: string | null }[]>`
+      SELECT id, "settingValue" FROM tenant_business_settings
+      WHERE "tenantBusinessId" = ${tenantBusinessId} AND "settingKey" = ${counterKey}
+      FOR UPDATE
+    `;
+    const row = rows[0];
+    if (!row) {
+      throw new NotFoundException(
+        `Counter setting "${counterKey}" not found for this business`,
+      );
+    }
+
+    const current = parseInt(row.settingValue ?? '1', 10);
+    await tx.tenantBusinessSetting.update({
+      where: { id: row.id },
+      data: { settingValue: String(current + 1), updatedAt: now() },
+    });
+    return current;
+  }
+
+  // ---------- System-admin cross-tenant surface ----------
+
+  async findAll(query: TenantBusinessSettingListQueryDto) {
+    const { page, limit, tenantBusinessId, category, status, sortBy, sortOrder } = query;
+    const where = {
+      tenantBusinessId,
+      status: status ? status : ({ not: 'DELETED' } as const),
+      ...(category ? { category: { equals: category, mode: 'insensitive' as const } } : {}),
+    };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.tenantBusinessSetting.findMany({
+        where,
+        orderBy: { [sortBy]: sortOrder },
+        ...paginate(page, limit),
+      }),
+      this.prisma.tenantBusinessSetting.count({ where }),
+    ]);
+    return listResponse(items.map(mask), total, page, limit);
+  }
+
+  async findOne(id: string) {
+    const row = await this.prisma.tenantBusinessSetting.findFirst({
+      where: { id, status: { not: 'DELETED' } },
+    });
+    if (!row) throw new NotFoundException('Tenant business setting not found');
+    return mask(row);
+  }
+
+  async update(id: string, dto: UpdateTenantBusinessSettingDto, actorId?: string) {
+    const row = await this.prisma.tenantBusinessSetting.findFirst({
+      where: { id, status: { not: 'DELETED' } },
+    });
+    if (!row) throw new NotFoundException('Tenant business setting not found');
+
+    let settingValue = row.settingValue;
+    // An encrypted setting reads back masked as '', so a blank submit means
+    // "I didn't change the secret", not "clear it". Encrypting '' here would
+    // destroy a working credential and only surface later, somewhere
+    // unrelated.
+    if (dto.settingValue !== undefined && !(row.isEncrypted && dto.settingValue === '')) {
+      // Against the valueType and rules on THIS ROW, not the definition's
+      // current ones - the row is what the business was set up with.
+      const error = validateValueForValueType(
+        row.valueType,
+        dto.settingValue,
+        row.validationRules,
+      );
+      if (error) throw new BadRequestException(`settingValue ${error}`);
+      if (row.valueType === 'FILE') {
+        const pathError = checkSettingPath(dto.settingValue);
+        if (pathError) throw new BadRequestException(`settingValue ${pathError}`);
+      }
+      settingValue = row.isEncrypted ? encryptValue(dto.settingValue) : dto.settingValue;
+    }
+
+    const updated = await this.prisma.tenantBusinessSetting.update({
+      where: { id },
+      data: {
+        settingValue,
+        ...(dto.isReadonly !== undefined ? { isReadonly: dto.isReadonly } : {}),
+        updatedBy: actorId,
+        updatedAt: now(),
+      },
+    });
+    return mask(updated);
+  }
+
+  // ---------- Tenant self-service (the caller's own mapped business) ----------
+
+  /**
+   * @param tenantBusinessId Optional. Omitted, this resolves to the caller's
+   * mapped business. Given, it lets a screen that works across several mapped
+   * businesses read the right one - and it is checked against the caller's
+   * mappings rather than trusted.
+   */
+  async findAllForTenantUser(
+    tenantUserId: string,
+    category?: string,
+    tenantBusinessId?: string,
+  ) {
+    const resolvedBusinessId = tenantBusinessId
+      ? await this.assertBusinessMapped(tenantUserId, tenantBusinessId)
+      : await this.getMyBusinessId(tenantUserId);
+    const rows = await this.prisma.tenantBusinessSetting.findMany({
+      // Deliberately NOT filtered on isVisible. A hidden setting is still read
+      // by application code, so the API returns it and carries the flag; the
+      // settings screen is what leaves it out.
+      where: {
+        tenantBusinessId: resolvedBusinessId,
+        status: 'ACTIVE',
+        ...(category ? { category: { equals: category, mode: 'insensitive' as const } } : {}),
+      },
+      orderBy: { sortOrder: 'asc' },
+    });
+    return rows.map(mask);
+  }
+
+  async findOneByKeyForTenantUser(tenantUserId: string, settingKey: string) {
+    const tenantBusinessId = await this.getMyBusinessId(tenantUserId);
+    const row = await this.prisma.tenantBusinessSetting.findFirst({
+      where: {
+        tenantBusinessId,
+        settingKey: { equals: settingKey, mode: 'insensitive' },
+        status: 'ACTIVE',
+      },
+    });
+    if (!row) throw new NotFoundException('Setting not found');
+    return mask(row);
+  }
+
+  /**
+   * Saves a screenful of settings as one unit - a rejected value rolls the
+   * whole batch back rather than leaving half a form saved, which would be
+   * worse than refusing it: the screen would show some values changed and some
+   * not, with no indication which.
+   */
+  async batchUpdateForTenantUser(
+    tenantUserId: string,
+    dto: BatchUpdateTenantBusinessSettingDto,
+  ) {
+    const tenantBusinessId = await this.getMyBusinessId(tenantUserId);
+    const timestamp = now();
+
+    return this.prisma.$transaction(async (tx) => {
+      const results: Awaited<ReturnType<typeof tx.tenantBusinessSetting.update>>[] = [];
+      for (const { settingKey, settingValue } of dto.updates) {
+        const row = await tx.tenantBusinessSetting.findFirst({
+          where: {
+            tenantBusinessId,
+            settingKey: { equals: settingKey, mode: 'insensitive' },
+            status: 'ACTIVE',
+          },
+        });
+        if (!row) throw new NotFoundException(`Setting "${settingKey}" not found`);
+        if (row.isReadonly) {
+          throw new ForbiddenException(`Setting "${settingKey}" is locked for this business`);
+        }
+
+        // Blank on an encrypted setting means "left untouched" - see update().
+        if (row.isEncrypted && settingValue === '') {
+          results.push(mask(row));
+          continue;
+        }
+
+        const error = validateValueForValueType(
+          row.valueType,
+          settingValue,
+          row.validationRules,
+        );
+        if (error) throw new BadRequestException(`${settingKey}: ${error}`);
+        // Checked on this path too, not just the system one: a tenant can
+        // submit any string for a FILE setting.
+        if (row.valueType === 'FILE') {
+          const pathError = checkSettingPath(settingValue);
+          if (pathError) throw new BadRequestException(`${settingKey}: ${pathError}`);
+        }
+
+        const updated = await tx.tenantBusinessSetting.update({
+          where: { id: row.id },
+          data: {
+            settingValue: row.isEncrypted ? encryptValue(settingValue) : settingValue,
+            updatedBy: tenantUserId,
+            updatedAt: timestamp,
+          },
+        });
+        results.push(mask(updated));
+      }
+      return results;
+    });
+  }
+
+  private async assertBusinessMapped(
+    tenantUserId: string,
+    tenantBusinessId: string,
+  ): Promise<string> {
+    const mapping = await this.prisma.tenantMappedBusiness.findFirst({
+      where: { tenantUserId, tenantBusinessId, status: 'ACTIVE' },
+    });
+    if (!mapping) throw new ForbiddenException('That business is not mapped to your account');
+    return tenantBusinessId;
+  }
+
+  private async getMyBusinessId(tenantUserId: string): Promise<string> {
+    const mapping = await this.prisma.tenantMappedBusiness.findFirst({
+      where: { tenantUserId, status: 'ACTIVE' },
+    });
+    if (!mapping) throw new NotFoundException('No business mapped to this account');
+    return mapping.tenantBusinessId;
+  }
+}

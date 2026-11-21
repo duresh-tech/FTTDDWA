@@ -1,0 +1,108 @@
+# ---------------------------------------------------------------------------
+# The edge: Caddy on ports 80 and 443, giving every tenant business domain and
+# the console host its own HTTPS certificate. See docs/guide/domains.
+#
+# Starts with everything else (`docker compose up -d` from the repository
+# root). The console stays reachable on :3000 directly as well, so both paths
+# work - behind the edge in production, set CONSOLE_HTTP_BIND=127.0.0.1 to
+# close the direct one.
+#
+# If 80 or 443 is already taken on the machine, move it with EDGE_HTTP_PORT /
+# EDGE_HTTPS_PORT in backend/.env.
+#
+# Certificates: Let's Encrypt for public domains, Caddy's own local CA for
+# localhost and *.localhost - so it works locally with no DNS at all.
+#
+# It reaches the console gateway over the shared fttddwa-proxy network from a fixed
+# address (PROXY_EDGE_IP) that the gateway trusts X-Forwarded-For from, and the
+# API over fttddwa-app for the on-demand TLS check.
+#
+# Usage (from backend/docker/edge/):
+#   docker compose up -d
+#   docker compose logs -f edge        certificates, HTTPS, on-demand asks
+#   docker compose down               stop; the certificate volume survives
+# ---------------------------------------------------------------------------
+
+name: fttddwa-edge
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: ${LOG_MAX_SIZE:-10m}
+    max-file: ${LOG_MAX_FILE:-5}
+
+services:
+  edge:
+    container_name: fttddwa-edge
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      # The one capability it needs: binding 80 and 443 inside the container.
+      - NET_BIND_SERVICE
+    ports:
+      - '${EDGE_BIND:-0.0.0.0}:${EDGE_HTTP_PORT:-80}:80'
+      - '${EDGE_BIND:-0.0.0.0}:${EDGE_HTTPS_PORT:-443}:443'
+    environment:
+      # Whole Caddyfile lines, so an unset value omits the directive entirely
+      # rather than emitting a keyword with no argument.
+      EDGE_ACME_EMAIL: ${ACME_EMAIL:+email ${ACME_EMAIL}}
+      EDGE_TLS: ${EDGE_TLS:-}
+      # Shared secret for the on-demand TLS check; must match the API's
+      # EDGE_ASK_KEY. Empty means the API accepts the ask unauthenticated,
+      # which is fine locally because the gateway 404s the path publicly.
+      EDGE_ASK_KEY: ${EDGE_ASK_KEY:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates, keys and the ACME account. NOT read_only - Caddy writes
+      # here. Keep this volume: delete it and every certificate is requested
+      # again on the next start, straight into Let's Encrypt's rate limits.
+      - caddy-data:/data
+      - caddy-config:/config
+    healthcheck:
+      # Caddy's admin API, bound to localhost inside the container only.
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:2019/config/']
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '${EDGE_CPUS:-0.5}'
+          memory: ${EDGE_MEMORY:-128m}
+    logging: *logging
+    networks:
+      proxy:
+        # The one address the console gateway trusts X-Forwarded-For from
+        # (NGINX_EDGE_IP in console/docker-compose.yml). Change both together,
+        # and keep it inside PROXY_NETWORK_SUBNET.
+        ipv4_address: ${PROXY_EDGE_IP:-172.31.251.20}
+      # For the on-demand TLS check to fttddwa-api:4000. The reference project's
+      # edge does not need this - ours does, because it asks the API directly
+      # instead of going through a second nginx tier. Without it the ask fails
+      # silently and a browser sees only ERR_SSL_PROTOCOL_ERROR.
+      app:
+
+networks:
+  # Declared IDENTICALLY in console/docker-compose.yml - same name, same
+  # subnet default - so whichever stack starts first creates it and `include:`
+  # merges them without conflict. Change the subnet in BOTH or compose errors.
+  proxy:
+    name: fttddwa-proxy
+    ipam:
+      config:
+        - subnet: ${PROXY_NETWORK_SUBNET:-172.31.251.0/24}
+  app:
+    name: fttddwa-app
+
+volumes:
+  # Fixed names, so certificates do not depend on the project name this stack
+  # happens to run under.
+  caddy-data:
+    name: fttddwa-caddy-data
+  caddy-config:
+    name: fttddwa-caddy-config
