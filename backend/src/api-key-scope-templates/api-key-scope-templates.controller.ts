@@ -19,11 +19,11 @@ const TEMPLATE_EXAMPLE = {
   id: '019f357b-e5b1-73aa-9062-adc0f927a584',
   systemCode: 'AKT-MBX2K1-4F7A',
   name: 'Reporting client',
-  description: 'Read-only access to customers and places',
+  description: 'Read-only access to places and streets',
   isTenant: true,
   displayOrder: 10,
   status: 'ACTIVE',
-  scopes: ['tenant-customers:view', 'tenant-places:list'],
+  scopes: ['tenant-places:list', 'tenant-streets:list'],
 };
 
 /**

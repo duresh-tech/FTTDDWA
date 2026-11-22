@@ -3,10 +3,52 @@
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
 
 Rules:
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- For codebase questions, first run `graphify query "<question>"` when
+  graphify-out/graph.json exists. These return a scoped subgraph, usually much
+  smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of
+  raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when
+  query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current
+  (AST-only, no API cost).
+
+### Pick the narrowest command
+
+Reaching for `query` first is usually the expensive mistake. In rough order of
+cost:
+
+| Want | Use |
+| --- | --- |
+| What is X, and what touches it | `graphify explain "X"` |
+| How do A and B connect | `graphify path "A" "B"` |
+| One section of a Markdown doc | `graphify section "docs/guide/docker.md#Volumes"` |
+| An open-ended sweep | `graphify query "..."`, narrowed as below |
+
+### `query` truncates, and says so
+
+Its default budget is **2,000 tokens**. On this graph (~2,900 nodes) a bare
+question matches hundreds of nodes and prints perhaps 60 of them, with a
+`[!] TRUNCATED` line naming the budget that would show them all. **Do not
+reflexively raise the budget** — narrow first:
+
+- `--seed <file|symbol>` start from a known place instead of keyword matches
+- `--depth 1` immediate neighbours only (default 2)
+- `--context <edge-type>` keep one kind of edge, e.g. `call`
+
+Only once it is narrow is `--budget N` worth spending.
+
+### `update` will not shrink the graph
+
+`graphify update .` refuses to write a graph with fewer nodes than the last
+one, which is exactly what happens after a change that deletes code — and it
+keeps the stale, larger graph instead. After removing a feature, run
+`graphify update . --force` (or `GRAPHIFY_FORCE=1`), and sanity-check that the
+reported node count went **down**.
+
+`graphify label` renames communities with an LLM and **costs API calls**. It is
+optional: `update` warns that community labels are stale without needing it,
+and stale labels do not affect `query`, `path` or `explain`.
 
 ## Layout
 
@@ -48,7 +90,7 @@ Authorization is data. Neither `PermissionsGuard` nor `TenantPermissionsGuard`
 contains a role-name shortcut, and the JWT strategies re-resolve permissions
 from `role_permissions` on every request.
 
-So `SYSTEM_SUPER_ADMIN` works only because it holds all 94
+So `SYSTEM_SUPER_ADMIN` works only because it holds all 91
 `role_permissions` rows. **Never add a bypass**, and never grant
 `visibleToTenants: true` to that role — a tenant user assigned it would hold
 every system permission in the tenant portal.

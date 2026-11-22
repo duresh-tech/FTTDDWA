@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-11-23
+
+### Added
+
+- **Association Positions screens**, cloned from the Places pages with the map
+  stripped out.
+  - `/system/dashboard/tenant-association-positions` — cross-business list with
+    status filter, sort, soft-delete and restore.
+  - `/tenant/settings/association-positions` — the caller's own, with the
+    business auto-selected when they map to exactly one. No restore: that is a
+    system-admin act.
+- A **Tamil name** field and column on all four existing places and streets
+  screens, and on both new ones. A blank field sends `undefined` rather than
+  `""`, so "not recorded" stays NULL instead of becoming a row that looks
+  filled in.
+- Nav entries under `Tenants` (system) and `Business` (tenant settings), placed
+  adjacent to their section siblings — order is the grouping, and a stray item
+  would render its section header twice.
+
+## [3.0.0] - 2026-11-22
+
+### Fixed
+
+- **The sidebar clipped its last nav entries and mis-aligned its footer.** The
+  `aside` is `h-dvh flex-col`, but the brand header and the footer were both
+  flex-shrinkable and the nav scroller lacked `min-h-0`. Once the nav outgrew
+  the viewport the footer got squeezed and the bottom entries were pushed out
+  of reach — so "Setting Definitions" and "Business Settings" looked absent
+  from the system portal even though they rendered and passed their permission
+  check. Fixed with `shrink-0` on the header and footer and `min-h-0` on the
+  scroller, in `app/system/dashboard/layout.tsx` and `components/tenant-shell.tsx`.
+
+### Removed
+
+- **BREAKING - the customers screens.** Deleted
+  `app/system/dashboard/tenant-customers/` and `app/tenant/customers/`
+  (2,575 lines) and both nav entries. Their API routes are gone, so these pages
+  could only 404.
+- Three libs that existed only for those screens: `lib/tax-types.ts`,
+  `lib/id-proof-types.ts` and `lib/countries.ts`.
+- The now-unused `Contact` icon import from both nav files.
+
+`location-picker-panel.tsx` is **kept** — the four places and streets screens
+still use it.
+
 ## [2.1.0] - 2026-11-21
 
 ### Added

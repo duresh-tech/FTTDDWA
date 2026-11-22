@@ -7,6 +7,111 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-11-23
+
+### Added
+
+- **Tenant Association Positions** (`tenant_association_positions`) — a
+  per-business lookup of the positions members hold, with an English name, an
+  optional Tamil name and a remark. Built on the Tenant Places pattern: one
+  model, one service, two controllers sharing the
+  `tenant-association-positions:*` namespace.
+  - `system/tenant-association-positions` (list/get/create/update/delete/restore)
+    and `tenant/association-positions` (the same minus restore, which is
+    system-only, and plus `GET businesses` for the create form's picker).
+  - **6 new permissions in 1 module**, so the catalogue is now **91 keys across
+    21 modules**. `SYSTEM_SUPER_ADMIN` holds 91, `TENANT_ADMIN` 39. The tenant
+    grant needed only one word: `TENANT_ROLE_PERMISSION_KEYS` loops over a
+    resource-name array building `tenant-${resource}:${action}`, so
+    `'association-positions'` produces exactly the five non-restore keys.
+  - Nothing references the table yet. It is the list an assignment will point
+    at once we decide where that belongs — a tenant user is not itself
+    business-scoped, reaching a business through `tenant_mapped_business` and
+    possibly several, so the position cannot simply hang off the user.
+
+- **Tamil names on places and streets** — `placeNameTamil` and
+  `streetNameTamil`, both optional. With `positionNameTamil` these are the
+  first localised fields in the schema, and they set the shape: same `VarChar`
+  length as the English sibling (Postgres counts *characters*, not bytes, so
+  100 Tamil characters fit exactly as 100 Latin ones do), nullable, and ORed
+  into the list search so either spelling finds the record.
+
+- Migration `0007_tenant_association_positions` — one `CREATE TYPE`, one
+  `CREATE TABLE` with its FK and two indexes, and two `ALTER TABLE … ADD
+  COLUMN`. Both altered tables were empty and both columns are nullable, so no
+  backfill.
+
+### Changed
+
+- `tenant-places` and `tenant-streets` now accept and persist their Tamil name
+  on create as well as update. Their `create()` methods list columns
+  explicitly, so the field had to be named there — unlike `update()`, which
+  spreads the DTO and would have worked by accident.
+- Both services search the Tamil column alongside the English one, on **both**
+  the system and the tenant surface. Each service carries the clause twice;
+  patching only the first is the classic half-fix here.
+
+## [3.0.0] - 2026-11-22
+
+### Removed
+
+- **BREAKING - the tenant customers feature is gone.** Deleted
+  `src/tenant-customers/` (7 files, 1,158 lines), its registration in
+  `app.module.ts`, and both route surfaces: `system/tenant-customers` and
+  `tenant/customers`, each with CRUD plus `places`, `streets`, `deleted`,
+  `export`, `import`, `:id/status` and `:id/restore`. They now 404.
+  - **BREAKING - migration `0006_remove_tenant_customers`** drops
+    `tenant_customers`, its three foreign keys and its three enums
+    (`TenantCustomerGender`, `TenantCustomerType`, `TenantCustomerStatus`).
+    The table was empty.
+  - **Places and streets deliberately survive.** A street still belongs to a
+    place, and both keep their own CRUD, permissions and screens; only their
+    customer consumer went away.
+  - **9 permission keys removed**, leaving **85 across 20 modules**.
+    `SYSTEM_SUPER_ADMIN` holds 85, `TENANT_ADMIN` 34. `'tenant-customers'`
+    was appended to `REMOVED_PERMISSION_MODULES`, so every install drains the
+    rows and their grants on the next seed.
+  - The three `customer.*` setting definitions go with it, leaving **5**
+    definitions across General and Tax.
+  - `csv-parse` and `csv-stringify` dropped from `package.json` — the two
+    deleted controllers were their only consumers.
+
+### Added
+
+- **`REMOVED_SETTING_DEFINITIONS`** in `src/common/constants/setting-definitions.ts`,
+  drained by `cleanupRemovedSettingDefinitions()` at bootstrap. Taking a key out
+  of `SETTING_DEFINITIONS` only stops it being *created* — `syncSettingDefinitions()`
+  never deletes, because it must not clobber a value a business chose. Retiring
+  a setting therefore has to be said out loud, exactly as
+  `REMOVED_PERMISSION_MODULES` already does for permissions. It deletes the
+  per-business values before the definitions, since the FK runs that way.
+
+### Fixed
+
+- **The sidebar clipped its last entries and squashed its footer.** The `aside`
+  is `h-dvh flex-col`, but its brand header and footer were both shrinkable and
+  its nav lacked `min-h-0`, so once the nav outgrew the viewport the footer was
+  squeezed and the bottom entries were pushed out of reach — which is why
+  "Setting Definitions" and "Business Settings" appeared to be missing from the
+  system portal despite rendering correctly and passing their permission check.
+  `shrink-0` on the header and footer, `min-h-0` on the scroller, in both the
+  system layout and the tenant shell.
+
+### Removed (dead code)
+
+- `consumeSequenceNumber()` from `TenantBusinessSettingsService`. It existed to
+  allocate `customer.nextCode` and **never had a caller** — the customers
+  service generated codes by hand. With the setting gone, a locking-read helper
+  nothing uses was a liability.
+
+### Corrected
+
+- A comment added in 2.1.0 claimed a tenant grant removed by hand "is not
+  silently restored on the next seed". That is backwards:
+  `grantMissingToRole()` targets the declared list, so a key still in
+  `TENANT_ROLE_PERMISSION_KEYS` **does** come back. The comment and
+  `docs/logic/rbac-permissions.md` now say so.
+
 ## [2.1.0] - 2026-11-21
 
 ### Added

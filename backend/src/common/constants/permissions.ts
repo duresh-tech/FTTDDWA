@@ -36,8 +36,8 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   { module: 'tenant-business', label: 'Tenant Business', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   { module: 'tenant-mapped-business', label: 'Tenant Mapped Business', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   { module: 'tenant-places', label: 'Tenant Places', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
+  { module: 'tenant-association-positions', label: 'Tenant Association Positions', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   { module: 'tenant-streets', label: 'Tenant Streets', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
-  { module: 'tenant-customers', label: 'Tenant Customers', actions: ['create', 'view', 'update', 'delete', 'view_deleted', 'restore', 'export', 'import', 'change_status'] },
   { module: 'tenant-mail-config', label: 'Tenant Mail Config', actions: ['create', 'view', 'update', 'delete', 'list', 'test'] },
   { module: 'app-settings', label: 'App Settings', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   // System-admin only, with no tenant self-service twin: claiming a hostname
@@ -103,7 +103,7 @@ export const TENANT_ROLE_PERMISSION_KEYS: string[] = [
   'tenant-users:view',
   'tenant-users:update',
   'tenant-users:delete',
-  ...['places', 'streets'].flatMap((resource) =>
+  ...['places', 'streets', 'association-positions'].flatMap((resource) =>
     ['list', 'view', 'create', 'update', 'delete'].map(
       (action) => `tenant-${resource}:${action}`,
     ),
@@ -118,15 +118,6 @@ export const TENANT_ROLE_PERMISSION_KEYS: string[] = [
   'tenant-mail-config:update',
   'tenant-mail-config:delete',
   'tenant-mail-config:test',
-  'tenant-customers:create',
-  'tenant-customers:view',
-  'tenant-customers:update',
-  'tenant-customers:delete',
-  'tenant-customers:view_deleted',
-  'tenant-customers:restore',
-  'tenant-customers:export',
-  'tenant-customers:import',
-  'tenant-customers:change_status',
   // A business manages its own keys. Scope templates are deliberately
   // absent: the tenant template route is gated on `api-keys:create`, since
   // the list exists only to fill that form.
@@ -157,6 +148,9 @@ export const REMOVED_PERMISSION_MODULES: string[] = [
   'tenant-in-ex-categories',
   'tenant-business-branches',
   'tenant-network-providers',
+  // Retired with the customers feature; its table was dropped in
+  // 0006_remove_tenant_customers.
+  'tenant-customers',
 ];
 
 /** App settings keys written at bootstrap. */

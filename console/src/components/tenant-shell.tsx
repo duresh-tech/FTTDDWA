@@ -6,7 +6,6 @@ import {
   Bell,
   Building2,
   ChevronDown,
-  Contact,
   LayoutDashboard,
   LogOut,
   PanelLeftClose,
@@ -43,7 +42,6 @@ import { useAppSettings } from "@/hooks/use-app-settings";
 const TENANT_NAV_ITEMS: NavItem[] = [
   { href: "/tenant/dashboard", label: "Dashboard", icon: LayoutDashboard, permission: "tenant-dashboard:view", section: "Main" },
   { href: "/tenant/users", label: "Users", icon: Users, permission: "tenant-users:read", section: "Management" },
-  { href: "/tenant/customers", label: "Customers", icon: Contact, permission: "tenant-customers:view", section: "Management" },
   { href: "/tenant/settings/user-account", label: "Settings", icon: Settings, permission: "tenant-account:view", section: "Settings" },
 ];
 
@@ -135,13 +133,15 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
       >
         <div
           className={cn(
-            "flex h-14 items-center border-b border-white/10",
+            // shrink-0: a flex child shrinks by default, so without this the
+            // header is squeezed below h-14 once the nav overflows.
+            "flex h-14 shrink-0 items-center border-b border-white/10",
             collapsed && "justify-center",
           )}
         >
           <Brand iconOnly={collapsed} />
         </div>
-        <div className="flex-1 overflow-y-auto py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto py-4">
           <SidebarNav
             hasPermission={hasPermission}
             instanceId="tenant-desktop"
@@ -150,7 +150,7 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
             rootHref="/tenant/dashboard"
           />
         </div>
-        <div className="border-t border-white/10">
+        <div className="shrink-0 border-t border-white/10">
           {!collapsed && (
             <div className="px-4 pt-4 text-xs text-white/50">
               Signed in as <span className="font-medium text-white/80">{user.username}</span>

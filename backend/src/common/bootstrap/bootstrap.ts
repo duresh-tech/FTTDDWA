@@ -37,7 +37,10 @@ import {
   TENANT_ADMIN_ROLE_NAME,
   TENANT_ROLE_PERMISSION_KEYS,
 } from '../constants/permissions';
-import { SETTING_DEFINITIONS } from '../constants/setting-definitions';
+import {
+  SETTING_DEFINITIONS,
+  REMOVED_SETTING_DEFINITIONS,
+} from '../constants/setting-definitions';
 import { newId, newSystemCode, now } from '../utils/id.util';
 import { decryptValue, encryptValue } from '../utils/encryption.util';
 import { KEY_BRAND } from '../constants/key-brand';
@@ -158,6 +161,30 @@ export async function syncPermissions(db: PrismaLike): Promise<Map<string, strin
  * Idempotent, so `npm run seed` doubles as a "sync permissions" command.
  */
 /**
+ * Drop retired settings: their per-business values first, then the
+ * definitions themselves.
+ *
+ * Order matters - `tenant_business_settings.settingDefinitionId` references
+ * `setting_definitions`, so deleting the definition first is refused by the
+ * foreign key.
+ *
+ * Returns how many DEFINITIONS went. Counting rows instead would report a
+ * number that depends on how many businesses happen to exist, which reads as
+ * noise in the seed output.
+ */
+export async function cleanupRemovedSettingDefinitions(db: PrismaLike): Promise<number> {
+  if (REMOVED_SETTING_DEFINITIONS.length === 0) return 0;
+
+  await db.tenantBusinessSetting.deleteMany({
+    where: { settingKey: { in: REMOVED_SETTING_DEFINITIONS } },
+  });
+  const { count } = await db.settingDefinition.deleteMany({
+    where: { settingKey: { in: REMOVED_SETTING_DEFINITIONS } },
+  });
+  return count;
+}
+
+/**
  * Apply SETTING_DEFINITIONS, then give every business the ones it lacks.
  *
  * Two halves, both idempotent and matched by `settingKey`:
@@ -176,10 +203,15 @@ export async function syncPermissions(db: PrismaLike): Promise<Map<string, strin
  * list below is the thing to keep identical.
  */
 export async function syncSettingDefinitions(db: PrismaLike): Promise<{
+  definitionsRemoved: number;
   definitionsAdded: number;
   settingsAdded: number;
 }> {
   const timestamp = now();
+
+  // Before the add, so a key that was retired and later re-declared under the
+  // same name starts clean rather than keeping its old rows.
+  const definitionsRemoved = await cleanupRemovedSettingDefinitions(db);
 
   const existing = await db.settingDefinition.findMany({ select: { settingKey: true } });
   const existingKeys = new Set(existing.map((d) => d.settingKey));
@@ -261,7 +293,7 @@ export async function syncSettingDefinitions(db: PrismaLike): Promise<{
     settingsAdded += missing.length;
   }
 
-  return { definitionsAdded: missingDefs.length, settingsAdded };
+  return { definitionsRemoved, definitionsAdded: missingDefs.length, settingsAdded };
 }
 
 export async function syncPermissionsAndGrants(db: PrismaLike): Promise<{
@@ -269,6 +301,7 @@ export async function syncPermissionsAndGrants(db: PrismaLike): Promise<{
   added: number;
   granted: number;
   tenantGranted: number;
+  definitionsRemoved: number;
   definitionsAdded: number;
   settingsAdded: number;
 }> {
@@ -315,17 +348,31 @@ export async function syncPermissionsAndGrants(db: PrismaLike): Promise<{
   // setup would otherwise exist as a row nobody holds, and the tenant portal
   // screen behind it would 403 with nothing to explain why.
   //
-  // Only keys the list declares, so a grant deliberately removed from a tenant
-  // role through the Roles UI is not silently restored on the next seed.
+  // Only keys the list declares - a hand-made role is never touched, and
+  // TENANT_ADMIN never grows past the declared tenant baseline.
+  //
+  // The flip side, worth knowing before you debug it: because the declared
+  // list is the TARGET, a declared key removed from TENANT_ADMIN by hand
+  // through the Roles page comes back on the next seed. To make such a removal
+  // stick, take the key out of TENANT_ROLE_PERMISSION_KEYS.
   const tenantGranted = await grantMissingToRole(db, TENANT_ADMIN_ROLE_KEY, keyToId, [
     ...TENANT_ROLE_PERMISSION_KEYS,
   ]);
 
   // Settings ride along with the permission sync, so one `npm run seed`
   // brings an existing instance fully up to date.
-  const { definitionsAdded, settingsAdded } = await syncSettingDefinitions(db);
+  const { definitionsRemoved, definitionsAdded, settingsAdded } =
+    await syncSettingDefinitions(db);
 
-  return { removed, added, granted, tenantGranted, definitionsAdded, settingsAdded };
+  return {
+    removed,
+    added,
+    granted,
+    tenantGranted,
+    definitionsRemoved,
+    definitionsAdded,
+    settingsAdded,
+  };
 }
 
 /**

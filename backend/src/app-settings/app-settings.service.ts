@@ -188,8 +188,9 @@ export class AppSettingsService {
   }
 
   /** Generic upload for any FILE-dataType setting's value - just stores the
-   * file and returns its path; the caller decides which key it belongs to
-   * via the normal create/update body, same as the tenant-customers flow. */
+   * file and returns its path; the caller decides which key it belongs to via
+   * the normal create/update body. The per-business settings screen works the
+   * same way, through /system/uploads and /tenant/uploads. */
   async uploadValueFile(file?: Express.Multer.File) {
     if (!file) throw new BadRequestException('No file provided');
     if (file.size > MAX_UPLOAD_SIZE) throw new BadRequestException('File exceeds the 5 MB limit');

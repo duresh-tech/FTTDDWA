@@ -6,6 +6,8 @@ const PlaceStatusEnum = z.enum(['ACTIVE', 'INACTIVE', 'BLOCKED', 'DELETED']);
 const CreateTenantPlaceSchema = z.object({
   tenantBusinessId: z.string().uuid(),
   placeName: z.string().min(1).max(100),
+  /** Optional: a place may be recorded in English only. */
+  placeNameTamil: z.string().max(100).optional(),
   remark: z.string().max(255).optional(),
   latitude: z.coerce.number().min(-90).max(90).optional(),
   longitude: z.coerce.number().min(-180).max(180).optional(),

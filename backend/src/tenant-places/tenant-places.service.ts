@@ -37,6 +37,7 @@ export class TenantPlacesService {
         ? {
             OR: [
               { placeName: { contains: search, mode: 'insensitive' as const } },
+              { placeNameTamil: { contains: search, mode: 'insensitive' as const } },
               { systemCode: { contains: search, mode: 'insensitive' as const } },
             ],
           }
@@ -73,6 +74,7 @@ export class TenantPlacesService {
         systemCode: newSystemCode('PLC'),
         tenantBusinessId: dto.tenantBusinessId,
         placeName: dto.placeName,
+        placeNameTamil: dto.placeNameTamil,
         remark: dto.remark,
         latitude: dto.latitude,
         longitude: dto.longitude,
@@ -162,6 +164,7 @@ export class TenantPlacesService {
         ? {
             OR: [
               { placeName: { contains: search, mode: 'insensitive' as const } },
+              { placeNameTamil: { contains: search, mode: 'insensitive' as const } },
               { systemCode: { contains: search, mode: 'insensitive' as const } },
             ],
           }

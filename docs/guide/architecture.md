@@ -23,7 +23,7 @@ the backend is down.
 | --- | --- |
 | `src/main.ts` | Bootstrap: helmet, cookies, CORS, URI versioning, static `/uploads`, Swagger |
 | `src/app.module.ts` | Module registry and the global guard chain |
-| `src/common/constants/permissions.ts` | The permission catalogue — 94 keys, 21 modules |
+| `src/common/constants/permissions.ts` | The permission catalogue — 91 keys, 21 modules |
 | `src/common/bootstrap/bootstrap.ts` | First-run bootstrap, shared by the wizard and the seed |
 | `src/common/guards/` | Throttle, device header, JWT, RBAC |
 | `src/config/env.validation.ts` | Boot-time env schema |
@@ -82,7 +82,8 @@ Both share one permission-key namespace. So `tenant-places:create` means the
 same thing on either surface, and the service holds the business logic once.
 
 Resources following this pattern: business, mapped business, network
-providers, mail config, places, streets, customers, and tenant users.
+providers, association positions, mail config, places, streets, and tenant
+users.
 
 ## Console layout
 

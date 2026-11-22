@@ -2,8 +2,8 @@
 
 **Federation of Tamilnadu Tent Dealers & Decorators Welfare Association.**
 
-[![Backend](https://img.shields.io/badge/backend-v2.1.0-blue)](./backend/CHANGELOG.md)
-[![Console](https://img.shields.io/badge/console-v2.1.0-blue)](./console/CHANGELOG.md)
+[![Backend](https://img.shields.io/badge/backend-v3.1.0-blue)](./backend/CHANGELOG.md)
+[![Console](https://img.shields.io/badge/console-v3.1.0-blue)](./console/CHANGELOG.md)
 
 `FTTDDWA` is the short form used everywhere it has to fit: the `APP_NAME`
 default, the browser tab title, the Swagger title and the console sidebar.
@@ -11,7 +11,7 @@ default, the browser tab title, the Swagger title and the console sidebar.
 Full-stack system administration console with RBAC-driven CRUD for system
 users, roles, and permissions, plus a parallel **tenant portal**: tenant
 users log in separately and manage their own business — team members,
-customers, mail config, places, and streets — mirroring the
+association positions, mail config, places, and streets — mirroring the
 system-admin CRUD for each resource, scoped to their own mapped business.
 A generic typed key-value **App Settings** store backs app-wide config
 (branding and beyond).
@@ -186,8 +186,8 @@ the API is same-origin.
 - **First-run setup**: `GET /system/setup/status`, `POST /system/setup/logo`, `POST /system/setup/initialize`. All public, all permanently `409` once a system user exists. `initialize` runs in one transaction, so a failure cannot leave a half-initialized instance.
 - **Auth (Passport.js)**: JWT access token (Bearer, 15 min) + rotating refresh token (httpOnly cookie, 7 days, SHA-256 hash stored in `refresh_tokens`). `POST /system/login`, `/system/refresh`, `/system/logout`, `GET /system/me`. There is no public registration endpoint — the wizard creates the first admin, and further accounts come from `POST /system/users` (`system-users:create`).
 - **Tenant portal & auth**: a fully parallel, namespaced auth audience (own JWT strategy, refresh-token table, and cookie names) so a tenant session and a system-admin session coexist in the same browser. `POST /tenant/login`, `GET /tenant/me`, `GET /tenant/dashboard`. System admins can also "Login as" any tenant user.
-- **RBAC**: `permissions` ⇄ `role_permissions` ⇄ `roles` ⇄ `system_users`/`tenant_users`. System routes declare `@RequirePermissions('roles:delete')`; tenant routes use the parallel `@RequireTenantPermissions()`, evaluated by an independent guard. The catalogue of 94 permissions across 21 modules lives in `src/common/constants/permissions.ts`, shared by the wizard and the seed.
-- **One bootstrap role**: `SYSTEM_SUPER_ADMIN`, holding every permission. Neither guard has a super-admin bypass — permissions are resolved from `role_permissions` on every request — so the role genuinely holds all 94 grants. Any further roles are created through the Roles UI.
+- **RBAC**: `permissions` ⇄ `role_permissions` ⇄ `roles` ⇄ `system_users`/`tenant_users`. System routes declare `@RequirePermissions('roles:delete')`; tenant routes use the parallel `@RequireTenantPermissions()`, evaluated by an independent guard. The catalogue of 91 permissions across 21 modules lives in `src/common/constants/permissions.ts`, shared by the wizard and the seed.
+- **One bootstrap role**: `SYSTEM_SUPER_ADMIN`, holding every permission. Neither guard has a super-admin bypass — permissions are resolved from `role_permissions` on every request — so the role genuinely holds all 91 grants. Any further roles are created through the Roles UI.
 - **App Settings**: a generic typed key-value config store (`app_settings` — `key`, `dataType`, `value`, `description`, soft-delete `status`). The public `GET /system/app-settings/public/branding` endpoint returns the app name and logo, preferring the DB `app.name` row and falling back to the `APP_NAME` env var.
 - **Dual-surface CRUD pattern**: each tenant-scoped resource is one Prisma model + one shared service, exposed through a system-admin controller (unrestricted) and a tenant self-service controller (scoped to the caller's own mapped business via `tenant_mapped_business`), sharing one permission-key namespace.
 - **Validation**: Zod schemas via `nestjs-zod` (global pipe), surfaced in Swagger.
@@ -202,8 +202,8 @@ the API is same-origin.
 - Two shells: the system dashboard (top navbar + sidebar) and a parallel tenant portal (`/tenant/login`, `/tenant/dashboard`, its own sidebar/topbar), both with a Sheet drawer on mobile.
 - **First-run wizard** at `/setup`, outside both shells. Every entry point (`/`, both login pages, both session providers) redirects there until the instance is initialized, and `/setup` redirects back to sign-in once it is.
 - Theme: light / dark / system via `next-themes` toggle.
-- System dashboard pages: `/system/login`, `/system/dashboard`, plus full create/edit/delete management screens for System Users, Tenant Users, Roles, Permissions, and every tenant-scoped resource (Tenant Business, Business Domains, Mapped Business, Mail Config, Places, Streets, Customers), plus API Keys, API Key Scope Templates and a generic App Settings admin page. The sidebar groups these under Main, Access Control, Tenants, Locations, Integrations and Settings.
-- Tenant portal pages: `/tenant/dashboard`, `/tenant/users` (team management), `/tenant/customers`, and `/tenant/settings/*` — a self-service twin of each admin resource page, scoped to the caller's own business.
+- System dashboard pages: `/system/login`, `/system/dashboard`, plus full create/edit/delete management screens for System Users, Tenant Users, Roles, Permissions, and every tenant-scoped resource (Tenant Business, Business Domains, Mapped Business, Association Positions, Mail Config, Places, Streets), plus API Keys, API Key Scope Templates and a generic App Settings admin page. The sidebar groups these under Main, Access Control, Tenants, Locations, Integrations and Settings.
+- Tenant portal pages: `/tenant/dashboard`, `/tenant/users` (team management), and `/tenant/settings/*` — a self-service twin of each admin resource page, scoped to the caller's own business.
 - **Permission-gated UI**: create/edit/delete/view actions and sidebar sections only render if the signed-in user's resolved permissions allow them (mirrors, but does not replace, backend RBAC enforcement).
 - **Map-based location picker**: an OpenStreetMap/Leaflet picker (address search, draggable marker, live radius circle) embedded in the create/edit dialog for Places and Streets.
 - **Animated + mobile-responsive**: page transitions, a sliding nav indicator, staggered stat cards, skeleton loading states, and animated table rows via `motion` (Framer Motion, respects `prefers-reduced-motion`); every admin table renders as stacked cards on mobile instead of a horizontally-scrolling table.

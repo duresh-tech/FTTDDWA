@@ -91,8 +91,7 @@ controllers (see `CHANGELOG.md` for the full per-resource list).
 | Tenant business settings | `GET /system/tenant-business-settings?tenantBusinessId=…`, `GET/PATCH /system/tenant-business-settings/:id` (value, or the per-business `isReadonly` lock); tenant self-service `GET /tenant/business-settings` and batch `PATCH /tenant/business-settings`. |
 | Setting definitions | `GET/POST /system/setting-definitions`, `GET/PATCH /system/setting-definitions/:id`. No delete - a definition is retired with `status=INACTIVE`, because businesses hold copies. |
 | Settings sync | `POST /system/settings-sync` backfills definitions to businesses that already exist; `GET /system/settings-sync/logs` says what each run did. |
-| Tenant mail config, places, streets | Each: `GET/POST /system/tenant-<resource>`, `GET/PATCH/DELETE /system/tenant-<resource>/:id` (+ `restore` where applicable); tenant self-service twin at `/tenant/<resource>` scoped to the caller's mapped business. Mail config additionally has `POST .../:id/test-email`, and tenant self-service create is capped at one config per account (system-admin create is not). |
-| Tenant customers | `GET/POST /system/tenant-customers`, `GET/PATCH/DELETE /system/tenant-customers/:id`, `PATCH .../restore`, `PATCH .../:id/status`, `GET .../deleted`, `GET .../export` (CSV), `POST .../import` (CSV); tenant self-service twin at `/tenant/customers`, scoped to the caller's mapped business |
+| Tenant association positions, mail config, places, streets | Each: `GET/POST /system/tenant-<resource>`, `GET/PATCH/DELETE /system/tenant-<resource>/:id` (+ `restore` where applicable); tenant self-service twin at `/tenant/<resource>` scoped to the caller's mapped business. Mail config additionally has `POST .../:id/test-email`, and tenant self-service create is capped at one config per account (system-admin create is not). |
 | App settings | `GET /system/app-settings/public/branding` (public), `GET/POST /system/app-settings`, `GET/PATCH/DELETE /system/app-settings/:id`, `PATCH .../restore`, `GET .../key/:key`, `POST .../logo` |
 | Dashboard | `GET /system/dashboard` |
 | Uploads | `POST /system/uploads`; tenant self-service twin at `POST /tenant/uploads` |
@@ -124,10 +123,10 @@ Seeded permission keys (module: actions):
 | `tenant-users` | `create`, `read`, `view`, `update`, `delete`, `login-as` |
 | `tenant-business` | `create`, `view`, `update`, `delete`, `list`, `restore` |
 | `tenant-mapped-business` | `create`, `view`, `update`, `delete`, `list`, `restore` |
+| `tenant-association-positions` | `create`, `view`, `update`, `delete`, `list`, `restore` |
 | `tenant-places` | `create`, `view`, `update`, `delete`, `list`, `restore` |
 | `tenant-streets` | `create`, `view`, `update`, `delete`, `list`, `restore` |
 | `tenant-mail-config` | `create`, `view`, `update`, `delete`, `list`, `test` |
-| `tenant-customers` | `create`, `view`, `update`, `delete`, `view_deleted`, `restore`, `export`, `import`, `change_status` |
 | `app-settings` | `create`, `view`, `update`, `delete`, `list`, `restore` |
 | `setting-definitions` | `create`, `view`, `update`, `list` |
 | `tenant-business-settings` | `view`, `update`, `list` |
@@ -136,10 +135,10 @@ Seeded permission keys (module: actions):
 
 `TENANT_ADMIN` (the default `visibleToTenants` role) is granted the
 non-`restore` actions of every tenant-scoped module, plus `tenant-users:*`
-minus `login-as`. `tenant-customers` is the one exception — `TENANT_ADMIN`
-gets all 9 actions including `restore`/`view_deleted`/`export`/`import`/
-`change_status`. `app-settings` is system-admin-only and not granted to
-`TENANT_ADMIN` at all.
+minus `login-as`. `app-settings` is system-admin-only and not granted to
+`TENANT_ADMIN` at all, and neither is `tenant-business-settings:list` — that
+key is the cross-tenant support view, and a tenant has only its own business
+to read.
 
 Rows flagged `isSystem` are seeded defaults and are refused by the normal
 `delete` action. The two modules that have such rows — `permissions` and
@@ -152,7 +151,7 @@ shared across businesses cannot be removed from the tenant portal.
 
 ### Where the catalogue lives
 
-`src/common/constants/permissions.ts` holds all 94 permission keys across 23
+`src/common/constants/permissions.ts` holds all 91 permission keys across 20
 modules, and `src/common/bootstrap/bootstrap.ts` holds the bootstrap itself.
 Both the setup wizard and `prisma/seed.ts` import them, so the two paths
 cannot drift.

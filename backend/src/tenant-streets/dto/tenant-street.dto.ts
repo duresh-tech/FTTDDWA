@@ -11,6 +11,8 @@ const CreateTenantStreetSchema = z.object({
   tenantPlaceId: z.string().uuid(),
   streetCode: StreetCodeSchema,
   streetName: z.string().min(1).max(100),
+  /** Optional: a street may be recorded in English only. */
+  streetNameTamil: z.string().max(100).optional(),
   latitude: z.coerce.number().min(-90).max(90).optional(),
   longitude: z.coerce.number().min(-180).max(180).optional(),
   remark: z.string().max(255).optional(),

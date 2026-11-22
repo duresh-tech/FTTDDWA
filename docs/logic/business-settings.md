@@ -59,9 +59,6 @@ status to `INACTIVE`.
 | `timeZone` | `Asia/Kolkata` | General |
 | `dateFormat` | `DD-MM-YYYY` | General |
 | `currencyCode` | `INR` | General |
-| `customer.codeGeneration` | `MANUAL` | Customers |
-| `customer.codePrefix` | `CUS` | Customers |
-| `customer.nextCode` | `1` | Customers. Read-only — the server allocates it. |
 | `tax.taxPerItem` | `false` | Tax |
 | `tax.enableInclusiveTaxesByDefault` | `false` | Tax |
 

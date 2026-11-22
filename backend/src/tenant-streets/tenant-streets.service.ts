@@ -39,6 +39,7 @@ export class TenantStreetsService {
         ? {
             OR: [
               { streetName: { contains: search, mode: 'insensitive' as const } },
+              { streetNameTamil: { contains: search, mode: 'insensitive' as const } },
               { systemCode: { contains: search, mode: 'insensitive' as const } },
             ],
           }
@@ -79,6 +80,7 @@ export class TenantStreetsService {
         tenantPlaceId: dto.tenantPlaceId,
         streetCode: dto.streetCode,
         streetName: dto.streetName,
+        streetNameTamil: dto.streetNameTamil,
         latitude: dto.latitude,
         longitude: dto.longitude,
         remark: dto.remark,
@@ -224,6 +226,7 @@ export class TenantStreetsService {
         ? {
             OR: [
               { streetName: { contains: search, mode: 'insensitive' as const } },
+              { streetNameTamil: { contains: search, mode: 'insensitive' as const } },
               { systemCode: { contains: search, mode: 'insensitive' as const } },
             ],
           }

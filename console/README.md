@@ -62,9 +62,9 @@ default credentials.
 | `/system/dashboard/setting-definitions` | Setting Definitions — the catalogue of per-business settings, plus "Sync to all tenants" |
 | `/system/dashboard/tenant-business-settings` | Business Settings — cross-tenant support view of one business's values, with a per-setting tenant lock |
 | `/system/dashboard/tenant-mail-config` | Mail Config — list, create, edit, delete, send test email |
+| `/system/dashboard/tenant-association-positions` | Association Positions — list, create, edit, delete, restore |
 | `/system/dashboard/tenant-places` | Places — list, create, edit, delete, restore, map picker |
 | `/system/dashboard/tenant-streets` | Streets — list, create, edit, delete, restore, map picker |
-| `/system/dashboard/tenant-customers` | Customers — list, create, edit, delete, restore, view, change status, CSV export/import, deleted-records view, map picker |
 | `/system/dashboard/roles` | Roles — list, create, edit, delete, assign permissions (grouped, searchable) |
 | `/system/dashboard/permissions` | Permissions — list, create, edit, delete |
 | `/system/dashboard/app-settings` | App Settings — generic typed key-value config store: list, create, edit, delete, restore |
@@ -76,11 +76,10 @@ default credentials.
 | `/tenant/login` | Tenant sign in; redirects to `/tenant/dashboard` |
 | `/tenant/dashboard` | Tenant stats overview |
 | `/tenant/users` | Team members mapped to the caller's business — list, create, edit, delete, view |
-| `/tenant/customers` | Customers belonging to the caller's business — list, create, edit, delete, restore, view, change status, CSV export/import, deleted-records view, map picker |
 | `/tenant/settings/user-account` | Own profile — name, username, email, phone, password, avatar |
 | `/tenant/settings/business-information` | Own business profile (view/update, per permission) |
 | `/tenant/settings/business-settings` | Own business settings — grouped by category, saved as one batch with a from/to confirmation |
-| `/tenant/settings/mail-config`, `/places`, `/streets`, `/api-keys` | Self-service CRUD twins of the matching system-admin pages, scoped to the caller's own business |
+| `/tenant/settings/association-positions`, `/mail-config`, `/places`, `/streets`, `/api-keys` | Self-service CRUD twins of the matching system-admin pages, scoped to the caller's own business |
 
 ## Permission-gated UI
 

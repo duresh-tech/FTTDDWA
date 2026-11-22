@@ -39,6 +39,7 @@ interface TenantPlaceRow {
   systemCode: string;
   tenantBusinessId: string;
   placeName: string;
+  placeNameTamil: string | null;
   remark: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -55,6 +56,7 @@ interface BusinessOption {
 interface PlaceFormValues {
   tenantBusinessId: string;
   placeName: string;
+  placeNameTamil: string;
   remark: string;
   latitude: string;
   longitude: string;
@@ -65,6 +67,7 @@ interface PlaceFormValues {
 const EMPTY_FORM: PlaceFormValues = {
   tenantBusinessId: "",
   placeName: "",
+  placeNameTamil: "",
   remark: "",
   latitude: "",
   longitude: "",
@@ -123,6 +126,7 @@ export default function TenantPlacesPage() {
     setForm({
       tenantBusinessId: row.tenantBusinessId,
       placeName: row.placeName,
+      placeNameTamil: row.placeNameTamil ?? "",
       remark: row.remark ?? "",
       latitude: row.latitude != null ? String(row.latitude) : "",
       longitude: row.longitude != null ? String(row.longitude) : "",
@@ -140,6 +144,7 @@ export default function TenantPlacesPage() {
       const body = {
         tenantBusinessId: form.tenantBusinessId,
         placeName: form.placeName,
+        placeNameTamil: form.placeNameTamil || undefined,
         remark: form.remark || undefined,
         latitude: form.latitude === "" ? undefined : Number(form.latitude),
         longitude: form.longitude === "" ? undefined : Number(form.longitude),
@@ -179,6 +184,7 @@ export default function TenantPlacesPage() {
 
   const columns: Column<TenantPlaceRow>[] = [
     { header: "Place Name", cell: (row) => <span className="font-medium">{row.placeName}</span> },
+    { header: "Tamil Name", cell: (row) => row.placeNameTamil ?? "—" },
     { header: "Remark", cell: (row) => row.remark ?? "—" },
     {
       header: "Coordinates",
@@ -288,6 +294,15 @@ export default function TenantPlacesPage() {
                     required
                     value={form.placeName}
                     onChange={(e) => setForm((f) => ({ ...f, placeName: e.target.value }))}
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="placeNameTamil">Place Name (Tamil)</Label>
+                  <Input
+                    id="placeNameTamil"
+                    value={form.placeNameTamil}
+                    onChange={(e) => setForm((f) => ({ ...f, placeNameTamil: e.target.value }))}
                   />
                 </div>
 

@@ -34,12 +34,20 @@ async function main() {
     // role, otherwise a permission added after setup never reaches this
     // instance and every screen behind it 403s with nothing to explain why.
     console.log('Instance already initialized - syncing the catalogues...');
-    const { removed, added, granted, tenantGranted, definitionsAdded, settingsAdded } =
-      await syncPermissionsAndGrants(prisma);
+    const {
+      removed,
+      added,
+      granted,
+      tenantGranted,
+      definitionsRemoved,
+      definitionsAdded,
+      settingsAdded,
+    } = await syncPermissionsAndGrants(prisma);
     console.log(`  - removed ${removed} legacy permission(s)`);
     console.log(`  + added ${added} new permission(s)`);
     console.log(`  + granted ${granted} permission(s) to SYSTEM_SUPER_ADMIN`);
     console.log(`  + granted ${tenantGranted} permission(s) to TENANT_ADMIN`);
+    console.log(`  - removed ${definitionsRemoved} retired setting definition(s)`);
     console.log(`  + added ${definitionsAdded} setting definition(s)`);
     console.log(`  + gave ${settingsAdded} setting(s) to existing business(es)`);
 

@@ -143,47 +143,6 @@ export class TenantBusinessSettingsService {
     return map;
   }
 
-  /**
-   * Atomically allocates the next number in a per-business counter setting
-   * (`customer.nextCode`), returning the number it consumed.
-   *
-   * A read-then-write will not do: two concurrent callers inside their own
-   * transactions both read the same number. `SELECT ... FOR UPDATE` takes a
-   * locking read of the latest committed row and serialises them for the short
-   * critical section.
-   *
-   * Must be called inside the caller's own transaction, so consuming the
-   * number is part of the same unit of work as the record that uses it -
-   * otherwise a failed insert burns a number. Formatting (prefix,
-   * zero-padding) is the caller's concern.
-   */
-  async consumeSequenceNumber(
-    tx: Prisma.TransactionClient,
-    tenantBusinessId: string,
-    counterKey: string,
-  ): Promise<number> {
-    // Columns are quoted because PostgreSQL folds unquoted names to lower
-    // case. No ::citext cast: settingKey is a plain VarChar here, so a text
-    // parameter already compares correctly.
-    const rows = await tx.$queryRaw<{ id: string; settingValue: string | null }[]>`
-      SELECT id, "settingValue" FROM tenant_business_settings
-      WHERE "tenantBusinessId" = ${tenantBusinessId} AND "settingKey" = ${counterKey}
-      FOR UPDATE
-    `;
-    const row = rows[0];
-    if (!row) {
-      throw new NotFoundException(
-        `Counter setting "${counterKey}" not found for this business`,
-      );
-    }
-
-    const current = parseInt(row.settingValue ?? '1', 10);
-    await tx.tenantBusinessSetting.update({
-      where: { id: row.id },
-      data: { settingValue: String(current + 1), updatedAt: now() },
-    });
-    return current;
-  }
 
   // ---------- System-admin cross-tenant surface ----------
 

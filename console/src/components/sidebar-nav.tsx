@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
-import { Building2, Contact, Globe, KeyRound, LayoutDashboard, LayoutList, Mail, MapPin, Network, Route, Settings2, ShieldCheck, SlidersHorizontal, UserCog, Users } from "lucide-react";
+import { BadgeCheck, Building2, Globe, KeyRound, LayoutDashboard, LayoutList, Mail, MapPin, Network, Route, Settings2, ShieldCheck, SlidersHorizontal, UserCog, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -38,7 +38,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/system/dashboard/tenant-business", label: "Tenant Business", icon: Building2, permission: "tenant-business:list", section: "Tenants" },
   { href: "/system/dashboard/tenant-business-domains", label: "Business Domains", icon: Globe, permission: "tenant-business-domains:list", section: "Tenants" },
   { href: "/system/dashboard/tenant-mapped-business", label: "Tenant Mapped Business", icon: Network, permission: "tenant-mapped-business:list", section: "Tenants" },
-  { href: "/system/dashboard/tenant-customers", label: "Customers", icon: Contact, permission: "tenant-customers:view", section: "Tenants" },
+  { href: "/system/dashboard/tenant-association-positions", label: "Association Positions", icon: BadgeCheck, permission: "tenant-association-positions:list", section: "Tenants" },
 
   { href: "/system/dashboard/tenant-places", label: "Places", icon: MapPin, permission: "tenant-places:list", section: "Locations" },
   { href: "/system/dashboard/tenant-streets", label: "Streets", icon: Route, permission: "tenant-streets:list", section: "Locations" },

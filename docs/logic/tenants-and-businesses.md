@@ -9,8 +9,9 @@ mirror of the same resources, scoped to one business.
 tenant_users ──► tenant_mapped_business ──► tenant_business
                                                  │
                         ┌────────────────────────┴────────────────────┐
-                        │  mail config, places, streets, customers,   │
-                        │  business domains, api keys                 │
+                        │  mail config, places, streets,              │
+                        │  association positions, business domains,   │
+                        │  api keys                                   │
                         └─────────────────────────────────────────────┘
 ```
 
@@ -42,7 +43,7 @@ first.
 
 Resources on this pattern: business, mapped business, branches, network
 mail config,
-places, streets, customers, and tenant users themselves.
+places, streets, and tenant users themselves.
 
 ## Tenant users manage their own team
 
@@ -68,24 +69,50 @@ Both carry coordinates and a radius, picked on an OpenStreetMap/Leaflet map
 `ssr: false` because Leaflet touches `window` at import time). The tile server
 is configurable via `APP_OSM_TILE_URL`.
 
-Customers reference a place and optionally a street, so the same cascade
-applies there.
+Nothing references a place or a street today — the customers feature that did
+was removed. They remain first-class resources with their own CRUD, and a
+street still belongs to a place.
 
-## Customers
+Both also carry an optional Tamil name — `placeNameTamil` and
+`streetNameTamil` — alongside the English one, and the list search matches
+either. See [Tamil names](#tamil-names).
 
-The largest resource, and the only one with import/export. Beyond ordinary
-CRUD it has:
+## Association positions
 
-- `view_deleted` and `restore` — soft-deleted records stay queryable to anyone
-  holding those keys
-- `export` and `import` — CSV, handled outside the `api()` client because they
-  stream
-- `change_status` — separated from `update`, so someone can be allowed to edit
-  a customer without being allowed to activate or block them
+`tenant_association_positions` is a per-business lookup of the positions
+members hold: President, Secretary, Treasurer. Each row carries an English
+name, an optional Tamil one and a remark.
 
-That last split is the general principle: actions get their own permission key
-when they are things you would plausibly want to grant separately, not merely
-because they are different endpoints.
+Nothing references it yet. It is the list an assignment will point at once we
+decide where that assignment belongs — note that a tenant user is not itself
+business-scoped, since it reaches a business through `tenant_mapped_business`
+and may map to several, so the position cannot simply hang off the user.
+
+## Tamil names
+
+`placeNameTamil`, `streetNameTamil` and `positionNameTamil` are the first
+localised fields in the schema. The shape they set:
+
+- **Optional**, `VarChar` of the same length as the English sibling. `VarChar`
+  counts *characters* in Postgres, not bytes, so 100 Tamil characters fit
+  exactly as 100 Latin ones do and no length change is needed.
+- **Searchable.** Each list query ORs the Tamil column in beside the English
+  one, so either spelling finds the record. Tamil has no upper or lower case,
+  so the `mode: 'insensitive'` the rest of the codebase uses is simply a
+  substring match there — it costs nothing and keeps one idiom.
+- **Never empty-string.** The console sends `undefined` rather than `""` when
+  the field is blank, so "not recorded" is NULL rather than a row that looks
+  filled in.
+
+## Why some actions get their own key
+
+`api-keys` splits `rotate` and `revoke` out from `update`: both hand out or
+destroy a live secret, which is a bigger act than renaming a key. `permissions`
+and `roles` split `delete_system` out from `delete`.
+
+That is the general principle. An action gets its own permission key when it is
+something you would plausibly want to grant separately, not merely because it
+is a different endpoint.
 
 ## Soft deletes
 
@@ -97,8 +124,7 @@ Consequences worth knowing:
 - Every list query filters on status. A query that forgets to is a bug that
   surfaces as deleted rows reappearing.
 - Uniqueness is enforced at the database level across **all** rows, including
-  deleted ones. Deleting a customer does not free their unique fields for
-  reuse.
+  deleted ones. Deleting a record does not free its unique fields for reuse.
 - `restore` exists where a resource has `view_deleted`, and simply flips the
   status back.
 

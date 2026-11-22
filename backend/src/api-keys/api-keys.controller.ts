@@ -42,7 +42,7 @@ const KEY_EXAMPLE = {
   isExpired: false,
   lastUsedAt: null,
   usageCount: 0,
-  scopes: ['tenant-customers:view'],
+  scopes: ['tenant-places:list'],
 };
 
 /**

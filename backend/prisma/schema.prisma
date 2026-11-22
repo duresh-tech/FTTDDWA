@@ -169,7 +169,7 @@ model TenantBusiness {
   mailConfigs       TenantMailConfig[]
   places            TenantPlace[]
   streets           TenantStreet[]
-  customers         TenantCustomer[]
+  associationPositions TenantAssociationPosition[]
   domains           TenantBusinessDomain[]
   apiKeys           ApiKey[]
   settings          TenantBusinessSetting[]
@@ -355,6 +355,7 @@ model TenantPlace {
   systemCode       String            @unique @db.VarChar(30)
   tenantBusinessId String            @db.Char(36)
   placeName        String            @db.VarChar(100)
+  placeNameTamil   String?           @db.VarChar(100)
   remark           String?           @db.VarChar(255)
   latitude         Decimal?          @db.Decimal(10, 8)
   longitude        Decimal?          @db.Decimal(11, 8)
@@ -366,7 +367,6 @@ model TenantPlace {
 
   tenantBusiness TenantBusiness   @relation(fields: [tenantBusinessId], references: [id])
   streets        TenantStreet[]
-  customers      TenantCustomer[]
 
   @@index([status])
   @@index([tenantBusinessId])
@@ -387,6 +387,7 @@ model TenantStreet {
   tenantPlaceId    String             @db.Char(36)
   streetCode       String             @db.Char(3) // 3 uppercase letters (A-Z), unique per business
   streetName       String             @db.VarChar(100)
+  streetNameTamil  String?            @db.VarChar(100)
   latitude         Decimal?           @db.Decimal(10, 8)
   longitude        Decimal?           @db.Decimal(11, 8)
   remark           String?            @db.VarChar(255)
@@ -397,85 +398,12 @@ model TenantStreet {
 
   tenantBusiness TenantBusiness   @relation(fields: [tenantBusinessId], references: [id])
   tenantPlace    TenantPlace      @relation(fields: [tenantPlaceId], references: [id])
-  customers      TenantCustomer[]
 
   @@unique([tenantBusinessId, streetCode])
   @@index([status])
   @@index([tenantBusinessId])
   @@index([tenantPlaceId])
   @@map("tenant_streets")
-}
-
-enum TenantCustomerGender {
-  MALE
-  FEMALE
-  TRANSGENDER
-  NOT_TO_SAY
-  NONE
-}
-
-enum TenantCustomerType {
-  INDIVIDUAL
-  BUSINESS
-}
-
-enum TenantCustomerStatus {
-  ACTIVE
-  INACTIVE
-  BLOCKED
-  DELETED
-}
-
-model TenantCustomer {
-  id                String               @id @db.Char(36) // UUIDv7
-  systemCode        String               @unique @db.VarChar(30)
-  tenantBusinessId  String               @db.Char(36)
-  customerCode      String               @db.VarChar(30)
-  fName             String               @db.VarChar(100)
-  lName             String?              @db.VarChar(100)
-  fatherName        String?              @db.VarChar(150)
-  gender            TenantCustomerGender @default(NONE)
-  dateOfBirth       DateTime?            @db.Date
-  primaryMobile     String               @db.VarChar(20)
-  secondaryMobile   String?              @db.VarChar(20)
-  email             String?              @db.VarChar(255)
-  customerType      TenantCustomerType   @default(INDIVIDUAL)
-  tenantPlaceId     String?              @db.Char(36)
-  tenantStreetId    String?              @db.Char(36)
-  addressLine1      String               @db.VarChar(255)
-  addressLine2      String?              @db.VarChar(255)
-  city              String?              @db.VarChar(100)
-  state             String?              @db.VarChar(100)
-  country           String?              @db.VarChar(100)
-  pincode           String?              @db.VarChar(15)
-  latitude          Decimal?             @db.Decimal(10, 8)
-  longitude         Decimal?             @db.Decimal(11, 8)
-  customerPicture   String?              @db.VarChar(500)
-  idProofType       String?              @db.VarChar(50)
-  idProofNumber     String?              @db.VarChar(100)
-  idProofFile       String?              @db.VarChar(500)
-  taxType           String?              @db.VarChar(50)
-  taxNumber         String?              @db.VarChar(100)
-  notifyViaSMS      Boolean              @default(true)
-  notifyViaWhatsApp Boolean              @default(true)
-  notifyViaRCS      Boolean              @default(false)
-  allowPortalAccess Boolean              @default(true)
-  remark            String?              @db.Text
-  status            TenantCustomerStatus @default(ACTIVE)
-  createdAt         BigInt
-  updatedAt         BigInt
-  deletedAt         BigInt?
-
-  tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
-  tenantPlace    TenantPlace?   @relation(fields: [tenantPlaceId], references: [id])
-  tenantStreet   TenantStreet?  @relation(fields: [tenantStreetId], references: [id])
-
-  @@unique([tenantBusinessId, customerCode])
-  @@index([status])
-  @@index([tenantBusinessId])
-  @@index([tenantPlaceId])
-  @@index([tenantStreetId])
-  @@map("tenant_customers")
 }
 
 // ------------------------------------------------------------------
@@ -810,4 +738,44 @@ model TenantBusinessSettingSyncLog {
   @@index([tenantBusinessId])
   @@index([settingDefinitionId])
   @@map("tenant_business_setting_sync_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Association positions.
+//
+// A per-business lookup of the positions members hold - President, Secretary,
+// Treasurer - in English and Tamil. Nothing references it yet; it is the list
+// an assignment will point at once we decide where that assignment lives.
+// ---------------------------------------------------------------------------
+
+enum TenantAssociationPositionStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+  DELETED
+}
+
+model TenantAssociationPosition {
+  id               String  @id @db.Char(36) // UUIDv7
+  systemCode       String  @unique @db.VarChar(30)
+  tenantBusinessId String  @db.Char(36)
+
+  positionName String @db.VarChar(100)
+  /// Optional: a position may be recorded in English only. Same length as the
+  /// English name - VarChar counts CHARACTERS in Postgres, not bytes, so 100
+  /// Tamil characters fit exactly as 100 Latin ones do.
+  positionNameTamil String? @db.VarChar(100)
+
+  remark String?                         @db.VarChar(255)
+  status TenantAssociationPositionStatus @default(ACTIVE)
+
+  createdAt BigInt
+  updatedAt BigInt
+  deletedAt BigInt?
+
+  tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
+
+  @@index([status])
+  @@index([tenantBusinessId])
+  @@map("tenant_association_positions")
 }

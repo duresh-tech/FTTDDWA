@@ -87,44 +87,6 @@ export const SETTING_DEFINITIONS: SettingDefinitionSeed[] = [
     sortOrder: 30,
   },
 
-  // ---- Customers ----
-  {
-    category: 'Customers',
-    settingKey: 'customer.codeGeneration',
-    settingLabel: 'Customer code generation',
-    description:
-      'MANUAL: you type each customer code. AUTOMATIC: the next number is allocated for you.',
-    valueType: 'STRING',
-    defaultValue: 'MANUAL',
-    validationRules: JSON.stringify({ enum: ['MANUAL', 'AUTOMATIC'] }),
-    isRequired: true,
-    sortOrder: 40,
-  },
-  {
-    category: 'Customers',
-    settingKey: 'customer.codePrefix',
-    settingLabel: 'Customer code prefix',
-    description: 'Prefixed to automatically generated customer codes.',
-    valueType: 'STRING',
-    defaultValue: 'CUS',
-    validationRules: JSON.stringify({ maxLength: 10 }),
-    sortOrder: 50,
-  },
-  {
-    category: 'Customers',
-    settingKey: 'customer.nextCode',
-    settingLabel: 'Next customer number',
-    description:
-      'The number the next automatic customer code will use. Allocated by the ' +
-      'server, so it is shown rather than edited.',
-    valueType: 'INTEGER',
-    defaultValue: '1',
-    validationRules: JSON.stringify({ min: 1 }),
-    // A counter, not a preference: editing it by hand would hand out a code
-    // that already exists.
-    isReadonly: true,
-    sortOrder: 60,
-  },
 
   // ---- Tax ----
   {
@@ -145,4 +107,24 @@ export const SETTING_DEFINITIONS: SettingDefinitionSeed[] = [
     defaultValue: 'false',
     sortOrder: 80,
   },
+];
+
+/**
+ * Settings that used to exist. Their per-business rows and their definitions
+ * are deleted at bootstrap, so a retired key cannot linger on the settings
+ * screen of an instance that was created before it was dropped.
+ *
+ * This is the counterpart of REMOVED_PERMISSION_MODULES in `permissions.ts`,
+ * and exists for the same reason: taking a key out of the catalogue above only
+ * stops it being CREATED. `syncSettingDefinitions()` never deletes, because it
+ * must never clobber a value a business chose - so retiring one has to be said
+ * out loud, here.
+ *
+ * No-op once applied.
+ */
+export const REMOVED_SETTING_DEFINITIONS: string[] = [
+  // Retired with the customers feature.
+  'customer.codeGeneration',
+  'customer.codePrefix',
+  'customer.nextCode',
 ];

@@ -41,6 +41,7 @@ interface TenantStreetRow {
   tenantPlaceId: string;
   streetCode: string;
   streetName: string;
+  streetNameTamil: string | null;
   latitude: number | null;
   longitude: number | null;
   remark: string | null;
@@ -67,6 +68,7 @@ interface StreetFormValues {
   tenantPlaceId: string;
   streetCode: string;
   streetName: string;
+  streetNameTamil: string;
   latitude: string;
   longitude: string;
   remark: string;
@@ -78,6 +80,7 @@ const EMPTY_FORM: StreetFormValues = {
   tenantPlaceId: "",
   streetCode: "",
   streetName: "",
+  streetNameTamil: "",
   latitude: "",
   longitude: "",
   remark: "",
@@ -152,6 +155,7 @@ export default function TenantStreetsPage() {
       tenantPlaceId: row.tenantPlaceId,
       streetCode: row.streetCode,
       streetName: row.streetName,
+      streetNameTamil: row.streetNameTamil ?? "",
       latitude: row.latitude != null ? String(row.latitude) : "",
       longitude: row.longitude != null ? String(row.longitude) : "",
       remark: row.remark ?? "",
@@ -176,6 +180,7 @@ export default function TenantStreetsPage() {
         tenantPlaceId: form.tenantPlaceId,
         streetCode: form.streetCode,
         streetName: form.streetName,
+        streetNameTamil: form.streetNameTamil || undefined,
         latitude: form.latitude === "" ? undefined : Number(form.latitude),
         longitude: form.longitude === "" ? undefined : Number(form.longitude),
         remark: form.remark || undefined,
@@ -215,6 +220,7 @@ export default function TenantStreetsPage() {
   const columns: Column<TenantStreetRow>[] = [
     { header: "Code", cell: (row) => <span className="font-mono">{row.streetCode}</span> },
     { header: "Street Name", cell: (row) => <span className="font-medium">{row.streetName}</span> },
+    { header: "Tamil Name", cell: (row) => row.streetNameTamil ?? "—" },
     { header: "Place", cell: (row) => row.tenantPlace?.placeName ?? "—" },
     { header: "Remark", cell: (row) => row.remark ?? "—" },
     {
@@ -357,6 +363,14 @@ export default function TenantStreetsPage() {
                       required
                       value={form.streetName}
                       onChange={(e) => setForm((f) => ({ ...f, streetName: e.target.value }))}
+                    />
+                  </div>
+                  <div className="grid gap-2 sm:col-span-2">
+                    <Label htmlFor="streetNameTamil">Street Name (Tamil)</Label>
+                    <Input
+                      id="streetNameTamil"
+                      value={form.streetNameTamil}
+                      onChange={(e) => setForm((f) => ({ ...f, streetNameTamil: e.target.value }))}
                     />
                   </div>
                 </div>

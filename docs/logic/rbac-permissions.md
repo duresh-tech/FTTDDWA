@@ -29,7 +29,7 @@ Neither `PermissionsGuard` nor `TenantPermissionsGuard` contains anything like
 
 This is the single most important thing to know about the system:
 
-- `SYSTEM_SUPER_ADMIN` works **only** because it physically holds all 94
+- `SYSTEM_SUPER_ADMIN` works **only** because it physically holds all 91
   `role_permissions` rows.
 - A role with 106 of them is short exactly one permission, and the UI will
   quietly hide the corresponding action.
@@ -44,12 +44,11 @@ be maintained.
 ## The catalogue
 
 `backend/src/common/constants/permissions.ts` is the single source of truth:
-21 modules, **94** keys of the form `${moduleName}:${action}`.
+21 modules, **91** keys of the form `${moduleName}:${action}`.
 
 ```ts
-{ module: 'tenant-customers', label: 'Tenant Customers',
-  actions: ['create','view','update','delete','view_deleted',
-            'restore','export','import','change_status'] }
+{ module: 'tenant-places', label: 'Tenant Places',
+  actions: ['create','view','update','delete','list','restore'] }
 ```
 
 It used to live inside `prisma/seed.ts`, which meant the seed was the only
@@ -57,9 +56,9 @@ thing that could create permissions. The setup wizard needs the same list, so
 it moved here and both import it — otherwise the two bootstrap paths would
 drift and a wizard-created instance would silently differ from a seeded one.
 
-The keys must match the strings in the controllers' decorators. 112 of the
-94 appear in a decorator; the rest are read off the caller inside a handler
-(the `delete_system` family) or are reserved.
+The keys must match the strings in the controllers' decorators. Most appear
+in one; the rest are read off the caller inside a handler (the
+`delete_system` family) or are reserved.
 
 ### Adding a permission
 
@@ -72,9 +71,15 @@ The keys must match the strings in the controllers' decorators. 112 of the
    re-run and is the only way a running instance receives a new permission.
    Signed-in users pick it up on their next request, with no re-login.
 4. Grant it to any other role that needs it, through the Roles page. The sync
-   deliberately back-fills `SYSTEM_SUPER_ADMIN` **only** — silently widening
-   `TENANT_ADMIN` or a hand-made role would be a privilege change nobody
+   back-fills `SYSTEM_SUPER_ADMIN` with everything, and `TENANT_ADMIN` with
+   the keys `TENANT_ROLE_PERMISSION_KEYS` declares — nothing else. A hand-made
+   role is never widened, because that would be a privilege change nobody
    asked for.
+
+   Note the consequence for `TENANT_ADMIN`: because the declared list is the
+   target, a key removed from that role by hand through the Roles page **is
+   restored** on the next seed. Take it out of
+   `TENANT_ROLE_PERMISSION_KEYS` if the removal is meant to stick.
 
 Removing one means adding its module to `REMOVED_PERMISSION_MODULES`, which
 deletes the stale rows so they stop appearing in the Roles UI.
@@ -85,7 +90,7 @@ Exactly one:
 
 | Role | `isSystem` | `visibleToTenants` | Permissions |
 | --- | --- | --- | --- |
-| `SYSTEM_SUPER_ADMIN` | `true` | `false` | all 94 |
+| `SYSTEM_SUPER_ADMIN` | `true` | `false` | all 91 |
 | `TENANT_ADMIN` *(optional)* | `true` | `true` | 60 tenant-portal keys |
 
 This replaced an earlier trio — `SUPER_ADMIN`, `SYSTEM_USER` and
@@ -105,7 +110,7 @@ unreachable. The wizard offers to create `TENANT_ADMIN` for exactly this
 reason.
 
 ::: danger Never set visibleToTenants on SYSTEM_SUPER_ADMIN
-A tenant user assigned it would sign into the tenant portal holding all 94
+A tenant user assigned it would sign into the tenant portal holding all 91
 system-level permissions. Create a separate tenant-scoped role instead.
 :::
 
@@ -163,9 +168,9 @@ guarded.
 1. Re-check `systemUser.count() === 0`.
 2. Delete permissions for removed modules (and their grants explicitly — a
    legacy of `prisma db push` not reliably re-applying `ON DELETE CASCADE`).
-3. `createMany` all 94 permissions with `skipDuplicates`, then read back the
-   id map. One statement, not 94 round trips.
-4. Create `SYSTEM_SUPER_ADMIN` and `createMany` all 94 grants.
+3. `createMany` all 91 permissions with `skipDuplicates`, then read back the
+   id map. One statement, not 91 round trips.
+4. Create `SYSTEM_SUPER_ADMIN` and `createMany` all 91 grants.
 5. Optionally create `TENANT_ADMIN` with its 60.
 6. Create the administrator, username and email lowercased.
 7. Write `app.name`, `app.logo_path` (only if a logo was uploaded) and
