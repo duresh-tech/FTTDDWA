@@ -37,6 +37,11 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   { module: 'tenant-mapped-business', label: 'Tenant Mapped Business', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   { module: 'tenant-places', label: 'Tenant Places', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   { module: 'tenant-association-positions', label: 'Tenant Association Positions', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
+  // Geography chain: a district belongs to a state, a taluk to both.
+  { module: 'tenant-states', label: 'Tenant States', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
+  { module: 'tenant-districts', label: 'Tenant Districts', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
+  { module: 'tenant-taluks', label: 'Tenant Taluks', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
+  { module: 'tenant-industries', label: 'Tenant Industries', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   { module: 'tenant-streets', label: 'Tenant Streets', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   { module: 'tenant-mail-config', label: 'Tenant Mail Config', actions: ['create', 'view', 'update', 'delete', 'list', 'test'] },
   { module: 'app-settings', label: 'App Settings', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
@@ -103,7 +108,15 @@ export const TENANT_ROLE_PERMISSION_KEYS: string[] = [
   'tenant-users:view',
   'tenant-users:update',
   'tenant-users:delete',
-  ...['places', 'streets', 'association-positions'].flatMap((resource) =>
+  ...[
+    'places',
+    'streets',
+    'association-positions',
+    'states',
+    'districts',
+    'taluks',
+    'industries',
+  ].flatMap((resource) =>
     ['list', 'view', 'create', 'update', 'delete'].map(
       (action) => `tenant-${resource}:${action}`,
     ),

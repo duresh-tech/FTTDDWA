@@ -10,6 +10,7 @@ tenant_users ──► tenant_mapped_business ──► tenant_business
                                                  │
                         ┌────────────────────────┴────────────────────┐
                         │  mail config, places, streets,              │
+                        │  states, districts, taluks, industries,     │
                         │  association positions, business domains,   │
                         │  api keys                                   │
                         └─────────────────────────────────────────────┘
@@ -76,6 +77,26 @@ street still belongs to a place.
 Both also carry an optional Tamil name — `placeNameTamil` and
 `streetNameTamil` — alongside the English one, and the list search matches
 either. See [Tamil names](#tamil-names).
+
+## The geography chain
+
+`tenant_states` → `tenant_districts` → `tenant_taluks`. A district names its
+state; a taluk names **both** its district and its state.
+
+That redundancy is deliberate — it lets taluks be filtered by state without a
+join — but the database cannot express "this district belongs to that state",
+so each service walks the chain itself before writing. Skip that check and the
+two ids drift apart silently.
+
+`tenant_states` and `tenant_districts` each carry a code that is unique **per
+business**, enforced the way `tenant_streets` enforces `streetCode`: by an
+assert that deliberately ignores soft-deleted rows, so a code held by a
+deleted-but-restorable row cannot be reissued.
+
+All four, plus `tenant_industries`, are scoped per business. That duplicates
+reference data — every business holds its own copy of Tamil Nadu — which is
+what the spec called for. Making them global would mean dropping
+`tenantBusinessId` and managing them system-side.
 
 ## Association positions
 

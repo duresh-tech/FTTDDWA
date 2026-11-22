@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { BadgeCheck, Building2, KeyRound, Mail, MapPin, Route, Settings2, User } from "lucide-react";
+import { BadgeCheck, Building2, Factory, KeyRound, Landmark, Mail, Map, MapPin, Milestone, Route, Settings2, User } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -28,7 +28,11 @@ const SETTINGS_NAV_ITEMS = [
   { href: "/tenant/settings/business-settings", label: "Business Settings", icon: Settings2, permission: "tenant-business-settings:view", section: "Business" },
   { href: "/tenant/settings/mail-config", label: "Mail Config", icon: Mail, permission: "tenant-mail-config:list", section: "Business" },
   { href: "/tenant/settings/association-positions", label: "Association Positions", icon: BadgeCheck, permission: "tenant-association-positions:list", section: "Business" },
+  { href: "/tenant/settings/industries", label: "Industries", icon: Factory, permission: "tenant-industries:list", section: "Business" },
 
+  { href: "/tenant/settings/states", label: "States", icon: Map, permission: "tenant-states:list", section: "Locations" },
+  { href: "/tenant/settings/districts", label: "Districts", icon: Landmark, permission: "tenant-districts:list", section: "Locations" },
+  { href: "/tenant/settings/taluks", label: "Taluks", icon: Milestone, permission: "tenant-taluks:list", section: "Locations" },
   { href: "/tenant/settings/places", label: "Places", icon: MapPin, permission: "tenant-places:list", section: "Locations" },
   { href: "/tenant/settings/streets", label: "Streets", icon: Route, permission: "tenant-streets:list", section: "Locations" },
 

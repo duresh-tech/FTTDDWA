@@ -91,7 +91,7 @@ controllers (see `CHANGELOG.md` for the full per-resource list).
 | Tenant business settings | `GET /system/tenant-business-settings?tenantBusinessId=…`, `GET/PATCH /system/tenant-business-settings/:id` (value, or the per-business `isReadonly` lock); tenant self-service `GET /tenant/business-settings` and batch `PATCH /tenant/business-settings`. |
 | Setting definitions | `GET/POST /system/setting-definitions`, `GET/PATCH /system/setting-definitions/:id`. No delete - a definition is retired with `status=INACTIVE`, because businesses hold copies. |
 | Settings sync | `POST /system/settings-sync` backfills definitions to businesses that already exist; `GET /system/settings-sync/logs` says what each run did. |
-| Tenant association positions, mail config, places, streets | Each: `GET/POST /system/tenant-<resource>`, `GET/PATCH/DELETE /system/tenant-<resource>/:id` (+ `restore` where applicable); tenant self-service twin at `/tenant/<resource>` scoped to the caller's mapped business. Mail config additionally has `POST .../:id/test-email`, and tenant self-service create is capped at one config per account (system-admin create is not). |
+| Tenant states, districts, taluks, industries, association positions, mail config, places, streets | Each: `GET/POST /system/tenant-<resource>`, `GET/PATCH/DELETE /system/tenant-<resource>/:id` (+ `restore` where applicable); tenant self-service twin at `/tenant/<resource>` scoped to the caller's mapped business. Mail config additionally has `POST .../:id/test-email`, and tenant self-service create is capped at one config per account (system-admin create is not). |
 | App settings | `GET /system/app-settings/public/branding` (public), `GET/POST /system/app-settings`, `GET/PATCH/DELETE /system/app-settings/:id`, `PATCH .../restore`, `GET .../key/:key`, `POST .../logo` |
 | Dashboard | `GET /system/dashboard` |
 | Uploads | `POST /system/uploads`; tenant self-service twin at `POST /tenant/uploads` |
@@ -124,6 +124,10 @@ Seeded permission keys (module: actions):
 | `tenant-business` | `create`, `view`, `update`, `delete`, `list`, `restore` |
 | `tenant-mapped-business` | `create`, `view`, `update`, `delete`, `list`, `restore` |
 | `tenant-association-positions` | `create`, `view`, `update`, `delete`, `list`, `restore` |
+| `tenant-states` | `create`, `view`, `update`, `delete`, `list`, `restore` |
+| `tenant-districts` | `create`, `view`, `update`, `delete`, `list`, `restore` |
+| `tenant-taluks` | `create`, `view`, `update`, `delete`, `list`, `restore` |
+| `tenant-industries` | `create`, `view`, `update`, `delete`, `list`, `restore` |
 | `tenant-places` | `create`, `view`, `update`, `delete`, `list`, `restore` |
 | `tenant-streets` | `create`, `view`, `update`, `delete`, `list`, `restore` |
 | `tenant-mail-config` | `create`, `view`, `update`, `delete`, `list`, `test` |
@@ -151,7 +155,7 @@ shared across businesses cannot be removed from the tenant portal.
 
 ### Where the catalogue lives
 
-`src/common/constants/permissions.ts` holds all 91 permission keys across 20
+`src/common/constants/permissions.ts` holds all 115 permission keys across 20
 modules, and `src/common/bootstrap/bootstrap.ts` holds the bootstrap itself.
 Both the setup wizard and `prisma/seed.ts` import them, so the two paths
 cannot drift.

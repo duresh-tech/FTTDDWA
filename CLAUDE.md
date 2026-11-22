@@ -90,7 +90,7 @@ Authorization is data. Neither `PermissionsGuard` nor `TenantPermissionsGuard`
 contains a role-name shortcut, and the JWT strategies re-resolve permissions
 from `role_permissions` on every request.
 
-So `SYSTEM_SUPER_ADMIN` works only because it holds all 91
+So `SYSTEM_SUPER_ADMIN` works only because it holds all 115
 `role_permissions` rows. **Never add a bypass**, and never grant
 `visibleToTenants: true` to that role — a tenant user assigned it would hold
 every system permission in the tenant portal.

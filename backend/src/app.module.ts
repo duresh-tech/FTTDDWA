@@ -18,6 +18,10 @@ import { TenantMappedBusinessModule } from './tenant-mapped-business/tenant-mapp
 import { TenantMailConfigModule } from './tenant-mail-config/tenant-mail-config.module';
 import { TenantPlacesModule } from './tenant-places/tenant-places.module';
 import { TenantAssociationPositionsModule } from './tenant-association-positions/tenant-association-positions.module';
+import { TenantStatesModule } from './tenant-states/tenant-states.module';
+import { TenantDistrictsModule } from './tenant-districts/tenant-districts.module';
+import { TenantTaluksModule } from './tenant-taluks/tenant-taluks.module';
+import { TenantIndustriesModule } from './tenant-industries/tenant-industries.module';
 import { TenantStreetsModule } from './tenant-streets/tenant-streets.module';
 import { AppSettingsModule } from './app-settings/app-settings.module';
 import { SettingDefinitionsModule } from './setting-definitions/setting-definitions.module';
@@ -66,6 +70,10 @@ import { ApiKeyGuard } from './api-keys/api-key.guard';
     TenantMailConfigModule,
     TenantPlacesModule,
     TenantAssociationPositionsModule,
+    TenantStatesModule,
+    TenantDistrictsModule,
+    TenantTaluksModule,
+    TenantIndustriesModule,
     TenantStreetsModule,
     AppSettingsModule,
     SettingDefinitionsModule,

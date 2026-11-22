@@ -29,7 +29,7 @@ Neither `PermissionsGuard` nor `TenantPermissionsGuard` contains anything like
 
 This is the single most important thing to know about the system:
 
-- `SYSTEM_SUPER_ADMIN` works **only** because it physically holds all 91
+- `SYSTEM_SUPER_ADMIN` works **only** because it physically holds all 115
   `role_permissions` rows.
 - A role with 106 of them is short exactly one permission, and the UI will
   quietly hide the corresponding action.
@@ -44,7 +44,7 @@ be maintained.
 ## The catalogue
 
 `backend/src/common/constants/permissions.ts` is the single source of truth:
-21 modules, **91** keys of the form `${moduleName}:${action}`.
+25 modules, **115** keys of the form `${moduleName}:${action}`.
 
 ```ts
 { module: 'tenant-places', label: 'Tenant Places',
@@ -90,7 +90,7 @@ Exactly one:
 
 | Role | `isSystem` | `visibleToTenants` | Permissions |
 | --- | --- | --- | --- |
-| `SYSTEM_SUPER_ADMIN` | `true` | `false` | all 91 |
+| `SYSTEM_SUPER_ADMIN` | `true` | `false` | all 115 |
 | `TENANT_ADMIN` *(optional)* | `true` | `true` | 60 tenant-portal keys |
 
 This replaced an earlier trio — `SUPER_ADMIN`, `SYSTEM_USER` and
@@ -110,7 +110,7 @@ unreachable. The wizard offers to create `TENANT_ADMIN` for exactly this
 reason.
 
 ::: danger Never set visibleToTenants on SYSTEM_SUPER_ADMIN
-A tenant user assigned it would sign into the tenant portal holding all 91
+A tenant user assigned it would sign into the tenant portal holding all 115
 system-level permissions. Create a separate tenant-scoped role instead.
 :::
 
@@ -168,9 +168,9 @@ guarded.
 1. Re-check `systemUser.count() === 0`.
 2. Delete permissions for removed modules (and their grants explicitly — a
    legacy of `prisma db push` not reliably re-applying `ON DELETE CASCADE`).
-3. `createMany` all 91 permissions with `skipDuplicates`, then read back the
-   id map. One statement, not 91 round trips.
-4. Create `SYSTEM_SUPER_ADMIN` and `createMany` all 91 grants.
+3. `createMany` all 115 permissions with `skipDuplicates`, then read back the
+   id map. One statement, not 115 round trips.
+4. Create `SYSTEM_SUPER_ADMIN` and `createMany` all 115 grants.
 5. Optionally create `TENANT_ADMIN` with its 60.
 6. Create the administrator, username and email lowercased.
 7. Write `app.name`, `app.logo_path` (only if a logo was uploaded) and

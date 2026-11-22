@@ -170,6 +170,10 @@ model TenantBusiness {
   places            TenantPlace[]
   streets           TenantStreet[]
   associationPositions TenantAssociationPosition[]
+  states               TenantState[]
+  districts            TenantDistrict[]
+  taluks               TenantTaluk[]
+  industries           TenantIndustry[]
   domains           TenantBusinessDomain[]
   apiKeys           ApiKey[]
   settings          TenantBusinessSetting[]
@@ -778,4 +782,141 @@ model TenantAssociationPosition {
   @@index([status])
   @@index([tenantBusinessId])
   @@map("tenant_association_positions")
+}
+
+// ---------------------------------------------------------------------------
+// Geography and trade lookups.
+//
+// State -> District -> Taluk is a chain: a taluk carries BOTH stateId and
+// districtId, as tenant_streets carries both tenantBusinessId and
+// tenantPlaceId. The redundancy is deliberate - it lets a taluk be filtered by
+// state without a join - but it means the services must check the district
+// really belongs to the state, or the pair silently drifts.
+//
+// All four are scoped per tenant business, which duplicates reference data
+// across businesses. That is what the spec asked for; making them global would
+// mean dropping tenantBusinessId and managing them system-side.
+// ---------------------------------------------------------------------------
+
+enum TenantStateStatus {
+  ACTIVE
+  INACTIVE
+  DELETED
+}
+
+enum TenantDistrictStatus {
+  ACTIVE
+  INACTIVE
+  DELETED
+}
+
+enum TenantTalukStatus {
+  ACTIVE
+  INACTIVE
+  DELETED
+}
+
+enum TenantIndustryStatus {
+  ACTIVE
+  INACTIVE
+  DELETED
+}
+
+model TenantState {
+  id               String @id @db.Char(36) // UUIDv7
+  systemCode       String @unique @db.VarChar(30)
+  tenantBusinessId String @db.Char(36)
+
+  stateName      String  @db.VarChar(100)
+  stateNameTamil String? @db.VarChar(100)
+  stateCode      String  @db.VarChar(10)
+  country        String  @db.VarChar(100)
+
+  status    TenantStateStatus @default(ACTIVE)
+  createdAt BigInt
+  updatedAt BigInt
+  deletedAt BigInt?
+
+  tenantBusiness TenantBusiness   @relation(fields: [tenantBusinessId], references: [id])
+  districts      TenantDistrict[]
+  taluks         TenantTaluk[]
+
+  /// Applies to every row regardless of soft-delete state, so a code held by a
+  /// deleted-but-restorable state cannot be reissued.
+  @@unique([tenantBusinessId, stateCode])
+  @@index([status])
+  @@index([tenantBusinessId])
+  @@map("tenant_states")
+}
+
+model TenantDistrict {
+  id               String @id @db.Char(36) // UUIDv7
+  systemCode       String @unique @db.VarChar(30)
+  tenantBusinessId String @db.Char(36)
+  stateId          String @db.Char(36)
+
+  districtName      String  @db.VarChar(100)
+  districtNameTamil String? @db.VarChar(100)
+  districtCode      String  @db.VarChar(10)
+
+  status    TenantDistrictStatus @default(ACTIVE)
+  createdAt BigInt
+  updatedAt BigInt
+  deletedAt BigInt?
+
+  tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
+  state          TenantState    @relation(fields: [stateId], references: [id])
+  taluks         TenantTaluk[]
+
+  @@unique([tenantBusinessId, districtCode])
+  @@index([status])
+  @@index([tenantBusinessId])
+  @@index([stateId])
+  @@map("tenant_districts")
+}
+
+model TenantTaluk {
+  id               String @id @db.Char(36) // UUIDv7
+  systemCode       String @unique @db.VarChar(30)
+  tenantBusinessId String @db.Char(36)
+  stateId          String @db.Char(36)
+  districtId       String @db.Char(36)
+
+  talukName      String  @db.VarChar(100)
+  talukNameTamil String? @db.VarChar(100)
+
+  status    TenantTalukStatus @default(ACTIVE)
+  createdAt BigInt
+  updatedAt BigInt
+  deletedAt BigInt?
+
+  tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
+  state          TenantState    @relation(fields: [stateId], references: [id])
+  district       TenantDistrict @relation(fields: [districtId], references: [id])
+
+  @@index([status])
+  @@index([tenantBusinessId])
+  @@index([stateId])
+  @@index([districtId])
+  @@map("tenant_taluks")
+}
+
+model TenantIndustry {
+  id               String @id @db.Char(36) // UUIDv7
+  systemCode       String @unique @db.VarChar(30)
+  tenantBusinessId String @db.Char(36)
+
+  industryName      String  @db.VarChar(100)
+  industryNameTamil String? @db.VarChar(100)
+
+  status    TenantIndustryStatus @default(ACTIVE)
+  createdAt BigInt
+  updatedAt BigInt
+  deletedAt BigInt?
+
+  tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
+
+  @@index([status])
+  @@index([tenantBusinessId])
+  @@map("tenant_industries")
 }

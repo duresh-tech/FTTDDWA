@@ -23,12 +23,12 @@ for the other. See [Authentication](/logic/auth).
 
 ## Authorization
 
-Permissions are **data**, not role checks: 91 keys resolved from
+Permissions are **data**, not role checks: 115 keys resolved from
 `role_permissions` on every request.
 
 There is **no super-admin bypass** in either guard. Nothing anywhere reads
 "is this user an admin?" — so `SYSTEM_SUPER_ADMIN` only works because it
-genuinely holds all 91 grants, and a role with 90 of them is exactly one
+genuinely holds all 115 grants, and a role with 114 of them is exactly one
 permission short. See [RBAC & permissions](/logic/rbac-permissions).
 
 The console gates its own UI on the same keys, but that mirrors the backend

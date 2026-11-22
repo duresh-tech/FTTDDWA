@@ -63,6 +63,10 @@ default credentials.
 | `/system/dashboard/tenant-business-settings` | Business Settings — cross-tenant support view of one business's values, with a per-setting tenant lock |
 | `/system/dashboard/tenant-mail-config` | Mail Config — list, create, edit, delete, send test email |
 | `/system/dashboard/tenant-association-positions` | Association Positions — list, create, edit, delete, restore |
+| `/system/dashboard/tenant-states` | States — list, create, edit, delete, restore |
+| `/system/dashboard/tenant-districts` | Districts — list, create, edit, delete, restore; state picker |
+| `/system/dashboard/tenant-taluks` | Taluks — list, create, edit, delete, restore; cascading state → district pickers |
+| `/system/dashboard/tenant-industries` | Industries — list, create, edit, delete, restore |
 | `/system/dashboard/tenant-places` | Places — list, create, edit, delete, restore, map picker |
 | `/system/dashboard/tenant-streets` | Streets — list, create, edit, delete, restore, map picker |
 | `/system/dashboard/roles` | Roles — list, create, edit, delete, assign permissions (grouped, searchable) |
@@ -79,7 +83,7 @@ default credentials.
 | `/tenant/settings/user-account` | Own profile — name, username, email, phone, password, avatar |
 | `/tenant/settings/business-information` | Own business profile (view/update, per permission) |
 | `/tenant/settings/business-settings` | Own business settings — grouped by category, saved as one batch with a from/to confirmation |
-| `/tenant/settings/association-positions`, `/mail-config`, `/places`, `/streets`, `/api-keys` | Self-service CRUD twins of the matching system-admin pages, scoped to the caller's own business |
+| `/tenant/settings/states`, `/districts`, `/taluks`, `/industries`, `/association-positions`, `/mail-config`, `/places`, `/streets`, `/api-keys` | Self-service CRUD twins of the matching system-admin pages, scoped to the caller's own business |
 
 ## Permission-gated UI
 

@@ -115,7 +115,7 @@ may happen. The console's own key has none for exactly that reason.
 ### Scope templates
 
 System → API Key Scope Templates. A named bundle — "Reporting client" — so
-nobody assembles a credential out of 91 checkboxes.
+nobody assembles a credential out of 115 checkboxes.
 
 A template is a **shortcut at creation time, not a live link**: editing or
 removing one never changes a key already issued from it. That is what makes it
