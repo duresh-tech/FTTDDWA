@@ -63,6 +63,7 @@ default credentials.
 | `/system/dashboard/tenant-business-settings` | Business Settings — cross-tenant support view of one business's values, with a per-setting tenant lock |
 | `/system/dashboard/tenant-mail-config` | Mail Config — list, create, edit, delete, send test email |
 | `/system/dashboard/tenant-association-positions` | Association Positions — list, create, edit, delete, restore |
+| `/system/dashboard/tenant-members` | Members — the register; cascading state → district → taluk, photo upload, lifecycle status |
 | `/system/dashboard/tenant-states` | States — list, create, edit, delete, restore |
 | `/system/dashboard/tenant-districts` | Districts — list, create, edit, delete, restore; state picker |
 | `/system/dashboard/tenant-taluks` | Taluks — list, create, edit, delete, restore; cascading state → district pickers |
@@ -80,6 +81,7 @@ default credentials.
 | `/tenant/login` | Tenant sign in; redirects to `/tenant/dashboard` |
 | `/tenant/dashboard` | Tenant stats overview |
 | `/tenant/users` | Team members mapped to the caller's business — list, create, edit, delete, view |
+| `/tenant/members` | The membership register for the caller's business |
 | `/tenant/settings/user-account` | Own profile — name, username, email, phone, password, avatar |
 | `/tenant/settings/business-information` | Own business profile (view/update, per permission) |
 | `/tenant/settings/business-settings` | Own business settings — grouped by category, saved as one batch with a from/to confirmation |

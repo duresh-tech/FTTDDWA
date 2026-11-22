@@ -21,7 +21,7 @@ features:
     details: System staff and tenant operators sign in on their own paths, with their own JWT audience, refresh-token table and cookie names - so two sessions coexist in one browser and neither can pass for the other.
     link: /logic/auth
   - title: Permissions, not role checks
-    details: 115 permission keys across 25 modules, resolved from the database on every request. There is no super-admin bypass anywhere, so SYSTEM_SUPER_ADMIN holds every grant for real.
+    details: 122 permission keys across 26 modules, resolved from the database on every request. There is no super-admin bypass anywhere, so SYSTEM_SUPER_ADMIN holds every grant for real.
     link: /logic/rbac-permissions
   - title: Configured in the browser
     details: A fresh database has no accounts and no default password. The first-run wizard creates the administrator, the role and the branding in one transaction, then closes itself permanently.

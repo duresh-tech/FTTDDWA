@@ -9,7 +9,7 @@ mirror of the same resources, scoped to one business.
 tenant_users ──► tenant_mapped_business ──► tenant_business
                                                  │
                         ┌────────────────────────┴────────────────────┐
-                        │  mail config, places, streets,              │
+                        │  members, mail config, places, streets,     │
                         │  states, districts, taluks, industries,     │
                         │  association positions, business domains,   │
                         │  api keys                                   │
@@ -77,6 +77,9 @@ street still belongs to a place.
 Both also carry an optional Tamil name — `placeNameTamil` and
 `streetNameTamil` — alongside the English one, and the list search matches
 either. See [Tamil names](#tamil-names).
+
+The register itself is [Members](./members.md), which references the
+position, industry and geography lookups below.
 
 ## The geography chain
 

@@ -22,6 +22,7 @@ import { TenantStatesModule } from './tenant-states/tenant-states.module';
 import { TenantDistrictsModule } from './tenant-districts/tenant-districts.module';
 import { TenantTaluksModule } from './tenant-taluks/tenant-taluks.module';
 import { TenantIndustriesModule } from './tenant-industries/tenant-industries.module';
+import { TenantMembersModule } from './tenant-members/tenant-members.module';
 import { TenantStreetsModule } from './tenant-streets/tenant-streets.module';
 import { AppSettingsModule } from './app-settings/app-settings.module';
 import { SettingDefinitionsModule } from './setting-definitions/setting-definitions.module';
@@ -74,6 +75,7 @@ import { ApiKeyGuard } from './api-keys/api-key.guard';
     TenantDistrictsModule,
     TenantTaluksModule,
     TenantIndustriesModule,
+    TenantMembersModule,
     TenantStreetsModule,
     AppSettingsModule,
     SettingDefinitionsModule,

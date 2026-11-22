@@ -2,8 +2,8 @@
 
 **Federation of Tamilnadu Tent Dealers & Decorators Welfare Association.**
 
-[![Backend](https://img.shields.io/badge/backend-v3.1.0-blue)](./backend/CHANGELOG.md)
-[![Console](https://img.shields.io/badge/console-v3.1.0-blue)](./console/CHANGELOG.md)
+[![Backend](https://img.shields.io/badge/backend-v3.2.0-blue)](./backend/CHANGELOG.md)
+[![Console](https://img.shields.io/badge/console-v3.2.0-blue)](./console/CHANGELOG.md)
 
 `FTTDDWA` is the short form used everywhere it has to fit: the `APP_NAME`
 default, the browser tab title, the Swagger title and the console sidebar.
@@ -11,7 +11,7 @@ default, the browser tab title, the Swagger title and the console sidebar.
 Full-stack system administration console with RBAC-driven CRUD for system
 users, roles, and permissions, plus a parallel **tenant portal**: tenant
 users log in separately and manage their own business — team members,
-association positions, states, districts, taluks, industries, mail config,
+members, association positions, states, districts, taluks, industries, mail config,
 places, and streets — mirroring the
 system-admin CRUD for each resource, scoped to their own mapped business.
 A generic typed key-value **App Settings** store backs app-wide config
@@ -187,8 +187,8 @@ the API is same-origin.
 - **First-run setup**: `GET /system/setup/status`, `POST /system/setup/logo`, `POST /system/setup/initialize`. All public, all permanently `409` once a system user exists. `initialize` runs in one transaction, so a failure cannot leave a half-initialized instance.
 - **Auth (Passport.js)**: JWT access token (Bearer, 15 min) + rotating refresh token (httpOnly cookie, 7 days, SHA-256 hash stored in `refresh_tokens`). `POST /system/login`, `/system/refresh`, `/system/logout`, `GET /system/me`. There is no public registration endpoint — the wizard creates the first admin, and further accounts come from `POST /system/users` (`system-users:create`).
 - **Tenant portal & auth**: a fully parallel, namespaced auth audience (own JWT strategy, refresh-token table, and cookie names) so a tenant session and a system-admin session coexist in the same browser. `POST /tenant/login`, `GET /tenant/me`, `GET /tenant/dashboard`. System admins can also "Login as" any tenant user.
-- **RBAC**: `permissions` ⇄ `role_permissions` ⇄ `roles` ⇄ `system_users`/`tenant_users`. System routes declare `@RequirePermissions('roles:delete')`; tenant routes use the parallel `@RequireTenantPermissions()`, evaluated by an independent guard. The catalogue of 115 permissions across 25 modules lives in `src/common/constants/permissions.ts`, shared by the wizard and the seed.
-- **One bootstrap role**: `SYSTEM_SUPER_ADMIN`, holding every permission. Neither guard has a super-admin bypass — permissions are resolved from `role_permissions` on every request — so the role genuinely holds all 115 grants. Any further roles are created through the Roles UI.
+- **RBAC**: `permissions` ⇄ `role_permissions` ⇄ `roles` ⇄ `system_users`/`tenant_users`. System routes declare `@RequirePermissions('roles:delete')`; tenant routes use the parallel `@RequireTenantPermissions()`, evaluated by an independent guard. The catalogue of 122 permissions across 26 modules lives in `src/common/constants/permissions.ts`, shared by the wizard and the seed.
+- **One bootstrap role**: `SYSTEM_SUPER_ADMIN`, holding every permission. Neither guard has a super-admin bypass — permissions are resolved from `role_permissions` on every request — so the role genuinely holds all 122 grants. Any further roles are created through the Roles UI.
 - **App Settings**: a generic typed key-value config store (`app_settings` — `key`, `dataType`, `value`, `description`, soft-delete `status`). The public `GET /system/app-settings/public/branding` endpoint returns the app name and logo, preferring the DB `app.name` row and falling back to the `APP_NAME` env var.
 - **Dual-surface CRUD pattern**: each tenant-scoped resource is one Prisma model + one shared service, exposed through a system-admin controller (unrestricted) and a tenant self-service controller (scoped to the caller's own mapped business via `tenant_mapped_business`), sharing one permission-key namespace.
 - **Validation**: Zod schemas via `nestjs-zod` (global pipe), surfaced in Swagger.

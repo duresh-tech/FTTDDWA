@@ -23,7 +23,7 @@ the backend is down.
 | --- | --- |
 | `src/main.ts` | Bootstrap: helmet, cookies, CORS, URI versioning, static `/uploads`, Swagger |
 | `src/app.module.ts` | Module registry and the global guard chain |
-| `src/common/constants/permissions.ts` | The permission catalogue — 115 keys, 25 modules |
+| `src/common/constants/permissions.ts` | The permission catalogue — 122 keys, 26 modules |
 | `src/common/bootstrap/bootstrap.ts` | First-run bootstrap, shared by the wizard and the seed |
 | `src/common/guards/` | Throttle, device header, JWT, RBAC |
 | `src/config/env.validation.ts` | Boot-time env schema |

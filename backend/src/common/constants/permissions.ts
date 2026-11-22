@@ -42,6 +42,10 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   { module: 'tenant-districts', label: 'Tenant Districts', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   { module: 'tenant-taluks', label: 'Tenant Taluks', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   { module: 'tenant-industries', label: 'Tenant Industries', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
+  // change_status is split from update on purpose: suspending a member is
+  // a different act from correcting their phone number, and you would
+  // plausibly grant one without the other.
+  { module: 'tenant-members', label: 'Tenant Members', actions: ['create', 'view', 'update', 'delete', 'list', 'restore', 'change_status'] },
   { module: 'tenant-streets', label: 'Tenant Streets', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   { module: 'tenant-mail-config', label: 'Tenant Mail Config', actions: ['create', 'view', 'update', 'delete', 'list', 'test'] },
   { module: 'app-settings', label: 'App Settings', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
@@ -125,6 +129,12 @@ export const TENANT_ROLE_PERMISSION_KEYS: string[] = [
   // cross-tenant view, and a tenant has only one business to read.
   'tenant-business-settings:view',
   'tenant-business-settings:update',
+  'tenant-members:list',
+  'tenant-members:view',
+  'tenant-members:create',
+  'tenant-members:update',
+  'tenant-members:delete',
+  'tenant-members:change_status',
   'tenant-mail-config:list',
   'tenant-mail-config:view',
   'tenant-mail-config:create',

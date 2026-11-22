@@ -13,6 +13,7 @@ import {
   Search,
   Settings,
   User,
+  Contact,
   Users,
 } from "lucide-react";
 
@@ -42,6 +43,7 @@ import { useAppSettings } from "@/hooks/use-app-settings";
 const TENANT_NAV_ITEMS: NavItem[] = [
   { href: "/tenant/dashboard", label: "Dashboard", icon: LayoutDashboard, permission: "tenant-dashboard:view", section: "Main" },
   { href: "/tenant/users", label: "Users", icon: Users, permission: "tenant-users:read", section: "Management" },
+  { href: "/tenant/members", label: "Members", icon: Contact, permission: "tenant-members:list", section: "Management" },
   { href: "/tenant/settings/user-account", label: "Settings", icon: Settings, permission: "tenant-account:view", section: "Settings" },
 ];
 

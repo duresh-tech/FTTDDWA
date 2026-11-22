@@ -56,6 +56,7 @@ export default defineConfig({
             { text: 'Authentication', link: '/logic/auth' },
             { text: 'RBAC & permissions', link: '/logic/rbac-permissions' },
             { text: 'Tenants & businesses', link: '/logic/tenants-and-businesses' },
+            { text: 'Members', link: '/logic/members' },
             { text: 'App settings & branding', link: '/logic/app-settings' },
             { text: 'Business settings', link: '/logic/business-settings' },
           ],

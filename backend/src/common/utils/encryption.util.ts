@@ -68,6 +68,23 @@ function getKey(): Buffer {
   return cached;
 }
 
+/**
+ * A separate 32-byte key for a different purpose, derived from the same root.
+ *
+ * HKDF with a distinct `info` label gives a key that is independent of the
+ * encryption key: neither can be recovered from the other, so a blind index
+ * cannot be used to attack the ciphertext or vice versa. The root is the same,
+ * which means the same warning applies - rotating `JWT_ACCESS_SECRET` without
+ * `SETTINGS_ENCRYPTION_KEY` set invalidates everything derived here too.
+ *
+ * Pass a stable, versioned label (`'blind-index:v1'`). Changing a label
+ * changes the key, which for a blind index means every stored hash stops
+ * matching - so version it rather than renaming it.
+ */
+export function deriveSecondaryKey(label: string): Buffer {
+  return Buffer.from(hkdfSync('sha256', getKey(), HKDF_SALT, label, 32));
+}
+
 /** Whether a value can be encrypted at all, without throwing to find out. */
 export function isEncryptionAvailable(): boolean {
   try {

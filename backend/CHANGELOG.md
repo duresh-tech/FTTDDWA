@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-11-23
+
+### Added
+
+- **The membership register** (`tenant_members`, migration 0009). Names in
+  both scripts, the business they trade as, their association position and
+  industry, contact details, the full geography chain, dates of birth and
+  marriage, a passport photo and a membership lifecycle.
+- **Aadhaar is encrypted AND deduplicated**, which takes three columns because
+  the two goals are at odds. GCM uses a random IV, so the same number encrypts
+  differently every time - exactly what confidentiality wants and exactly what
+  makes `@@unique` useless. So: `aadhaarNumber` holds the ciphertext,
+  `aadhaarHash` an HMAC-SHA256 blind index that restores equality, and
+  `aadhaarLast4` the four digits a screen shows. The first two never leave the
+  server; publishing the hash would hand out an offline oracle against a 10^12
+  space.
+  - `@@unique([tenantBusinessId, aadhaarHash])` catches the same person
+    enrolled twice. The check ignores soft-deleted rows, like the street-code
+    check: a deleted member still holds their number, so restoring them cannot
+    collide with someone enrolled since.
+  - What this costs: a blind index answers equality and nothing else, so
+    member search covers names, phone and email but never the Aadhaar.
+- **`deriveSecondaryKey()`** in the encryption util - HKDF with a distinct
+  label, so the index key and the encryption key are independent and neither
+  can be recovered from the other.
+- **`change_status` as a seventh action**, with its own endpoint. Suspending a
+  member is a different act from correcting their phone number, and you would
+  plausibly grant one without the other. A new member starts PENDING; a
+  restored one returns to PENDING rather than ACTIVE, because a membership
+  that was deleted deserves another look.
+
+Permissions: 115 -> 122 across 26 modules.
+
+### Notes on two decisions
+
+- **Dates are YYYY-MM-DD strings, not epochs.** A birth date is not a moment,
+  and each business picks its own timeZone setting - an epoch DOB renders as
+  the previous day in a negative offset. This reuses the format the settings
+  store already validates and `<input type="date">` already emits.
+- **isMarried/weddingDate is enforced twice on purpose.** The create schema
+  rejects a wedding date on an unmarried member; the service re-derives both
+  on update, because a PATCH may carry either field or neither and only the
+  stored row knows the rest. Without the second, clearing the flag would leave
+  the old date behind.
+
 ## [3.1.0] - 2026-11-23
 
 ### Added

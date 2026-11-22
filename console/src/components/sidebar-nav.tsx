@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
-import { BadgeCheck, Building2, Factory, Globe, KeyRound, Landmark, LayoutDashboard, LayoutList, Mail, Map, MapPin, Milestone, Network, Route, Settings2, ShieldCheck, SlidersHorizontal, UserCog, Users } from "lucide-react";
+import { BadgeCheck, Building2, Contact, Factory, Globe, KeyRound, Landmark, LayoutDashboard, LayoutList, Mail, Map, MapPin, Milestone, Network, Route, Settings2, ShieldCheck, SlidersHorizontal, UserCog, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -35,6 +35,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/system/dashboard/permissions", label: "Permissions", icon: KeyRound, permission: "permissions:read", section: "Access Control" },
 
   // The businesses themselves, and the records that hang off one.
+  { href: "/system/dashboard/tenant-members", label: "Members", icon: Contact, permission: "tenant-members:list", section: "Tenants" },
   { href: "/system/dashboard/tenant-business", label: "Tenant Business", icon: Building2, permission: "tenant-business:list", section: "Tenants" },
   { href: "/system/dashboard/tenant-business-domains", label: "Business Domains", icon: Globe, permission: "tenant-business-domains:list", section: "Tenants" },
   { href: "/system/dashboard/tenant-mapped-business", label: "Tenant Mapped Business", icon: Network, permission: "tenant-mapped-business:list", section: "Tenants" },

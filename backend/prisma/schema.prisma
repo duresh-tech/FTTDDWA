@@ -174,6 +174,7 @@ model TenantBusiness {
   districts            TenantDistrict[]
   taluks               TenantTaluk[]
   industries           TenantIndustry[]
+  members              TenantMember[]
   domains           TenantBusinessDomain[]
   apiKeys           ApiKey[]
   settings          TenantBusinessSetting[]
@@ -778,6 +779,7 @@ model TenantAssociationPosition {
   deletedAt BigInt?
 
   tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
+  members        TenantMember[]
 
   @@index([status])
   @@index([tenantBusinessId])
@@ -840,6 +842,7 @@ model TenantState {
   tenantBusiness TenantBusiness   @relation(fields: [tenantBusinessId], references: [id])
   districts      TenantDistrict[]
   taluks         TenantTaluk[]
+  members        TenantMember[]
 
   /// Applies to every row regardless of soft-delete state, so a code held by a
   /// deleted-but-restorable state cannot be reissued.
@@ -867,6 +870,7 @@ model TenantDistrict {
   tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
   state          TenantState    @relation(fields: [stateId], references: [id])
   taluks         TenantTaluk[]
+  members        TenantMember[]
 
   @@unique([tenantBusinessId, districtCode])
   @@index([status])
@@ -893,6 +897,7 @@ model TenantTaluk {
   tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
   state          TenantState    @relation(fields: [stateId], references: [id])
   district       TenantDistrict @relation(fields: [districtId], references: [id])
+  members        TenantMember[]
 
   @@index([status])
   @@index([tenantBusinessId])
@@ -915,8 +920,105 @@ model TenantIndustry {
   deletedAt BigInt?
 
   tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
+  members        TenantMember[]
 
   @@index([status])
   @@index([tenantBusinessId])
   @@map("tenant_industries")
+}
+
+// ---------------------------------------------------------------------------
+// The membership register.
+//
+// PENDING / SUSPENDED / EXPIRED are states a human sets. Note ApiKeyStatus
+// deliberately omits EXPIRED because expiry there is derived from expiresAt
+// and the clock; that reasoning does not apply here only because there is no
+// membership-expiry column. If one is ever added, EXPIRED should go and be
+// derived instead, or the two will drift.
+// ---------------------------------------------------------------------------
+
+enum TenantMemberStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+  SUSPENDED
+  EXPIRED
+  DELETED
+}
+
+model TenantMember {
+  id               String @id @db.Char(36) // UUIDv7
+  systemCode       String @unique @db.VarChar(30)
+  tenantBusinessId String @db.Char(36)
+
+  memberName        String  @db.VarChar(100)
+  memberNameTamil   String? @db.VarChar(100)
+  businessName      String  @db.VarChar(100)
+  businessNameTamil String? @db.VarChar(100)
+
+  associationPositionId String @db.Char(36)
+  industryId            String @db.Char(36)
+
+  /// AES-256-GCM ciphertext, NOT twelve digits - the stored format is
+  /// base64(iv):base64(tag):base64(ciphertext), so the column is sized for
+  /// that. A VarChar(12) here would truncate on write and fail to decrypt on
+  /// read, surfacing only when someone opens the record again.
+  aadhaarNumber String @db.VarChar(255)
+
+  /// Deterministic HMAC-SHA256 of the digits, because GCM uses a random IV and
+  /// the same number encrypts differently every time - so the ciphertext
+  /// cannot be unique-constrained or searched. This is what catches the same
+  /// person enrolled twice. It is a blind index: it proves equality and
+  /// reveals nothing else.
+  aadhaarHash String @db.Char(64)
+
+  /// The last four digits, in the clear and on purpose. A list needs to show
+  /// them to confirm the right person, and decrypting every row to render a
+  /// page would be both slow and a reason to hold plaintext in memory. Four
+  /// digits identify nobody on their own.
+  aadhaarLast4 String @db.VarChar(4)
+
+  phoneNumber    String  @db.VarChar(20)
+  whatsappNumber String? @db.VarChar(20)
+  email          String  @db.VarChar(191)
+
+  stateId      String  @db.Char(36)
+  districtId   String  @db.Char(36)
+  talukId      String  @db.Char(36)
+  addressLine1 String  @db.VarChar(255)
+  addressLine2 String? @db.VarChar(255)
+
+  /// Calendar dates, not epochs: a birth date is not a moment, and each
+  /// business picks its own timeZone setting, so an epoch would render as the
+  /// previous day in a negative offset. YYYY-MM-DD, the format <input
+  /// type="date"> emits and the one the settings store already validates.
+  dateOfBirth String  @db.VarChar(10)
+  isMarried   Boolean @default(false)
+  weddingDate String? @db.VarChar(10)
+
+  passportPhotoPath String? @db.VarChar(255)
+  remark            String? @db.VarChar(255)
+
+  status    TenantMemberStatus @default(PENDING)
+  createdAt BigInt
+  updatedAt BigInt
+  deletedAt BigInt?
+
+  tenantBusiness      TenantBusiness            @relation(fields: [tenantBusinessId], references: [id])
+  associationPosition TenantAssociationPosition @relation(fields: [associationPositionId], references: [id])
+  industry            TenantIndustry            @relation(fields: [industryId], references: [id])
+  state               TenantState               @relation(fields: [stateId], references: [id])
+  district            TenantDistrict            @relation(fields: [districtId], references: [id])
+  taluk               TenantTaluk               @relation(fields: [talukId], references: [id])
+
+  /// One enrolment per person per business.
+  @@unique([tenantBusinessId, aadhaarHash])
+  @@index([status])
+  @@index([tenantBusinessId])
+  @@index([associationPositionId])
+  @@index([industryId])
+  @@index([stateId])
+  @@index([districtId])
+  @@index([talukId])
+  @@map("tenant_members")
 }

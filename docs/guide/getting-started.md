@@ -23,7 +23,7 @@ Then open <http://localhost:3000>.
 
 A fresh database has no accounts, so the console redirects to
 **[`/setup`](./setup-wizard)**. That wizard creates the administrator account,
-the `SYSTEM_SUPER_ADMIN` role with all 115 permissions, and the branding.
+the `SYSTEM_SUPER_ADMIN` role with all 122 permissions, and the branding.
 **There are no default credentials** — you choose them there, and the wizard
 closes itself permanently once an account exists.
 

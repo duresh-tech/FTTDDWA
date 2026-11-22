@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-11-23
+
+### Added
+
+- **Member screens** - the largest form in the app, on both surfaces.
+  `/system/dashboard/tenant-members` and `/tenant/members`, the latter with its
+  own layout wrapping TenantShell because members is a primary record, not a
+  setting.
+- Three cascading pickers (state -> district -> taluk) alongside position and
+  industry. Each change clears everything beneath it, so the form cannot hold
+  a district from one state next to a taluk from another - which the API would
+  reject anyway, but far later and less legibly.
+- A passport-photo uploader on the business-logo idiom, two `<input
+  type="date">` fields, and an `isMarried` checkbox that reveals the wedding
+  date and clears it when unticked.
+- Aadhaar renders as `XXXX XXXX 1234` with a replace field. On edit the field
+  starts blank, because blank is what tells the server to keep the stored
+  number - it is never sent back to be re-submitted.
+- Nav: Members leads the Tenants section in the system sidebar, and sits
+  beside Users in the tenant portal.
+
 ## [3.1.0] - 2026-11-23
 
 ### Added
