@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
-import { BadgeCheck, Building2, Contact, Factory, Globe, KeyRound, Landmark, LayoutDashboard, LayoutList, Mail, Map, MapPin, Milestone, Network, Route, Settings2, ShieldCheck, SlidersHorizontal, UserCog, Users } from "lucide-react";
+import { BadgeCheck, Building2, Car, Contact, Factory, Globe, KeyRound, Landmark, LayoutDashboard, LayoutList, Mail, Map, MapPin, Milestone, Network, Route, Settings2, ShieldCheck, SlidersHorizontal, UserCog, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -45,6 +45,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/system/dashboard/tenant-states", label: "States", icon: Map, permission: "tenant-states:list", section: "Locations" },
   { href: "/system/dashboard/tenant-districts", label: "Districts", icon: Landmark, permission: "tenant-districts:list", section: "Locations" },
   { href: "/system/dashboard/tenant-taluks", label: "Taluks", icon: Milestone, permission: "tenant-taluks:list", section: "Locations" },
+  { href: "/system/dashboard/tenant-rtos", label: "RTOs", icon: Car, permission: "tenant-rtos:list", section: "Locations" },
   { href: "/system/dashboard/tenant-places", label: "Places", icon: MapPin, permission: "tenant-places:list", section: "Locations" },
   { href: "/system/dashboard/tenant-streets", label: "Streets", icon: Route, permission: "tenant-streets:list", section: "Locations" },
 

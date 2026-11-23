@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { encryptValue } from '../common/utils/encryption.util';
 import { blindIndex, normaliseAadhaar } from '../common/utils/blind-index.util';
@@ -33,6 +34,7 @@ const INCLUDE = {
   state: { select: { id: true, stateName: true } },
   district: { select: { id: true, districtName: true } },
   taluk: { select: { id: true, talukName: true } },
+  rto: { select: { id: true, rtoName: true, rtoCode: true } },
 };
 
 type WithAadhaar = { aadhaarNumber: string; aadhaarHash: string };
@@ -62,6 +64,7 @@ function searchClause(search?: string) {
       { phoneNumber: { contains: search, mode: 'insensitive' as const } },
       { email: { contains: search, mode: 'insensitive' as const } },
       { systemCode: { contains: search, mode: 'insensitive' as const } },
+      { memberIdNumber: { contains: search, mode: 'insensitive' as const } },
     ],
   };
 }
@@ -98,17 +101,29 @@ export class TenantMembersService {
 
   async create(dto: CreateTenantMemberDto) {
     await this.assertBusinessExists(dto.tenantBusinessId);
-    await this.assertChain(dto.tenantBusinessId, dto.stateId, dto.districtId, dto.talukId);
+    await this.assertChain(
+      dto.tenantBusinessId,
+      dto.stateId,
+      dto.districtId,
+      dto.talukId,
+      dto.rtoId,
+    );
     await this.assertRefs(dto.tenantBusinessId, dto.associationPositionId, dto.industryId);
 
     const aadhaarHash = blindIndex(dto.aadhaarNumber);
     await this.assertAadhaarUnique(dto.tenantBusinessId, aadhaarHash);
 
     const timestamp = now();
-    const row = await this.prisma.tenantMember.create({
+    // One transaction, because the membership number is allocated by reading
+    // the numbers already issued for this RTO. Outside a transaction, two
+    // concurrent enrolments would both read the same highest number.
+    const row = await this.prisma.$transaction(async (tx) => {
+      const memberIdNumber = await this.allocateMemberIdNumber(tx, dto.rtoId);
+      return tx.tenantMember.create({
       data: {
         id: newId(),
         systemCode: newSystemCode('MEM'),
+        memberIdNumber,
         tenantBusinessId: dto.tenantBusinessId,
         memberName: dto.memberName,
         memberNameTamil: dto.memberNameTamil,
@@ -125,6 +140,7 @@ export class TenantMembersService {
         stateId: dto.stateId,
         districtId: dto.districtId,
         talukId: dto.talukId,
+        rtoId: dto.rtoId,
         addressLine1: dto.addressLine1,
         addressLine2: dto.addressLine2,
         dateOfBirth: dto.dateOfBirth,
@@ -138,6 +154,7 @@ export class TenantMembersService {
         updatedAt: timestamp,
       },
       include: INCLUDE,
+      });
     });
     return mask(row);
   }
@@ -153,12 +170,13 @@ export class TenantMembersService {
 
     // Any touched part of the chain re-validates the whole chain, because the
     // pieces only make sense together.
-    if (dto.stateId || dto.districtId || dto.talukId || dto.tenantBusinessId) {
+    if (dto.stateId || dto.districtId || dto.talukId || dto.rtoId || dto.tenantBusinessId) {
       await this.assertChain(
         tenantBusinessId,
         dto.stateId ?? row.stateId,
         dto.districtId ?? row.districtId,
         dto.talukId ?? row.talukId,
+        dto.rtoId ?? row.rtoId,
       );
     }
     if (dto.associationPositionId || dto.industryId || dto.tenantBusinessId) {
@@ -176,10 +194,23 @@ export class TenantMembersService {
     );
     const { isMarried, weddingDate } = this.resolveMarriage(dto, row);
 
+    // memberIdNumber is allocated at enrolment and never reissued - not even
+    // when rtoId changes here, because the member may already hold a printed
+    // card and an identifier that changes is not an identifier.
+    //
+    // Zod already strips it at the HTTP boundary (it is absent from the create
+    // schema the update schema is derived from), so this guards the SERVICE
+    // path: `...dto` below spreads straight into Prisma, and a future caller
+    // that skips validation - a bulk import, a script - would otherwise be
+    // able to overwrite somebody's number.
+    const { memberIdNumber: _generated, ...safeDto } = dto as typeof dto & {
+      memberIdNumber?: string;
+    };
+
     const updated = await this.prisma.tenantMember.update({
       where: { id },
       data: {
-        ...dto,
+        ...safeDto,
         aadhaarNumber,
         aadhaarHash,
         aadhaarLast4,
@@ -323,11 +354,68 @@ export class TenantMembersService {
    * "this taluk is in that district" and the three ids would otherwise drift
    * into a combination that never existed.
    */
+  /**
+   * The next membership number for an RTO: `<rtoCode><sequence>`, starting at
+   * 001 and padded to three digits - TN72001, TN72002, ...
+   *
+   * MUST run inside a transaction. Two things make it safe:
+   *
+   * 1. It takes a row lock on the RTO with `SELECT ... FOR UPDATE`, which
+   *    serialises allocation PER RTO - two enrolments under TN72 queue up,
+   *    while TN38 and TN72 never contend. Locking the RTO rather than the
+   *    member rows is the point: there is no row to lock for a number that
+   *    does not exist yet, so `SELECT MAX(...) FOR UPDATE` over members would
+   *    not stop two transactions both reading 001.
+   * 2. `@@unique([tenantBusinessId, memberIdNumber])` is the backstop. The
+   *    lock is the mechanism; the constraint is the guarantee.
+   *
+   * The number is derived from the members table rather than a counter
+   * column, so a rolled-back enrolment does not burn one.
+   */
+  private async allocateMemberIdNumber(
+    tx: Prisma.TransactionClient,
+    rtoId: string,
+  ): Promise<string> {
+    // Raw, because Prisma has no `FOR UPDATE`. Parameterised, not interpolated.
+    await tx.$queryRaw`SELECT id FROM tenant_rtos WHERE id = ${rtoId} FOR UPDATE`;
+
+    const rto = await tx.tenantRto.findUnique({
+      where: { id: rtoId },
+      select: { rtoCode: true, tenantBusinessId: true },
+    });
+    if (!rto) throw new BadRequestException('RTO not found');
+
+    const issued = await tx.tenantMember.findMany({
+      where: {
+        tenantBusinessId: rto.tenantBusinessId,
+        memberIdNumber: { startsWith: rto.rtoCode },
+      },
+      select: { memberIdNumber: true },
+    });
+
+    // The highest NUMERIC suffix, never the highest string. 'TN72999' sorts
+    // above 'TN721000' lexically, so a string max would stop advancing the
+    // moment the sequence passes 999 and then collide on every insert.
+    //
+    // Soft-deleted members are counted too: their number is still issued, and
+    // reusing it would give two people the same membership number.
+    let highest = 0;
+    for (const row of issued) {
+      const suffix = row.memberIdNumber.slice(rto.rtoCode.length);
+      if (!/^\d+$/.test(suffix)) continue;
+      highest = Math.max(highest, Number(suffix));
+    }
+
+    // Padded to three, and simply grows past TN721000 rather than truncating.
+    return `${rto.rtoCode}${String(highest + 1).padStart(3, '0')}`;
+  }
+
   private async assertChain(
     tenantBusinessId: string,
     stateId: string,
     districtId: string,
     talukId: string,
+    rtoId: string,
   ) {
     const state = await this.prisma.tenantState.findFirst({
       where: { id: stateId, tenantBusinessId, status: { not: 'DELETED' } },
@@ -351,6 +439,18 @@ export class TenantMembersService {
     if (!taluk) {
       throw new BadRequestException(
         'Taluk does not exist for the given tenant business, or does not belong to the chosen district',
+      );
+    }
+
+    // The RTO hangs off the DISTRICT, not the taluk above it in this list, so
+    // it is checked against districtId rather than talukId. The two sit next
+    // to each other on the form, which makes this easy to get wrong.
+    const rto = await this.prisma.tenantRto.findFirst({
+      where: { id: rtoId, tenantBusinessId, tenantDistrictId: districtId, status: { not: 'DELETED' } },
+    });
+    if (!rto) {
+      throw new BadRequestException(
+        'RTO does not exist for the given tenant business, or does not belong to the chosen district',
       );
     }
   }

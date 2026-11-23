@@ -48,9 +48,6 @@ const EMPTY_FORM: FormValues = {
   taxNumber: "",
 };
 
-function RequiredMark() {
-  return <span className="text-destructive"> *</span>;
-}
 
 export default function TenantBusinessInformationPage() {
   const { hasPermission } = useTenantSession();
@@ -234,9 +231,9 @@ export default function TenantBusinessInformationPage() {
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="name">
+              <Label required htmlFor="name">
                 Business name
-                {canUpdate && <RequiredMark />}
+               
               </Label>
               <Input
                 id="name"
@@ -259,9 +256,9 @@ export default function TenantBusinessInformationPage() {
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="email">
+              <Label required htmlFor="email">
                 Email
-                {canUpdate && <RequiredMark />}
+               
               </Label>
               <Input
                 id="email"
@@ -273,9 +270,9 @@ export default function TenantBusinessInformationPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="phone">
+              <Label required htmlFor="phone">
                 Phone
-                {canUpdate && <RequiredMark />}
+               
               </Label>
               <Input
                 id="phone"
@@ -289,9 +286,9 @@ export default function TenantBusinessInformationPage() {
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="country">
+              <Label required htmlFor="country">
                 Country
-                {canUpdate && <RequiredMark />}
+               
               </Label>
               <Input
                 id="country"
@@ -302,9 +299,9 @@ export default function TenantBusinessInformationPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="countryCode">
+              <Label required htmlFor="countryCode">
                 Country code
-                {canUpdate && <RequiredMark />}
+               
               </Label>
               <Input
                 id="countryCode"
@@ -318,9 +315,9 @@ export default function TenantBusinessInformationPage() {
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="state">
+              <Label required htmlFor="state">
                 State
-                {canUpdate && <RequiredMark />}
+               
               </Label>
               <Input
                 id="state"
@@ -331,9 +328,9 @@ export default function TenantBusinessInformationPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="city">
+              <Label required htmlFor="city">
                 City
-                {canUpdate && <RequiredMark />}
+               
               </Label>
               <Input
                 id="city"
@@ -347,9 +344,9 @@ export default function TenantBusinessInformationPage() {
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="pincode">
+              <Label required htmlFor="pincode">
                 Pincode
-                {canUpdate && <RequiredMark />}
+               
               </Label>
               <Input
                 id="pincode"
@@ -371,9 +368,9 @@ export default function TenantBusinessInformationPage() {
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="addressLine1">
+            <Label required htmlFor="addressLine1">
               Address line 1
-              {canUpdate && <RequiredMark />}
+             
             </Label>
             <Input
               id="addressLine1"

@@ -49,6 +49,8 @@ const CreateTenantMemberSchema = z
     stateId: z.string().uuid(),
     districtId: z.string().uuid(),
     talukId: z.string().uuid(),
+    /** The RTO, which hangs off the DISTRICT - not the taluk above it here. */
+    rtoId: z.string().uuid(),
     addressLine1: z.string().min(1).max(255),
     addressLine2: z.string().max(255).optional(),
 

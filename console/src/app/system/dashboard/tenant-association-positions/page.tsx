@@ -313,7 +313,7 @@ export default function TenantAssociationPositionsPage() {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label>Business</Label>
+                <Label required>Business</Label>
                 <Combobox
                   options={businessOptions?.map((biz) => ({ value: biz.id, label: biz.name })) ?? null}
                   value={form.tenantBusinessId}
@@ -326,7 +326,7 @@ export default function TenantAssociationPositionsPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="positionName">Position Name</Label>
+                <Label required htmlFor="positionName">Position Name</Label>
                 <Input
                   id="positionName"
                   required

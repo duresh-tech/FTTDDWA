@@ -42,6 +42,7 @@ const CARD_INCLUDE = {
   state: { select: { stateName: true, stateNameTamil: true } },
   district: { select: { districtName: true, districtNameTamil: true } },
   taluk: { select: { talukName: true, talukNameTamil: true } },
+  rto: { select: { rtoName: true, rtoNameTamil: true, rtoCode: true } },
 };
 
 const CARD_LIST_INCLUDE = {

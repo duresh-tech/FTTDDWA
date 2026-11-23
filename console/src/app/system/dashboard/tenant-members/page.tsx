@@ -52,6 +52,8 @@ const SETTABLE_STATUSES: Exclude<MemberStatus, "DELETED">[] = [
 interface MemberRow {
   id: string;
   systemCode: string;
+  /** Generated at enrolment as <rtoCode><sequence>; never editable here. */
+  memberIdNumber: string;
   tenantBusinessId: string;
   memberName: string;
   memberNameTamil: string | null;
@@ -405,6 +407,10 @@ export default function SystemMembersPage() {
 
   const columns: Column<MemberRow>[] = [
     {
+      header: "ID Number",
+      cell: (row) => <span className="font-mono text-xs">{row.memberIdNumber}</span>,
+    },
+    {
       header: "Member",
       cell: (row) => (
         <div>
@@ -537,8 +543,16 @@ export default function SystemMembersPage() {
             </DialogHeader>
 
             <div className="grid gap-4 py-4 sm:grid-cols-2">
+              {/* Generated at enrolment, and not regenerated when the RTO
+                  changes - so it is shown, never edited. */}
+              {editing && (
+                <div className="grid gap-2 sm:col-span-2">
+                  <Label>Membership Number</Label>
+                  <Input value={editing.memberIdNumber} readOnly disabled />
+                </div>
+              )}
               <div className="grid gap-2 sm:col-span-2">
-                <Label>Business</Label>
+                <Label required>Business</Label>
                 <Combobox
                   options={businessOptions?.map((b) => ({ value: b.id, label: b.name })) ?? null}
                   value={form.tenantBusinessId}
@@ -551,7 +565,7 @@ export default function SystemMembersPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="memberName">Member Name</Label>
+                <Label required htmlFor="memberName">Member Name</Label>
                 <Input
                   id="memberName"
                   required
@@ -569,7 +583,7 @@ export default function SystemMembersPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="businessName">Business Name</Label>
+                <Label required htmlFor="businessName">Business Name</Label>
                 <Input
                   id="businessName"
                   required
@@ -587,7 +601,7 @@ export default function SystemMembersPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label>Association Position</Label>
+                <Label required>Association Position</Label>
                 <Combobox
                   options={positionOptions?.map((o) => ({ value: o.id, label: o.name })) ?? null}
                   value={form.associationPositionId}
@@ -598,7 +612,7 @@ export default function SystemMembersPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Industry</Label>
+                <Label required>Industry</Label>
                 <Combobox
                   options={industryOptions?.map((o) => ({ value: o.id, label: o.name })) ?? null}
                   value={form.industryId}
@@ -610,7 +624,7 @@ export default function SystemMembersPage() {
               </div>
 
               <div className="grid gap-2 sm:col-span-2">
-                <Label htmlFor="aadhaarNumber">
+                <Label required={!editing} htmlFor="aadhaarNumber">
                   Aadhaar Number{editing ? " (leave blank to keep)" : ""}
                 </Label>
                 {editing && (
@@ -632,7 +646,7 @@ export default function SystemMembersPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="phoneNumber">Phone</Label>
+                <Label required htmlFor="phoneNumber">Phone</Label>
                 <Input
                   id="phoneNumber"
                   required
@@ -649,7 +663,7 @@ export default function SystemMembersPage() {
                 />
               </div>
               <div className="grid gap-2 sm:col-span-2">
-                <Label htmlFor="email">Email</Label>
+                <Label required htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
@@ -660,7 +674,7 @@ export default function SystemMembersPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label>State</Label>
+                <Label required>State</Label>
                 <Combobox
                   options={stateOptions?.map((o) => ({ value: o.id, label: o.name })) ?? null}
                   value={form.stateId}
@@ -671,7 +685,7 @@ export default function SystemMembersPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>District</Label>
+                <Label required>District</Label>
                 <Combobox
                   options={districtOptions?.map((o) => ({ value: o.id, label: o.name })) ?? null}
                   value={form.districtId}
@@ -682,7 +696,7 @@ export default function SystemMembersPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Taluk</Label>
+                <Label required>Taluk</Label>
                 <Combobox
                   options={talukOptions?.map((o) => ({ value: o.id, label: o.name })) ?? null}
                   value={form.talukId}
@@ -693,7 +707,7 @@ export default function SystemMembersPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                <Label required htmlFor="dateOfBirth">Date of Birth</Label>
                 <Input
                   id="dateOfBirth"
                   type="date"
@@ -704,7 +718,7 @@ export default function SystemMembersPage() {
               </div>
 
               <div className="grid gap-2 sm:col-span-2">
-                <Label htmlFor="addressLine1">Address Line 1</Label>
+                <Label required htmlFor="addressLine1">Address Line 1</Label>
                 <Input
                   id="addressLine1"
                   required

@@ -234,7 +234,7 @@ export default function TenantIndustryTenantPagePage() {
 
               {(businessOptions?.length ?? 0) > 1 && (
                 <div className="grid gap-2">
-                  <Label>Business</Label>
+                  <Label required>Business</Label>
                   <Combobox
                     options={businessOptions?.map((b) => ({ value: b.id, label: b.name })) ?? null}
                     value={form.tenantBusinessId}
@@ -247,7 +247,7 @@ export default function TenantIndustryTenantPagePage() {
               )}
 
               <div className="grid gap-2">
-                <Label htmlFor="industryName">Industry Name</Label>
+                <Label required htmlFor="industryName">Industry Name</Label>
                 <Input
                   id="industryName"
                   required

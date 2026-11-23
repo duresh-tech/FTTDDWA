@@ -326,7 +326,7 @@ export default function TenantTalukPagePage() {
             <div className="grid gap-4 py-4">
 
               <div className="grid gap-2">
-                <Label>Business</Label>
+                <Label required>Business</Label>
                 <Combobox
                   options={businessOptions?.map((b) => ({ value: b.id, label: b.name })) ?? null}
                   value={form.tenantBusinessId}
@@ -339,7 +339,7 @@ export default function TenantTalukPagePage() {
               </div>
 
               <div className="grid gap-2">
-                <Label>State</Label>
+                <Label required>State</Label>
                 <Combobox
                   options={stateOptions?.map((o) => ({ value: o.id, label: o.stateName })) ?? null}
                   value={form.stateId}
@@ -351,7 +351,7 @@ export default function TenantTalukPagePage() {
               </div>
 
               <div className="grid gap-2">
-                <Label>District</Label>
+                <Label required>District</Label>
                 <Combobox
                   options={districtOptions?.map((o) => ({ value: o.id, label: o.districtName })) ?? null}
                   value={form.districtId}
@@ -363,7 +363,7 @@ export default function TenantTalukPagePage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="talukName">Taluk Name</Label>
+                <Label required htmlFor="talukName">Taluk Name</Label>
                 <Input
                   id="talukName"
                   required

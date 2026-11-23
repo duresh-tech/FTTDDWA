@@ -175,6 +175,7 @@ model TenantBusiness {
   taluks               TenantTaluk[]
   industries           TenantIndustry[]
   members              TenantMember[]
+  rtos                 TenantRto[]
   idCardTemplates      TenantIdCardTemplate[]
   memberIdCards        TenantMemberIdCard[]
   domains           TenantBusinessDomain[]
@@ -873,6 +874,7 @@ model TenantDistrict {
   state          TenantState    @relation(fields: [stateId], references: [id])
   taluks         TenantTaluk[]
   members        TenantMember[]
+  rtos           TenantRto[]
 
   @@unique([tenantBusinessId, districtCode])
   @@index([status])
@@ -953,6 +955,17 @@ model TenantMember {
   systemCode       String @unique @db.VarChar(30)
   tenantBusinessId String @db.Char(36)
 
+  /// The membership number, `<rtoCode><sequence>` - TN72001, TN72002, ...
+  ///
+  /// Allocated once at enrolment and NEVER regenerated, not even when the
+  /// member's RTO changes. A member may already hold a printed card, and an
+  /// identifier that changes is not an identifier; the number records which
+  /// office they enrolled under, which is a fact that does not change.
+  ///
+  /// Sized for a 10-character rtoCode plus a sequence that may outgrow three
+  /// digits.
+  memberIdNumber String @db.VarChar(20)
+
   memberName        String  @db.VarChar(100)
   memberNameTamil   String? @db.VarChar(100)
   businessName      String  @db.VarChar(100)
@@ -987,6 +1000,10 @@ model TenantMember {
   stateId      String  @db.Char(36)
   districtId   String  @db.Char(36)
   talukId      String  @db.Char(36)
+  /// The RTO the member's vehicles are registered at. Required, like the rest
+  /// of the chain, and validated against the chosen DISTRICT - not just the
+  /// business - so the pair cannot drift.
+  rtoId        String  @db.Char(36)
   addressLine1 String  @db.VarChar(255)
   addressLine2 String? @db.VarChar(255)
 
@@ -1012,11 +1029,16 @@ model TenantMember {
   state               TenantState               @relation(fields: [stateId], references: [id])
   district            TenantDistrict            @relation(fields: [districtId], references: [id])
   taluk               TenantTaluk               @relation(fields: [talukId], references: [id])
+  rto                 TenantRto                 @relation(fields: [rtoId], references: [id])
   /// Optional and singular: a member either has a current ID card or does not.
   idCard              TenantMemberIdCard?
 
   /// One enrolment per person per business.
   @@unique([tenantBusinessId, aadhaarHash])
+  /// The number already embeds the RTO code, so business-scoped uniqueness IS
+  /// per-RTO uniqueness. This index is also the backstop the allocator relies
+  /// on: the row lock is the mechanism, this is the guarantee.
+  @@unique([tenantBusinessId, memberIdNumber])
   @@index([status])
   @@index([tenantBusinessId])
   @@index([associationPositionId])
@@ -1024,7 +1046,49 @@ model TenantMember {
   @@index([stateId])
   @@index([districtId])
   @@index([talukId])
+  @@index([rtoId])
   @@map("tenant_members")
+}
+
+enum TenantRtoStatus {
+  ACTIVE
+  INACTIVE
+  DELETED
+}
+
+/// A Regional Transport Office, filed under a district.
+///
+/// DELETED is in the status enum even though an RTO is only ever ACTIVE or
+/// INACTIVE in practice: every soft-deletable model here carries it and
+/// `remove()` writes it, so leaving it out would make this the one resource
+/// whose delete fails at run time.
+model TenantRto {
+  id               String @id @db.Char(36) // UUIDv7
+  systemCode       String @unique @db.VarChar(30)
+  tenantBusinessId String @db.Char(36)
+  tenantDistrictId String @db.Char(36)
+
+  rtoName      String  @db.VarChar(100)
+  rtoNameTamil String? @db.VarChar(100)
+  rtoCode      String  @db.VarChar(10)
+
+  status    TenantRtoStatus @default(ACTIVE)
+  createdAt BigInt
+  updatedAt BigInt
+  deletedAt BigInt?
+
+  tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
+  district       TenantDistrict @relation(fields: [tenantDistrictId], references: [id])
+  members        TenantMember[]
+
+  /// Scoped per business, and applying to every row regardless of soft-delete
+  /// state, so a code held by a deleted-but-restorable RTO cannot be reissued.
+  /// Same rule as stateCode and districtCode.
+  @@unique([tenantBusinessId, rtoCode])
+  @@index([status])
+  @@index([tenantBusinessId])
+  @@index([tenantDistrictId])
+  @@map("tenant_rtos")
 }
 
 enum TenantIdCardTemplateStatus {

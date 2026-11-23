@@ -272,7 +272,7 @@ export default function TenantDistrictTenantPagePage() {
 
               {(businessOptions?.length ?? 0) > 1 && (
                 <div className="grid gap-2">
-                  <Label>Business</Label>
+                  <Label required>Business</Label>
                   <Combobox
                     options={businessOptions?.map((b) => ({ value: b.id, label: b.name })) ?? null}
                     value={form.tenantBusinessId}
@@ -285,7 +285,7 @@ export default function TenantDistrictTenantPagePage() {
               )}
 
               <div className="grid gap-2">
-                <Label>State</Label>
+                <Label required>State</Label>
                 <Combobox
                   options={stateOptions?.map((o) => ({ value: o.id, label: o.stateName })) ?? null}
                   value={form.stateId}
@@ -297,7 +297,7 @@ export default function TenantDistrictTenantPagePage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="districtName">District Name</Label>
+                <Label required htmlFor="districtName">District Name</Label>
                 <Input
                   id="districtName"
                   required
@@ -316,7 +316,7 @@ export default function TenantDistrictTenantPagePage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="districtCode">District Code</Label>
+                <Label required htmlFor="districtCode">District Code</Label>
                 <Input
                   id="districtCode"
                   required

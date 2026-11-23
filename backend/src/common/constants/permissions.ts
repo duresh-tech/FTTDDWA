@@ -42,6 +42,8 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   { module: 'tenant-districts', label: 'Tenant Districts', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   { module: 'tenant-taluks', label: 'Tenant Taluks', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   { module: 'tenant-industries', label: 'Tenant Industries', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
+  // Regional Transport Offices, filed under a district.
+  { module: 'tenant-rtos', label: 'Tenant RTOs', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   // change_status is split from update on purpose: suspending a member is
   // a different act from correcting their phone number, and you would
   // plausibly grant one without the other.
@@ -129,6 +131,7 @@ export const TENANT_ROLE_PERMISSION_KEYS: string[] = [
     'districts',
     'taluks',
     'industries',
+    'rtos',
     'id-card-templates',
   ].flatMap((resource) =>
     ['list', 'view', 'create', 'update', 'delete'].map(

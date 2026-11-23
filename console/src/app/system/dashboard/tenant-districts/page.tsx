@@ -301,7 +301,7 @@ export default function TenantDistrictPagePage() {
             <div className="grid gap-4 py-4">
 
               <div className="grid gap-2">
-                <Label>Business</Label>
+                <Label required>Business</Label>
                 <Combobox
                   options={businessOptions?.map((b) => ({ value: b.id, label: b.name })) ?? null}
                   value={form.tenantBusinessId}
@@ -314,7 +314,7 @@ export default function TenantDistrictPagePage() {
               </div>
 
               <div className="grid gap-2">
-                <Label>State</Label>
+                <Label required>State</Label>
                 <Combobox
                   options={stateOptions?.map((o) => ({ value: o.id, label: o.stateName })) ?? null}
                   value={form.stateId}
@@ -326,7 +326,7 @@ export default function TenantDistrictPagePage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="districtName">District Name</Label>
+                <Label required htmlFor="districtName">District Name</Label>
                 <Input
                   id="districtName"
                   required
@@ -345,7 +345,7 @@ export default function TenantDistrictPagePage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="districtCode">District Code</Label>
+                <Label required htmlFor="districtCode">District Code</Label>
                 <Input
                   id="districtCode"
                   required

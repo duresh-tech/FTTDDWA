@@ -316,7 +316,7 @@ export default function TenantStreetsPage() {
               <div className="grid gap-4 py-4">
                 {(businessOptions?.length ?? 0) > 1 && (
                   <div className="grid gap-2">
-                    <Label>Business</Label>
+                    <Label required>Business</Label>
                     <Combobox
                       options={businessOptions?.map((biz) => ({ value: biz.id, label: biz.name })) ?? null}
                       value={form.tenantBusinessId}
@@ -330,7 +330,7 @@ export default function TenantStreetsPage() {
                 )}
 
                 <div className="grid gap-2">
-                  <Label>Place</Label>
+                  <Label required>Place</Label>
                   <Combobox
                     options={placeOptions?.map((place) => ({ value: place.id, label: place.placeName })) ?? null}
                     value={form.tenantPlaceId}
@@ -343,7 +343,7 @@ export default function TenantStreetsPage() {
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div className="grid gap-2">
-                    <Label htmlFor="streetCode">Code</Label>
+                    <Label required htmlFor="streetCode">Code</Label>
                     <Input
                       id="streetCode"
                       required
@@ -357,7 +357,7 @@ export default function TenantStreetsPage() {
                     />
                   </div>
                   <div className="grid gap-2 sm:col-span-2">
-                    <Label htmlFor="streetName">Street Name</Label>
+                    <Label required htmlFor="streetName">Street Name</Label>
                     <Input
                       id="streetName"
                       required

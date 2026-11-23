@@ -411,7 +411,7 @@ export default function TenantBusinessPage() {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
-                  <Label htmlFor="name">Business name</Label>
+                  <Label required htmlFor="name">Business name</Label>
                   <Input
                     id="name"
                     required
@@ -431,7 +431,7 @@ export default function TenantBusinessPage() {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label required htmlFor="email">Email</Label>
                   <Input
                     id="email"
                     type="email"
@@ -441,7 +441,7 @@ export default function TenantBusinessPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="phone">Phone</Label>
+                  <Label required htmlFor="phone">Phone</Label>
                   <Input
                     id="phone"
                     required
@@ -453,7 +453,7 @@ export default function TenantBusinessPage() {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
-                  <Label htmlFor="country">Country</Label>
+                  <Label required htmlFor="country">Country</Label>
                   <Input
                     id="country"
                     required
@@ -462,7 +462,7 @@ export default function TenantBusinessPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="countryCode">Country code</Label>
+                  <Label required htmlFor="countryCode">Country code</Label>
                   <Input
                     id="countryCode"
                     required
@@ -474,7 +474,7 @@ export default function TenantBusinessPage() {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
-                  <Label htmlFor="state">State</Label>
+                  <Label required htmlFor="state">State</Label>
                   <Input
                     id="state"
                     required
@@ -483,7 +483,7 @@ export default function TenantBusinessPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="city">City</Label>
+                  <Label required htmlFor="city">City</Label>
                   <Input
                     id="city"
                     required
@@ -495,7 +495,7 @@ export default function TenantBusinessPage() {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
-                  <Label htmlFor="pincode">Pincode</Label>
+                  <Label required htmlFor="pincode">Pincode</Label>
                   <Input
                     id="pincode"
                     required
@@ -514,7 +514,7 @@ export default function TenantBusinessPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="addressLine1">Address line 1</Label>
+                <Label required htmlFor="addressLine1">Address line 1</Label>
                 <Input
                   id="addressLine1"
                   required

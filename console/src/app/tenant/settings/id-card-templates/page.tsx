@@ -240,7 +240,7 @@ export default function IdCardTemplatesPage() {
             </DialogHeader>
             <div className="space-y-3 py-4">
               <div className="space-y-1">
-                <Label htmlFor="tpl-name">Name</Label>
+                <Label required htmlFor="tpl-name">Name</Label>
                 <Input
                   id="tpl-name"
                   required

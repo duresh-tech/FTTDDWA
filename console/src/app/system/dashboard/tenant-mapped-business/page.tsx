@@ -342,7 +342,7 @@ export default function TenantMappedBusinessPage() {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label>Tenant user</Label>
+                <Label required>Tenant user</Label>
                 <Combobox
                   options={
                     tenantUserOptions?.map((u) => ({
@@ -360,7 +360,7 @@ export default function TenantMappedBusinessPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label>Tenant business</Label>
+                <Label required>Tenant business</Label>
                 <Combobox
                   options={tenantBusinessOptions?.map((b) => ({ value: b.id, label: b.name })) ?? null}
                   value={form.tenantBusinessId}

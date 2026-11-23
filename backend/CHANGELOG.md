@@ -7,6 +7,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.8.0] - 2026-11-23
+
+### Added
+
+- **`tenant_members.memberIdNumber`** (migration 0012) - the membership number
+  a card prints, `<rtoCode><sequence>`: TN72001, TN72002, ... The sequence is
+  per RTO code, so a new office starts again at 001.
+
+  Allocated inside the create transaction by locking the RTO row with
+  `SELECT ... FOR UPDATE`, which serialises allocation per RTO. Locking the RTO
+  rather than the member rows is the point: there is no row to lock for a
+  number that does not exist yet, so `SELECT MAX(...) FOR UPDATE` over members
+  would let two transactions both read 001.
+  `@@unique([tenantBusinessId, memberIdNumber])` is the backstop.
+
+  **The suffix is compared NUMERICALLY, not as a string.** `TN72999` sorts
+  above `TN721000` lexically, so a string max would stop advancing the moment
+  the sequence passed 999 and then collide on every insert forever.
+
+  Because it is derived from the members table rather than a counter column, a
+  rolled-back enrolment does not burn a number.
+
+- The number is **never regenerated**, not even when the member's RTO changes -
+  they may already hold a printed card, and an identifier that changes is not
+  an identifier. `update()` strips it before spreading the DTO into Prisma;
+  Zod already strips it at the HTTP boundary, so that second guard is for a
+  caller that skips validation.
+
+- `member.memberIdNumber` joins the ID card field catalogue, and the number is
+  searchable.
+
+### Fixed
+
+- `docs/logic/business-settings.md` claimed counters were allocated with
+  `consumeSequenceNumber(tx, businessId, key)`. **That function never
+  existed** - the claim came over with the IPTV port, whose customer-code
+  feature was removed in 3.0. The page now points at the one sequence this
+  system really has.
+
+## [3.7.0] - 2026-11-23
+
+### Added
+
+- **`tenant_rtos`** (migration 0011) - Regional Transport Offices, filed under
+  a district. Name, optional Tamil name and `rtoCode`, with the code unique
+  **per business** and enforced the way streetCode is: ignoring soft-deleted
+  rows, so a code held by a restorable RTO cannot be reissued.
+
+  DELETED is in the status enum even though an RTO is only ever ACTIVE or
+  INACTIVE in practice - every soft-deletable model here carries it and
+  `remove()` writes it, so leaving it out would make this the one resource
+  whose delete fails at run time.
+
+- **`tenant_members.rtoId`, required**, validated against the chosen DISTRICT
+  rather than the taluk above it on the form. An RTO branches off the geography
+  chain instead of extending it, which is the easy thing to get backwards.
+
+  The ADD COLUMN is NOT NULL with no default, which Postgres accepts only
+  because tenant_members held no rows. The migration says so, since replaying
+  it against a populated table will fail.
+
+- `member.rtoName`, `member.rtoNameTamil` and `member.rtoCode` join the ID card
+  field catalogue, so an RTO can be printed on a card.
+
+- Permissions 132 -> 138 across 29 modules; TENANT_ADMIN gains 5 of the 6
+  (`restore` stays system-admin, as for every other lookup).
+
 ## [3.6.0] - 2026-11-23
 
 ### Added

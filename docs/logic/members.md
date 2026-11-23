@@ -9,10 +9,65 @@ That hides this feature in the tenant portal only — system staff reach the
 register either way — and an **unset** value means enabled, so a business whose
 settings backfill has not run keeps working.
 
-Each member names an association position, an industry, and a point in the
+Each member names an association position, an industry, a point in the
 [geography chain](./tenants-and-businesses.md#the-geography-chain) — state,
-district and taluk together. All six references are validated against the
-caller's own business before anything is written.
+district and taluk together — and an **RTO**. Every reference is validated
+against the caller's own business before anything is written.
+
+`rtoId` is required, like the rest of the chain, and is checked against the
+chosen **district** rather than the taluk that sits above it on the form.
+[RTOs branch off the chain](./tenants-and-businesses.md#rtos-hang-off-the-district-not-the-taluk)
+rather than extending it, which is easy to get backwards.
+
+## The membership number
+
+`memberIdNumber` is what a card prints: the member's RTO code followed by a
+sequence — `TN72001`, `TN72002`, … The sequence is **per RTO code**, so a newly
+created office starts again at `001`.
+
+It is **generated, never submitted.** It is absent from the create and update
+schemas, so Zod strips it at the HTTP boundary, and `update()` strips it again
+before spreading the DTO into Prisma — that second guard is for a future caller
+that skips validation, like a bulk import.
+
+### Allocating it without two members getting the same one
+
+`allocateMemberIdNumber()` runs inside the create transaction and does two
+things:
+
+1. **Locks the RTO row** with `SELECT … FOR UPDATE`. That serialises allocation
+   *per RTO*: two enrolments under TN72 queue up, while TN38 and TN72 never
+   contend.
+
+   Locking the RTO rather than the member rows is the point. There is no row to
+   lock for a number that does not exist yet, so `SELECT MAX(…) FOR UPDATE`
+   over members would happily let two transactions both read `001`.
+
+2. Takes the **highest numeric suffix**, never the highest string.
+
+> `TN72999` sorts *above* `TN721000` lexically. A string `MAX` therefore stops
+> advancing the moment the sequence passes 999, and every insert after that
+> collides on the unique index forever. This is the bug this feature invites,
+> and the reason the suffix is parsed to a number before comparing.
+
+`@@unique([tenantBusinessId, memberIdNumber])` is the backstop: the lock is the
+mechanism, the constraint is the guarantee. The number already embeds the RTO
+code, so business-scoped uniqueness *is* per-RTO uniqueness.
+
+Because the number is derived from the members table rather than a counter
+column, **a rolled-back enrolment does not burn one** — the next member gets
+the number the failed attempt would have had. Soft-deleted members still count,
+though: their number is issued, and reusing it would give two people the same
+membership number.
+
+### It survives a change of RTO
+
+Moving a member to another RTO does **not** regenerate it. They may already
+hold a printed card, and an identifier that changes is not an identifier — the
+old number would point at nobody. The number records the office they enrolled
+under, which is a fact that does not change afterwards.
+
+So a member's prefix may not match their current RTO. That is intended.
 
 ## The Aadhaar number is encrypted, and still deduplicated
 

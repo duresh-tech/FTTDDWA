@@ -324,7 +324,7 @@ export default function RolesPage() {
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="grid gap-2">
-                    <Label htmlFor="roleKey">Role key</Label>
+                    <Label required htmlFor="roleKey">Role key</Label>
                     <Input
                       id="roleKey"
                       required
@@ -335,7 +335,7 @@ export default function RolesPage() {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="displayName">Display name</Label>
+                    <Label required htmlFor="displayName">Display name</Label>
                     <Input
                       id="displayName"
                       required

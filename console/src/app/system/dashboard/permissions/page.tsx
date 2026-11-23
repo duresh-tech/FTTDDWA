@@ -216,7 +216,7 @@ export default function PermissionsPage() {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="displayName">Display name</Label>
+                <Label required htmlFor="displayName">Display name</Label>
                 <Input
                   id="displayName"
                   required
@@ -227,7 +227,7 @@ export default function PermissionsPage() {
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
-                  <Label htmlFor="moduleName">Module</Label>
+                  <Label required htmlFor="moduleName">Module</Label>
                   <Input
                     id="moduleName"
                     required
@@ -238,7 +238,7 @@ export default function PermissionsPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="permissionKey">Key</Label>
+                  <Label required htmlFor="permissionKey">Key</Label>
                   <Input
                     id="permissionKey"
                     required

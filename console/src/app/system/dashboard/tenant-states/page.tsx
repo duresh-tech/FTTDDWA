@@ -276,7 +276,7 @@ export default function TenantStatePagePage() {
             <div className="grid gap-4 py-4">
 
               <div className="grid gap-2">
-                <Label>Business</Label>
+                <Label required>Business</Label>
                 <Combobox
                   options={businessOptions?.map((b) => ({ value: b.id, label: b.name })) ?? null}
                   value={form.tenantBusinessId}
@@ -289,7 +289,7 @@ export default function TenantStatePagePage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="stateName">State Name</Label>
+                <Label required htmlFor="stateName">State Name</Label>
                 <Input
                   id="stateName"
                   required
@@ -308,7 +308,7 @@ export default function TenantStatePagePage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="stateCode">State Code</Label>
+                <Label required htmlFor="stateCode">State Code</Label>
                 <Input
                   id="stateCode"
                   required
@@ -318,7 +318,7 @@ export default function TenantStatePagePage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="country">Country</Label>
+                <Label required htmlFor="country">Country</Label>
                 <Input
                   id="country"
                   required

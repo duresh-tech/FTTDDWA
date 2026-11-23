@@ -31,6 +31,7 @@ export interface IdCardField {
 export const ID_CARD_FIELDS: IdCardField[] = [
   // ---- Member ----
   { token: 'member.systemCode', label: 'Member code', group: 'Member', kind: 'text', sample: 'MEM-MR8NZ6OO-0-C0CB' },
+  { token: 'member.memberIdNumber', label: 'Membership number', group: 'Member', kind: 'text', sample: 'TN72001' },
   { token: 'member.memberName', label: 'Name', group: 'Member', kind: 'text', sample: 'Ramesh Kumar' },
   { token: 'member.memberNameTamil', label: 'Name (Tamil)', group: 'Member', kind: 'text', sample: 'ரமேஷ் குமார்' },
   { token: 'member.businessName', label: 'Business name', group: 'Member', kind: 'text', sample: 'Kumar Tents & Decorators' },
@@ -59,6 +60,9 @@ export const ID_CARD_FIELDS: IdCardField[] = [
   { token: 'member.districtNameTamil', label: 'District (Tamil)', group: 'Member address', kind: 'text', sample: 'கோயம்புத்தூர்' },
   { token: 'member.stateName', label: 'State', group: 'Member address', kind: 'text', sample: 'Tamil Nadu' },
   { token: 'member.stateNameTamil', label: 'State (Tamil)', group: 'Member address', kind: 'text', sample: 'தமிழ்நாடு' },
+  { token: 'member.rtoName', label: 'RTO', group: 'Member address', kind: 'text', sample: 'Coimbatore South' },
+  { token: 'member.rtoNameTamil', label: 'RTO (Tamil)', group: 'Member address', kind: 'text', sample: 'கோயம்புத்தூர் தெற்கு' },
+  { token: 'member.rtoCode', label: 'RTO code', group: 'Member address', kind: 'text', sample: 'TN38' },
 
   // ---- Association ----
   // For this group the token IS the settingKey, so resolution is a lookup in
@@ -105,6 +109,7 @@ export const ID_CARD_TOKENS = new Set(ID_CARD_FIELDS.map((f) => f.token));
  */
 export interface IdCardMember {
   systemCode: string;
+  memberIdNumber: string;
   memberName: string;
   memberNameTamil: string | null;
   businessName: string;
@@ -123,6 +128,7 @@ export interface IdCardMember {
   state: { stateName: string; stateNameTamil: string | null } | null;
   district: { districtName: string; districtNameTamil: string | null } | null;
   taluk: { talukName: string; talukNameTamil: string | null } | null;
+  rto: { rtoName: string; rtoNameTamil: string | null; rtoCode: string } | null;
 }
 
 export interface IdCardContext {
@@ -155,6 +161,8 @@ export function resolveToken(token: string, ctx: IdCardContext): string {
     case 'member.systemCode':
     case 'member.qr':
       return member.systemCode;
+    case 'member.memberIdNumber':
+      return member.memberIdNumber;
     case 'member.memberName':
       return member.memberName;
     case 'member.memberNameTamil':
@@ -201,6 +209,12 @@ export function resolveToken(token: string, ctx: IdCardContext): string {
       return member.state?.stateName ?? '';
     case 'member.stateNameTamil':
       return member.state?.stateNameTamil ?? '';
+    case 'member.rtoName':
+      return member.rto?.rtoName ?? '';
+    case 'member.rtoNameTamil':
+      return member.rto?.rtoNameTamil ?? '';
+    case 'member.rtoCode':
+      return member.rto?.rtoCode ?? '';
     case 'system.generatedOn':
       return ctx.generatedOn;
     default:

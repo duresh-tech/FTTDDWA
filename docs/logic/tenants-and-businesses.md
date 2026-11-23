@@ -91,12 +91,30 @@ join — but the database cannot express "this district belongs to that state",
 so each service walks the chain itself before writing. Skip that check and the
 two ids drift apart silently.
 
-`tenant_states` and `tenant_districts` each carry a code that is unique **per
-business**, enforced the way `tenant_streets` enforces `streetCode`: by an
-assert that deliberately ignores soft-deleted rows, so a code held by a
-deleted-but-restorable row cannot be reissued.
+`tenant_states`, `tenant_districts` and `tenant_rtos` each carry a code that is
+unique **per business**, enforced the way `tenant_streets` enforces
+`streetCode`: by an assert that deliberately ignores soft-deleted rows, so a
+code held by a deleted-but-restorable row cannot be reissued.
 
-All four, plus `tenant_industries`, are scoped per business. That duplicates
+### RTOs hang off the district, not the taluk
+
+`tenant_rtos` is a fourth lookup in this family, but it branches off the chain
+rather than extending it: an RTO names a **district** and nothing below it.
+
+```
+tenant_states ──> tenant_districts ──> tenant_taluks
+                         └──────────> tenant_rtos
+```
+
+This matters because the member form shows Taluk and RTO next to each other,
+which makes it natural to assume RTO narrows by taluk. It does not — the picker
+and the validator both key off `districtId`, and filtering by `talukId` would
+quietly return nothing.
+
+An RTO carries `rtoCode` (the registration series, like `TN38`), a name and an
+optional Tamil name.
+
+All of them, plus `tenant_industries`, are scoped per business. That duplicates
 reference data — every business holds its own copy of Tamil Nadu — which is
 what the spec called for. Making them global would mean dropping
 `tenantBusinessId` and managing them system-side.

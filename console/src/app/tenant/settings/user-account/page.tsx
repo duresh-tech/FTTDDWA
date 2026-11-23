@@ -34,9 +34,6 @@ const EMPTY_FORM: FormValues = {
   confirmPassword: "",
 };
 
-function RequiredMark() {
-  return <span className="text-destructive"> *</span>;
-}
 
 export default function TenantUserAccountPage() {
   const [profile, setProfile] = React.useState<TenantAccountProfile | null>(null);
@@ -171,9 +168,9 @@ export default function TenantUserAccountPage() {
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="fName">
+              <Label required htmlFor="fName">
                 Name
-                <RequiredMark />
+               
               </Label>
               <Input
                 id="fName"
@@ -183,9 +180,9 @@ export default function TenantUserAccountPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="email">
+              <Label required htmlFor="email">
                 Email
-                <RequiredMark />
+               
               </Label>
               <Input
                 id="email"
@@ -199,9 +196,9 @@ export default function TenantUserAccountPage() {
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="username">
+              <Label required htmlFor="username">
                 Username
-                <RequiredMark />
+               
               </Label>
               <Input
                 id="username"
@@ -225,7 +222,7 @@ export default function TenantUserAccountPage() {
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="password">Password</Label>
+              <Label required htmlFor="password">Password</Label>
               <Input
                 id="password"
                 type="password"

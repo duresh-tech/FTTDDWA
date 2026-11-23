@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.8.0] - 2026-11-23
+
+### Added
+
+- **Required fields now carry a red asterisk** across every form in the console
+  and the tenant portal - 138 labels across 33 files. `Label` already had a
+  `required` prop; only 5 labels were passing it.
+
+  Required-ness is taken from what each form already enforced - the HTML
+  `required` on its inputs, and the fields named in its submit `disabled`
+  guard - both of which were authored against the backend Zod create schemas.
+  Marking a field the API accepts as empty would be as misleading as missing
+  one.
+
+- The **membership number** shows as a column on both member screens, and
+  read-only on the edit form. It is generated, so it is never editable.
+
+### Fixed
+
+- **Two pages carried their own local `RequiredMark()` component**, a
+  duplicated asterisk predating the `Label` prop - defined separately in
+  business-information and user-account. Left alone they would have rendered
+  TWO asterisks per field. Both are removed in favour of the one mechanism in
+  `ui/label.tsx`.
+
+  Its `{canUpdate && ...}` wrapper went with it: a field is required or it is
+  not, and hiding the mark from a read-only viewer told them something false.
+
+- **Password and Aadhaar are `required={!editing}`.** Both are mandatory when
+  creating and optional when editing - their labels already said so - and a
+  blanket asterisk would have contradicted the label right beside it.
+
+## [3.7.0] - 2026-11-23
+
+### Added
+
+- **RTO screens** on both surfaces, under Locations: the tenant one at
+  Settings -> RTOs, the system one cross-tenant with a status filter and a
+  restore action. The system page is GENERATED from the tenant one by a script
+  with the differences applied as asserted edits, so the two cannot drift into
+  matching different columns.
+- **An RTO picker on the member form**, narrowed by the selected DISTRICT - not
+  by the taluk sitting directly above it, which is what the layout invites you
+  to assume. Changing the state or the district clears it along with the taluk.
+  Options are labelled `CODE — Name` so the registration series is visible
+  while choosing.
+
 ## [3.6.0] - 2026-11-23
 
 ### Added

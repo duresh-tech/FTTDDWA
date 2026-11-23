@@ -59,6 +59,8 @@ const SETTABLE_STATUSES: Exclude<MemberStatus, "DELETED">[] = [
 interface MemberRow {
   id: string;
   systemCode: string;
+  /** Generated at enrolment as <rtoCode><sequence>; never editable here. */
+  memberIdNumber: string;
   tenantBusinessId: string;
   memberName: string;
   memberNameTamil: string | null;
@@ -74,6 +76,7 @@ interface MemberRow {
   stateId: string;
   districtId: string;
   talukId: string;
+  rtoId: string;
   addressLine1: string;
   addressLine2: string | null;
   dateOfBirth: string;
@@ -111,6 +114,7 @@ interface FormValues {
   stateId: string;
   districtId: string;
   talukId: string;
+  rtoId: string;
   addressLine1: string;
   addressLine2: string;
   dateOfBirth: string;
@@ -135,6 +139,7 @@ const EMPTY_FORM: FormValues = {
   stateId: "",
   districtId: "",
   talukId: "",
+  rtoId: "",
   addressLine1: "",
   addressLine2: "",
   dateOfBirth: "",
@@ -165,6 +170,7 @@ export default function TenantMembersPage() {
   const [stateOptions, setStateOptions] = React.useState<Opt[] | null>(null);
   const [districtOptions, setDistrictOptions] = React.useState<Opt[] | null>(null);
   const [talukOptions, setTalukOptions] = React.useState<Opt[] | null>(null);
+  const [rtoOptions, setRtoOptions] = React.useState<Opt[] | null>(null);
 
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<MemberRow | null>(null);
@@ -240,6 +246,22 @@ export default function TenantMembersPage() {
       .catch(() => toast.error("Failed to load taluks"));
   }
 
+  // RTOs hang off the DISTRICT, not the taluk that sits above them on the
+  // form. Filtering by talukId here would silently return nothing.
+  function loadRtos(tenantBusinessId: string, districtId: string) {
+    if (!(tenantBusinessId && districtId)) {
+      setRtoOptions([]);
+      return;
+    }
+    tenantApi<{ items: { id: string; rtoName: string; rtoCode: string }[] }>(
+      `/tenant/rtos?tenantBusinessId=${tenantBusinessId}&tenantDistrictId=${districtId}&limit=200&status=ACTIVE`,
+    )
+      .then((d) =>
+        setRtoOptions(d.items.map((x) => ({ id: x.id, name: `${x.rtoCode} — ${x.rtoName}` }))),
+      )
+      .catch(() => toast.error("Failed to load RTOs"));
+  }
+
   // Each change clears everything beneath it, so the form can never hold a
   // district from one state next to a taluk from another - which the API
   // would reject anyway, but far later and less legibly.
@@ -258,14 +280,15 @@ export default function TenantMembersPage() {
   }
 
   function onStateChange(stateId: string) {
-    setForm((f) => ({ ...f, stateId, districtId: "", talukId: "" }));
+    setForm((f) => ({ ...f, stateId, districtId: "", talukId: "", rtoId: "" }));
     setTalukOptions(null);
     loadDistricts(form.tenantBusinessId, stateId);
   }
 
   function onDistrictChange(districtId: string) {
-    setForm((f) => ({ ...f, districtId, talukId: "" }));
+    setForm((f) => ({ ...f, districtId, talukId: "", rtoId: "" }));
     loadTaluks(form.tenantBusinessId, districtId);
+    loadRtos(form.tenantBusinessId, districtId);
   }
 
   function openCreate() {
@@ -301,6 +324,7 @@ export default function TenantMembersPage() {
       stateId: row.stateId,
       districtId: row.districtId,
       talukId: row.talukId,
+      rtoId: row.rtoId,
       addressLine1: row.addressLine1,
       addressLine2: row.addressLine2 ?? "",
       dateOfBirth: row.dateOfBirth,
@@ -312,6 +336,7 @@ export default function TenantMembersPage() {
     loadForBusiness(row.tenantBusinessId);
     loadDistricts(row.tenantBusinessId, row.stateId);
     loadTaluks(row.tenantBusinessId, row.districtId);
+    loadRtos(row.tenantBusinessId, row.districtId);
     setFormOpen(true);
   }
 
@@ -351,6 +376,7 @@ export default function TenantMembersPage() {
         stateId: form.stateId,
         districtId: form.districtId,
         talukId: form.talukId,
+        rtoId: form.rtoId,
         addressLine1: form.addressLine1,
         addressLine2: form.addressLine2 || undefined,
         dateOfBirth: form.dateOfBirth,
@@ -465,6 +491,10 @@ export default function TenantMembersPage() {
   }
 
   const columns: Column<MemberRow>[] = [
+    {
+      header: "ID Number",
+      cell: (row) => <span className="font-mono text-xs">{row.memberIdNumber}</span>,
+    },
     {
       header: "Member",
       cell: (row) => (
@@ -622,9 +652,18 @@ export default function TenantMembersPage() {
             </DialogHeader>
 
             <div className="grid gap-4 py-4 sm:grid-cols-2">
+              {/* Generated at enrolment, and not regenerated when the RTO
+                  changes - so it is shown, never edited. */}
+              {editing && (
+                <div className="grid gap-2">
+                  <Label>Membership Number</Label>
+                  <Input value={editing.memberIdNumber} readOnly disabled />
+                </div>
+              )}
+
               {(businessOptions?.length ?? 0) > 1 && (
                 <div className="grid gap-2 sm:col-span-2">
-                  <Label>Business</Label>
+                  <Label required>Business</Label>
                   <Combobox
                     options={businessOptions?.map((b) => ({ value: b.id, label: b.name })) ?? null}
                     value={form.tenantBusinessId}
@@ -637,7 +676,7 @@ export default function TenantMembersPage() {
               )}
 
               <div className="grid gap-2">
-                <Label htmlFor="memberName">Member Name</Label>
+                <Label required htmlFor="memberName">Member Name</Label>
                 <Input
                   id="memberName"
                   required
@@ -655,7 +694,7 @@ export default function TenantMembersPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="businessName">Business Name</Label>
+                <Label required htmlFor="businessName">Business Name</Label>
                 <Input
                   id="businessName"
                   required
@@ -673,7 +712,7 @@ export default function TenantMembersPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label>Association Position</Label>
+                <Label required>Association Position</Label>
                 <Combobox
                   options={positionOptions?.map((o) => ({ value: o.id, label: o.name })) ?? null}
                   value={form.associationPositionId}
@@ -684,7 +723,7 @@ export default function TenantMembersPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Industry</Label>
+                <Label required>Industry</Label>
                 <Combobox
                   options={industryOptions?.map((o) => ({ value: o.id, label: o.name })) ?? null}
                   value={form.industryId}
@@ -696,7 +735,7 @@ export default function TenantMembersPage() {
               </div>
 
               <div className="grid gap-2 sm:col-span-2">
-                <Label htmlFor="aadhaarNumber">
+                <Label required={!editing} htmlFor="aadhaarNumber">
                   Aadhaar Number{editing ? " (leave blank to keep)" : ""}
                 </Label>
                 {editing && (
@@ -718,7 +757,7 @@ export default function TenantMembersPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="phoneNumber">Phone</Label>
+                <Label required htmlFor="phoneNumber">Phone</Label>
                 <Input
                   id="phoneNumber"
                   required
@@ -735,7 +774,7 @@ export default function TenantMembersPage() {
                 />
               </div>
               <div className="grid gap-2 sm:col-span-2">
-                <Label htmlFor="email">Email</Label>
+                <Label required htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
@@ -746,7 +785,7 @@ export default function TenantMembersPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label>State</Label>
+                <Label required>State</Label>
                 <Combobox
                   options={stateOptions?.map((o) => ({ value: o.id, label: o.name })) ?? null}
                   value={form.stateId}
@@ -757,7 +796,7 @@ export default function TenantMembersPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>District</Label>
+                <Label required>District</Label>
                 <Combobox
                   options={districtOptions?.map((o) => ({ value: o.id, label: o.name })) ?? null}
                   value={form.districtId}
@@ -768,7 +807,7 @@ export default function TenantMembersPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Taluk</Label>
+                <Label required>Taluk</Label>
                 <Combobox
                   options={talukOptions?.map((o) => ({ value: o.id, label: o.name })) ?? null}
                   value={form.talukId}
@@ -779,7 +818,19 @@ export default function TenantMembersPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                <Label required>RTO</Label>
+                <Combobox
+                  options={rtoOptions?.map((o) => ({ value: o.id, label: o.name })) ?? null}
+                  value={form.rtoId}
+                  onValueChange={(v) => setForm((f) => ({ ...f, rtoId: v }))}
+                  // Narrowed by the DISTRICT, not the taluk above it.
+                  placeholder={form.districtId ? "Select an RTO" : "Select a district first"}
+                  searchPlaceholder="Search RTOs..."
+                  emptyText="No RTOs found for this district."
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label required htmlFor="dateOfBirth">Date of Birth</Label>
                 <Input
                   id="dateOfBirth"
                   type="date"
@@ -790,7 +841,7 @@ export default function TenantMembersPage() {
               </div>
 
               <div className="grid gap-2 sm:col-span-2">
-                <Label htmlFor="addressLine1">Address Line 1</Label>
+                <Label required htmlFor="addressLine1">Address Line 1</Label>
                 <Input
                   id="addressLine1"
                   required
@@ -894,7 +945,8 @@ export default function TenantMembersPage() {
                   !form.industryId ||
                   !form.stateId ||
                   !form.districtId ||
-                  !form.talukId
+                  !form.talukId ||
+                  !form.rtoId
                 }
               >
                 {saving && <LoaderCircle className="size-4 animate-spin" />}

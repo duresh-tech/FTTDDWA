@@ -247,7 +247,7 @@ export default function TenantAssociationPositionsSettingsPage() {
               {/* Only worth showing when there is a genuine choice to make. */}
               {(businessOptions?.length ?? 0) > 1 && (
                 <div className="grid gap-2">
-                  <Label>Business</Label>
+                  <Label required>Business</Label>
                   <Combobox
                     options={businessOptions?.map((biz) => ({ value: biz.id, label: biz.name })) ?? null}
                     value={form.tenantBusinessId}
@@ -261,7 +261,7 @@ export default function TenantAssociationPositionsSettingsPage() {
               )}
 
               <div className="grid gap-2">
-                <Label htmlFor="positionName">Position Name</Label>
+                <Label required htmlFor="positionName">Position Name</Label>
                 <Input
                   id="positionName"
                   required

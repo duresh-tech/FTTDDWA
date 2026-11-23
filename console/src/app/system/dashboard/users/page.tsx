@@ -232,7 +232,7 @@ export default function UsersPage() {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="fName">Full name</Label>
+                <Label required htmlFor="fName">Full name</Label>
                 <Input
                   id="fName"
                   required
@@ -242,7 +242,7 @@ export default function UsersPage() {
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
-                  <Label htmlFor="username">Username</Label>
+                  <Label required htmlFor="username">Username</Label>
                   <Input
                     id="username"
                     required
@@ -253,7 +253,7 @@ export default function UsersPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label required htmlFor="email">Email</Label>
                   <Input
                     id="email"
                     type="email"
@@ -264,7 +264,9 @@ export default function UsersPage() {
                 </div>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="password">Password {editing && "(optional)"}</Label>
+                <Label required={!editing} htmlFor="password">
+                  Password {editing && "(optional)"}
+                </Label>
                 <Input
                   id="password"
                   type="password"
@@ -277,7 +279,7 @@ export default function UsersPage() {
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
-                  <Label>Role</Label>
+                  <Label required>Role</Label>
                   <Combobox
                     options={roleOptions?.map((role) => ({ value: role.id, label: role.displayName })) ?? null}
                     value={form.roleId}

@@ -137,9 +137,11 @@ own fallback**. Assuming otherwise is the easy mistake: a business whose row
 was never created would silently take the catalogue's current default instead
 of the one it was set up with.
 
-Counters are allocated with `consumeSequenceNumber(tx, businessId, key)`, which
-takes a locking read (`SELECT … FOR UPDATE`) and must run inside the caller's
-own transaction, so a failed insert does not burn a number.
+> Earlier versions of this page described a `consumeSequenceNumber()` helper
+> here. It never existed — the claim came over with the IPTV port, whose
+> customer-code feature was removed in 3.0. The one sequence this system does
+> allocate is the membership number, and it lives with the members:
+> see [Members](./members.md#the-membership-number).
 
 ### Adding a setting
 

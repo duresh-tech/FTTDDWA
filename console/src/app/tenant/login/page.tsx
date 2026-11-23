@@ -88,7 +88,7 @@ export default function TenantLoginPage() {
             <CardContent>
               <form onSubmit={onSubmit} className="grid gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="username">Username or email</Label>
+                  <Label required htmlFor="username">Username or email</Label>
                   <Input
                     id="username"
                     name="username"
@@ -98,7 +98,7 @@ export default function TenantLoginPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="password">Password</Label>
+                  <Label required htmlFor="password">Password</Label>
                   <Input
                     id="password"
                     name="password"
