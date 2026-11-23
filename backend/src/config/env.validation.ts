@@ -101,6 +101,12 @@ const baseSchema = z.object({
   // ---- Storage ----
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
   LOCAL_STORAGE_DIR: z.string().min(1).default('public/uploads'),
+  // Files that must NOT be publicly readable - member ID cards today.
+  // LOCAL_STORAGE_DIR is served by app.useStaticAssets() outside the guard
+  // pipeline, so anything under it is fetchable by URL. This directory is
+  // deliberately somewhere else and is only ever reached through a
+  // permission-checked endpoint.
+  PRIVATE_STORAGE_DIR: z.string().min(1).default('storage/private'),
   S3_BUCKET: z.string().optional(),
   S3_REGION: z.string().optional(),
   S3_ACCESS_KEY_ID: z.string().optional(),

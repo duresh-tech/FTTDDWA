@@ -175,6 +175,8 @@ model TenantBusiness {
   taluks               TenantTaluk[]
   industries           TenantIndustry[]
   members              TenantMember[]
+  idCardTemplates      TenantIdCardTemplate[]
+  memberIdCards        TenantMemberIdCard[]
   domains           TenantBusinessDomain[]
   apiKeys           ApiKey[]
   settings          TenantBusinessSetting[]
@@ -1010,6 +1012,8 @@ model TenantMember {
   state               TenantState               @relation(fields: [stateId], references: [id])
   district            TenantDistrict            @relation(fields: [districtId], references: [id])
   taluk               TenantTaluk               @relation(fields: [talukId], references: [id])
+  /// Optional and singular: a member either has a current ID card or does not.
+  idCard              TenantMemberIdCard?
 
   /// One enrolment per person per business.
   @@unique([tenantBusinessId, aadhaarHash])
@@ -1021,4 +1025,97 @@ model TenantMember {
   @@index([districtId])
   @@index([talukId])
   @@map("tenant_members")
+}
+
+enum TenantIdCardTemplateStatus {
+  ACTIVE
+  INACTIVE
+  DELETED
+}
+
+enum TenantMemberIdCardStatus {
+  ACTIVE
+  DELETED
+}
+
+/// A business's own ID card design.
+///
+/// The layout holds TOKENS, never values - `member.memberNameTamil` rather
+/// than a name - so one template renders every member. Resolution happens at
+/// generation time, against the member and the association settings.
+model TenantIdCardTemplate {
+  id               String @id @db.Char(36) // UUIDv7
+  systemCode       String @unique @db.VarChar(30)
+  tenantBusinessId String @db.Char(36)
+
+  name        String  @db.VarChar(100)
+  description String? @db.VarChar(255)
+
+  /// Card size in MILLIMETRES. A card is a physical object, and storing pixels
+  /// is how a layout ends up correct on screen and wrong on the printer.
+  /// CR80 - the usual ID card - is 85.6 x 54.
+  widthMm  Decimal @db.Decimal(6, 2)
+  heightMm Decimal @db.Decimal(6, 2)
+
+  /// The design, as JSON: card size, a front and a back side, and the
+  /// positioned elements of each. Text, not Json, because no column in this
+  /// schema is Json and `validationRules` on the settings tables set the
+  /// precedent. A Zod schema validates it on write, so the renderer never
+  /// meets a shape it cannot draw.
+  layout String @db.Text
+
+  /// Exactly one template per business holds this. The service clears the
+  /// others inside the same transaction, so it is an invariant and not a hint.
+  isDefault Boolean @default(false)
+
+  status    TenantIdCardTemplateStatus @default(ACTIVE)
+  createdAt BigInt
+  updatedAt BigInt
+  deletedAt BigInt?
+
+  tenantBusiness TenantBusiness       @relation(fields: [tenantBusinessId], references: [id])
+  cards          TenantMemberIdCard[]
+
+  @@unique([tenantBusinessId, name])
+  @@index([status])
+  @@index([tenantBusinessId])
+  @@map("tenant_id_card_templates")
+}
+
+/// One member's generated card.
+///
+/// `filePath` points into PRIVATE storage, not the public uploads tree: a card
+/// carries a photo, a phone number, an address and an Aadhaar's last four
+/// digits, and /uploads is served outside the guard pipeline. It leaves only
+/// through an endpoint that checked a permission.
+model TenantMemberIdCard {
+  id               String @id @db.Char(36) // UUIDv7
+  systemCode       String @unique @db.VarChar(30)
+  tenantBusinessId String @db.Char(36)
+  tenantMemberId   String @db.Char(36)
+  templateId       String @db.Char(36)
+
+  filePath      String @db.VarChar(255)
+  fileSizeBytes Int
+
+  generatedBy String? @db.Char(36)
+  generatedAt BigInt
+
+  status    TenantMemberIdCardStatus @default(ACTIVE)
+  createdAt BigInt
+  updatedAt BigInt
+  deletedAt BigInt?
+
+  tenantBusiness TenantBusiness       @relation(fields: [tenantBusinessId], references: [id])
+  member         TenantMember         @relation(fields: [tenantMemberId], references: [id])
+  template       TenantIdCardTemplate @relation(fields: [templateId], references: [id])
+
+  /// One CURRENT card per member. Regenerating updates this row in place and
+  /// deletes the superseded file, rather than inserting a second row - which
+  /// is also what stops a soft-deleted row from blocking a reissue.
+  @@unique([tenantMemberId])
+  @@index([status])
+  @@index([tenantBusinessId])
+  @@index([templateId])
+  @@map("tenant_member_id_cards")
 }

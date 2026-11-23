@@ -47,6 +47,15 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   // plausibly grant one without the other.
   { module: 'tenant-members', label: 'Tenant Members', actions: ['create', 'view', 'update', 'delete', 'list', 'restore', 'change_status'] },
   { module: 'tenant-streets', label: 'Tenant Streets', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
+  // The card DESIGN. A template holds tokens, not member data, so editing one
+  // is a configuration act.
+  { module: 'tenant-id-card-templates', label: 'Tenant ID Card Templates', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
+  // The ISSUED cards. `generate` is its own action for the same reason
+  // `tenant-members:change_status` is: issuing someone's card is a different
+  // act from editing a layout, and you would plausibly grant one and not the
+  // other. `view` covers downloading the PDF, which is the only way one
+  // leaves the server.
+  { module: 'tenant-member-id-cards', label: 'Tenant Member ID Cards', actions: ['generate', 'view', 'list', 'delete'] },
   { module: 'tenant-mail-config', label: 'Tenant Mail Config', actions: ['create', 'view', 'update', 'delete', 'list', 'test'] },
   { module: 'app-settings', label: 'App Settings', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   // System-admin only, with no tenant self-service twin: claiming a hostname
@@ -120,6 +129,7 @@ export const TENANT_ROLE_PERMISSION_KEYS: string[] = [
     'districts',
     'taluks',
     'industries',
+    'id-card-templates',
   ].flatMap((resource) =>
     ['list', 'view', 'create', 'update', 'delete'].map(
       (action) => `tenant-${resource}:${action}`,
@@ -135,6 +145,12 @@ export const TENANT_ROLE_PERMISSION_KEYS: string[] = [
   'tenant-members:update',
   'tenant-members:delete',
   'tenant-members:change_status',
+  // Listed longhand rather than through the loop above, because `generate`
+  // is not one of the five actions that loop emits.
+  'tenant-member-id-cards:generate',
+  'tenant-member-id-cards:view',
+  'tenant-member-id-cards:list',
+  'tenant-member-id-cards:delete',
   'tenant-mail-config:list',
   'tenant-mail-config:view',
   'tenant-mail-config:create',

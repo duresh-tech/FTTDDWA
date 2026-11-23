@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-11-23
+
+### Added
+
+- **Member ID cards.** A business designs its own card and the server renders
+  one PDF per member. Two tables (migration 0010): `tenant_id_card_templates`
+  holds the design, `tenant_member_id_cards` holds the generated file.
+
+  A template stores TOKENS, never values - `member.memberNameTamil`, not a
+  name - so one design renders every member and resolution happens at
+  generation time, against the member and the association settings.
+
+- **A private storage area, because /uploads is not private.** `main.ts`
+  serves LOCAL_STORAGE_DIR through `useStaticAssets()` OUTSIDE the guard
+  pipeline and the gateway proxies it, which is what lets an `<img src>` show
+  a logo - and equally what makes everything there readable by anyone holding
+  the URL. A card carries a photo, a phone number, an address and an Aadhaar's
+  last four digits, so:
+  - `PRIVATE_STORAGE_DIR` (default `storage/private`) is served by nothing.
+  - `StorageService` takes a `scope: 'public' | 'private'`, and gained
+    `readBuffer()` - it previously could not read a file back at all, which
+    the renderer needs for logos, signatures and photos. Stored paths now
+    reach `readFile` and `rm`, so they are checked for traversal rather than
+    trusted from the database.
+  - `GET .../member-id-cards/:id/download` is the ONLY way a card leaves the
+    server, behind `tenant-member-id-cards:view`.
+  - Its own Docker volume, since the api container is `read_only: true`,
+    created and chowned before `USER node` like the upload tree.
+
+- **The field catalogue is server-owned** (`id-card-fields.ts`), served by
+  `GET .../id-card-templates/fields`, so the designer renders its palette from
+  the server rather than a hardcoded list. For `association.*` the token IS
+  the settingKey, so there is no second mapping to keep in step. An unknown
+  token renders EMPTY - never the token text, never a throw - because a
+  template outlives the catalogue.
+
+- **Bulk generation**: explicit member ids (so the operator can see how many
+  cards they are about to produce), capped at 250, returning one multi-page
+  PDF for the print run while also storing each member's own card. The
+  combined file is not stored - it is a disposable artefact of one run.
+
+### Notes
+
+- Fonts are bundled in `backend/assets/fonts` (Noto, OFL) and copied by the
+  Dockerfile, because the prod filesystem is read-only and `nest build` emits
+  only compiled TypeScript.
+- Tamil shaping was verified before any of this was built: `க` + `ொ` emits
+  `[ெ, க, ா]` and `ஸ்ரீ` collapses to one glyph. **Noto Sans Tamil has no
+  Latin letters**, so the renderer splits text into same-script runs and picks
+  the font per run - one font cannot draw "Member: ரமேஷ்".
+- `pdf-lib` would NOT work here: it uses fontkit only to embed and subset, so
+  it does no shaping at all.
+- Permissions 122 -> 132 across 28 modules. `generate` is its own action for
+  the reason `change_status` is.
+
 ## [3.4.0] - 2026-11-23
 
 ### Added

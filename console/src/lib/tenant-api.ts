@@ -113,6 +113,59 @@ export async function tenantApi<T = unknown>(
   return data as T;
 }
 
+/**
+ * Fetches a binary response (a generated ID card PDF) and hands back a Blob.
+ *
+ * A plain `<a href>` cannot be used for these: the file lives in private
+ * storage behind a permission check, so the request needs the Authorization
+ * header, the console API key and the device header like any other. The
+ * caller turns the Blob into a download.
+ */
+export async function tenantDownload(
+  path: string,
+  options: { method?: "GET" | "POST"; body?: unknown } = {},
+): Promise<Blob> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "x-device-type": "website",
+  };
+  const token = getTenantAccessToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  await withConsoleKey(headers);
+
+  const response = await fetch(`${getApiUrl()}${path}`, {
+    method: options.method ?? "GET",
+    headers,
+    credentials: "include",
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+  });
+
+  if (!response.ok) {
+    // An error on this route still answers in JSON, so read it that way to
+    // surface the real message rather than "failed to download".
+    const data = await response.json().catch(() => null);
+    const message =
+      (data && (Array.isArray(data.message) ? data.message[0] : data.message)) ||
+      `Download failed (${response.status})`;
+    throw new TenantApiError(response.status, message, data);
+  }
+  return response.blob();
+}
+
+/** Saves a Blob to the viewer's machine under the given filename. */
+export function saveBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // Revoked on the next tick: revoking synchronously can cancel the download
+  // in some browsers before it has started reading the object.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 /** Uploads the tenant user's own profile picture and returns its stored path. */
 export async function uploadTenantAvatar(file: File): Promise<{ path: string }> {
   const formData = new FormData();

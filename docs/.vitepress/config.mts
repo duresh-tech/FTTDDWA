@@ -59,6 +59,7 @@ export default defineConfig({
             { text: 'Members', link: '/logic/members' },
             { text: 'App settings & branding', link: '/logic/app-settings' },
             { text: 'Business settings', link: '/logic/business-settings' },
+            { text: 'Member ID cards', link: '/logic/id-cards' },
           ],
         },
       ],

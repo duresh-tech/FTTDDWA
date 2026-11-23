@@ -67,8 +67,15 @@ services:
       # volume. The image creates and chowns this path before dropping to the
       # `node` user, which is what keeps a fresh volume writable.
       - ${UPLOADS_HOST_DIR:-uploads}:/app/public/uploads
+      # Member ID card PDFs. A SEPARATE volume on purpose: everything in the
+      # uploads volume above is served as static /uploads and proxied by the
+      # console gateway, so it is readable by anyone holding the URL. A card
+      # carries a photo, a phone number, an address and an Aadhaar's last four
+      # digits, and leaves only through a permission-checked endpoint. Nothing
+      # proxies this path, and nothing should.
+      - ${PRIVATE_STORAGE_HOST_DIR:-private-storage}:/app/storage/private
     # The code and dependencies never change at runtime, so the root
-    # filesystem is read-only; only the uploads volume and /tmp are writable.
+    # filesystem is read-only; only the storage volumes and /tmp are writable.
     read_only: true
     tmpfs:
       - /tmp
@@ -137,6 +144,7 @@ services:
       - /tmp
     volumes:
       - ${UPLOADS_HOST_DIR:-uploads}:/app/public/uploads
+      - ${PRIVATE_STORAGE_HOST_DIR:-private-storage}:/app/storage/private
 
 networks:
   # Reached by the console stack and anything else that needs the API.
@@ -152,3 +160,7 @@ volumes:
   # under. Ignored when UPLOADS_HOST_DIR names a host folder.
   uploads:
     name: fttddwa-uploads
+  # Private storage - member ID cards. Never served, never proxied. Backed up
+  # with the same care as the database, since a lost card has to be reissued.
+  private-storage:
+    name: fttddwa-private-storage

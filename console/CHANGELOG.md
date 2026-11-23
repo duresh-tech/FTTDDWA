@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-11-23
+
+### Added
+
+- **The ID card designer**, at Settings -> ID Card Templates: a palette of
+  bindable fields, a canvas with a front and a back, and an inspector.
+  - **Drag and drop is plain pointer events, no new dependency.** The console
+    has no DnD library and deliberately no form library either, and the
+    list-oriented libraries are a poor fit for free positioning on a canvas:
+    pointerdown -> setPointerCapture -> pointermove is less code and behaves
+    better. Native HTML5 drag carries a field from the palette onto the card.
+  - Corner resize handles, a snap grid, arrow-key nudge (Shift for coarse) and
+    Delete, with the keyboard handler ignoring events from form controls so
+    typing in the inspector does not move the card.
+  - **Bound text previews a SAMPLE value, not the token.** A Tamil name is
+    wider than `{{memberName}}`, and a designer that previews the token
+    produces cards that overflow on the first print run.
+  - Everything is in MILLIMETRES; the canvas converts at a px-per-mm scale.
+    Storing pixels is how a layout ends up right on screen and wrong on the
+    printer.
+- **Generate / Print on the members screen**: a row action that generates a
+  card and downloads it, and a toolbar action that prints every member on the
+  current page as one PDF. Both appear only with
+  `tenant-member-id-cards:generate`.
+- `tenantDownload()` and `saveBlob()` in `lib/tenant-api.ts`. A plain
+  `<a href>` cannot fetch a card: the file is behind a permission check, so
+  the request needs the Authorization header, the console API key and the
+  device header like any other.
+
 ## [3.4.0] - 2026-11-23
 
 ### Added

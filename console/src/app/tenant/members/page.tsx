@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { LoaderCircle, Pencil, ShieldCheck, Trash2, Upload, UserPlus } from "lucide-react";
+import { CreditCard, LoaderCircle, Pencil, Printer, ShieldCheck, Trash2, Upload, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,13 @@ import { ResourceTable, StatusBadgeText, type Column } from "@/components/resour
 import { RowActionsMenu } from "@/components/row-actions-menu";
 import { useResourceList } from "@/hooks/use-resource-list";
 import { useTenantSession } from "@/hooks/use-tenant-session";
-import { TenantApiError, tenantApi, uploadTenantFile } from "@/lib/tenant-api";
+import {
+  TenantApiError,
+  saveBlob,
+  tenantApi,
+  tenantDownload,
+  uploadTenantFile,
+} from "@/lib/tenant-api";
 import { uploadUrl } from "@/lib/api";
 
 type MemberStatus =
@@ -146,6 +152,9 @@ export default function TenantMembersPage() {
   const canUpdate = hasPermission("tenant-members:update");
   const canDelete = hasPermission("tenant-members:delete");
   const canChangeStatus = hasPermission("tenant-members:change_status");
+  const canGenerateCard = hasPermission("tenant-member-id-cards:generate");
+  const [cardBusyId, setCardBusyId] = React.useState<string | null>(null);
+  const [bulkPrinting, setBulkPrinting] = React.useState(false);
 
   const [statusFilter, setStatusFilter] = React.useState<string>("");
   const list = useResourceList<MemberRow>("/tenant/members", { status: statusFilter || undefined }, tenantApi);
@@ -368,6 +377,60 @@ export default function TenantMembersPage() {
     }
   }
 
+  /**
+   * Generates one member's card, then downloads it.
+   *
+   * Two requests on purpose: the first renders and STORES the card, the
+   * second streams it. The card stays downloadable afterwards, so this is not
+   * a one-shot export.
+   */
+  async function generateCard(row: MemberRow) {
+    setCardBusyId(row.id);
+    try {
+      const card = await tenantApi<{ id: string }>(
+        `/tenant/member-id-cards/members/${row.id}`,
+        { method: "POST", body: {} },
+      );
+      const blob = await tenantDownload(`/tenant/member-id-cards/${card.id}/download`);
+      saveBlob(blob, `${row.systemCode}.pdf`);
+      toast.success(`ID card generated for ${row.memberName}`);
+    } catch (error) {
+      toast.error(
+        error instanceof TenantApiError ? error.message : "Could not generate the card",
+      );
+    } finally {
+      setCardBusyId(null);
+    }
+  }
+
+  /**
+   * Generates cards for everyone on the current page as one printable PDF.
+   *
+   * Scoped to what is on screen rather than to the whole register, so the
+   * operator can see exactly whose cards they are about to produce - and the
+   * server caps the batch regardless.
+   */
+  async function printVisibleCards() {
+    // Nullable while loading; the button is disabled then anyway.
+    const rows = list.rows ?? [];
+    if (rows.length === 0) return;
+    setBulkPrinting(true);
+    try {
+      const blob = await tenantDownload("/tenant/member-id-cards/bulk", {
+        method: "POST",
+        body: { memberIds: rows.map((row) => row.id) },
+      });
+      saveBlob(blob, `member-id-cards-${rows.length}.pdf`);
+      toast.success(`Generated ${rows.length} card${rows.length === 1 ? "" : "s"}`);
+    } catch (error) {
+      toast.error(
+        error instanceof TenantApiError ? error.message : "Could not generate the cards",
+      );
+    } finally {
+      setBulkPrinting(false);
+    }
+  }
+
   async function onDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -472,6 +535,22 @@ export default function TenantMembersPage() {
                 <SelectItem value="DELETED">Deleted</SelectItem>
               </SelectContent>
             </Select>
+            {canGenerateCard && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={bulkPrinting || !list.rows || list.rows.length === 0}
+                onClick={printVisibleCards}
+                title="Generates a card for every member on this page, as one printable PDF"
+              >
+                {bulkPrinting ? (
+                  <LoaderCircle className="size-4 animate-spin" />
+                ) : (
+                  <Printer className="size-4" />
+                )}
+                Print ID cards
+              </Button>
+            )}
             {canCreate && (
               <Button onClick={openCreate}>
                 <UserPlus className="size-4" /> Enrol Member
@@ -497,6 +576,18 @@ export default function TenantMembersPage() {
                                     setStatusTarget(row);
                                     setNextStatus(row.status === "DELETED" ? "PENDING" : row.status);
                                   },
+                                },
+                              ]
+                            : []),
+                          ...(canGenerateCard
+                            ? [
+                                {
+                                  label:
+                                    cardBusyId === row.id
+                                      ? "Generating…"
+                                      : "Generate ID card",
+                                  icon: CreditCard,
+                                  onClick: () => generateCard(row),
                                 },
                               ]
                             : []),

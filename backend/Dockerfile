@@ -54,6 +54,11 @@ RUN npm ci --omit=dev \
  && npx prisma generate \
  && npm cache clean --force
 COPY --from=build /app/dist ./dist
+# The PDF fonts. `nest build` only emits compiled TS and nest-cli.json declares
+# no `assets`, so these are copied explicitly. They are bundled rather than
+# fetched at run time because the prod filesystem is read-only and the build
+# must not depend on the network.
+COPY assets ./assets
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 # Strip CR before chmod. A checkout on Windows can hand this image an
@@ -65,13 +70,19 @@ COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 # Create and chown the upload tree BEFORE dropping to `node`. Docker seeds a
 # named volume from the image path on first mount and inherits its ownership,
 # so getting this wrong makes every upload fail with EACCES.
+#
+# storage/private gets the same treatment and its own volume. It holds member
+# ID cards, which must NOT be reachable at /uploads - that path is static and
+# unguarded. Keeping them in a separate tree is what makes "private" true
+# rather than a naming convention.
 RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh \
  && chmod +x /usr/local/bin/entrypoint.sh \
  && mkdir -p public/uploads/app-settings \
              public/uploads/app_settings_uploads \
              public/uploads/general \
              public/uploads/tenant-avatars \
- && chown -R node:node /app/public
+             storage/private/member-id-cards \
+ && chown -R node:node /app/public /app/storage
 
 USER node
 EXPOSE 4000
