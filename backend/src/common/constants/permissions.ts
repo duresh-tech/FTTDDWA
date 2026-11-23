@@ -59,7 +59,11 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   // act from editing a layout, and you would plausibly grant one and not the
   // other. `view` covers downloading the PDF, which is the only way one
   // leaves the server.
-  { module: 'tenant-member-id-cards', label: 'Tenant Member ID Cards', actions: ['generate', 'view', 'list', 'delete'] },
+  // `revoke` is separate from `delete` on purpose: revoking voids a card that
+  // is still in somebody's wallet and keeps the record, while deleting
+  // removes the record and its PDF. You would plausibly grant one and not the
+  // other.
+  { module: 'tenant-member-id-cards', label: 'Tenant Member ID Cards', actions: ['generate', 'view', 'list', 'delete', 'revoke'] },
   { module: 'tenant-mail-config', label: 'Tenant Mail Config', actions: ['create', 'view', 'update', 'delete', 'list', 'test'] },
   { module: 'app-settings', label: 'App Settings', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   // System-admin only, with no tenant self-service twin: claiming a hostname
@@ -157,6 +161,7 @@ export const TENANT_ROLE_PERMISSION_KEYS: string[] = [
   'tenant-member-id-cards:view',
   'tenant-member-id-cards:list',
   'tenant-member-id-cards:delete',
+  'tenant-member-id-cards:revoke',
   'tenant-mail-config:list',
   'tenant-mail-config:view',
   'tenant-mail-config:create',

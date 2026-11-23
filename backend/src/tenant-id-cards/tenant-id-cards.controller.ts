@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   Res,
@@ -18,7 +19,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { TenantIdCardsService } from './tenant-id-cards.service';
-import { GenerateIdCardDto } from './dto/id-card.dto';
+import { GenerateIdCardDto, RevokeIdCardDto } from './dto/id-card.dto';
 import { IdCardListQueryDto } from './dto/id-card-query.dto';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
@@ -121,6 +122,27 @@ export class MemberIdCardsController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.service.generateForMember(memberId, dto, user?.id);
+  }
+
+  @Patch(':id/revoke')
+  @RequirePermissions('tenant-member-id-cards:revoke')
+  @ApiOperation({
+    summary: 'Void a card that is still in circulation',
+    description:
+      'Lost, stolen, or issued in error. The row and its PDF stay, so the ' +
+      'history still shows what was issued and why it stopped being valid - ' +
+      'that is what separates this from DELETE. Revoking the current card ' +
+      'also frees the member for a new one.',
+  })
+  @ApiParam({ name: 'id', description: 'Card UUIDv7' })
+  @ApiResponse({ status: 200, description: 'Card revoked.', schema: { example: CARD_EXAMPLE } })
+  @ApiResponse({ status: 400, description: 'That card is already revoked.' })
+  revoke(
+    @Param('id') id: string,
+    @Body() dto: RevokeIdCardDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.service.revoke(id, dto.reason, user?.id);
   }
 
   @Delete(':id')

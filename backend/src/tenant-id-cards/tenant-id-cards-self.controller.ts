@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   Res,
@@ -19,7 +20,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { TenantIdCardsService } from './tenant-id-cards.service';
-import { BulkGenerateIdCardsDto, GenerateIdCardDto } from './dto/id-card.dto';
+import {
+  BulkGenerateIdCardsDto,
+  GenerateIdCardDto,
+  RevokeIdCardDto,
+} from './dto/id-card.dto';
 import { IdCardListQueryDto } from './dto/id-card-query.dto';
 import { CARD_EXAMPLE, sendPdf } from './tenant-id-cards.controller';
 import { Public } from '../common/decorators/public.decorator';
@@ -127,6 +132,25 @@ export class TenantIdCardsSelfController {
     await this.service.assertCardOwned(user.id, id);
     const { buffer, filename } = await this.service.readCardFile(id);
     sendPdf(res, buffer, filename);
+  }
+
+  @Patch(':id/revoke')
+  @RequireTenantPermissions('tenant-member-id-cards:revoke')
+  @ApiOperation({
+    summary: "Void one of the caller's own members' cards",
+    description:
+      'The row and its PDF stay, so the history still shows what was issued. ' +
+      'Revoking the current card frees the member for a new one.',
+  })
+  @ApiParam({ name: 'id', description: 'Card UUIDv7' })
+  @ApiResponse({ status: 200, description: 'Card revoked.', schema: { example: CARD_EXAMPLE } })
+  async revoke(
+    @CurrentTenantUser() user: TenantAuthUser,
+    @Param('id') id: string,
+    @Body() dto: RevokeIdCardDto,
+  ) {
+    await this.service.assertCardOwned(user.id, id);
+    return this.service.revoke(id, dto.reason, user.id);
   }
 
   @Delete(':id')

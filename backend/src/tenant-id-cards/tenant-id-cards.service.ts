@@ -16,6 +16,34 @@ import { parseLayout } from './id-card-layout.schema';
 import { IdCardListQueryDto } from './dto/id-card-query.dto';
 import { BulkGenerateIdCardsDto, GenerateIdCardDto } from './dto/id-card.dto';
 
+/** How long a card is valid, in years. 0 means it never expires. */
+const CARD_VALIDITY_SETTING_KEY = 'memberIdCard.validityYears';
+
+/**
+ * A card's expiry, or null when the business issues cards that do not expire.
+ *
+ * Years are added on the calendar rather than as a fixed number of seconds,
+ * so a card issued on 29 February lands on a real date and five years means
+ * five birthdays rather than 5 x 365 days.
+ */
+export function expiryFrom(issuedAtSeconds: number, validityYears: number): number | null {
+  if (validityYears <= 0) return null;
+  const date = new Date(issuedAtSeconds * 1000);
+  date.setFullYear(date.getFullYear() + validityYears);
+  return Math.floor(date.getTime() / 1000);
+}
+
+/**
+ * Whether a card has expired, computed from its date and the clock.
+ *
+ * There is no EXPIRED status to read instead - see the note on
+ * TenantMemberIdCardStatus. This is the only place expiry is decided.
+ */
+export function isExpired(expiryAt: bigint | number | null, nowSeconds: number): boolean {
+  if (expiryAt === null || expiryAt === undefined) return false;
+  return Number(expiryAt) <= nowSeconds;
+}
+
 /** Where cards land inside the PRIVATE storage area. */
 const CARD_FOLDER = 'member-id-cards';
 
@@ -105,52 +133,58 @@ export class TenantIdCardsService {
     );
 
     const timestamp = now();
-    const existing = await this.prisma.tenantMemberIdCard.findUnique({
-      where: { tenantMemberId: memberId },
+    const validityYears = await this.cardValidityYears(member.tenantBusinessId);
+
+    // One transaction: supersede whatever was current, then insert the new
+    // issue. The partial unique index on (tenantMemberId) WHERE status =
+    // 'ACTIVE' is the backstop - if this ever failed to supersede first, the
+    // insert would be refused rather than leaving two cards both claiming to
+    // be current.
+    const card = await this.prisma.$transaction(async (tx) => {
+      const previous = await tx.tenantMemberIdCard.findFirst({
+        where: { tenantMemberId: memberId, status: 'ACTIVE' },
+        orderBy: { issueNumber: 'desc' },
+      });
+      if (previous) {
+        await tx.tenantMemberIdCard.update({
+          where: { id: previous.id },
+          data: { status: 'SUPERSEDED', supersededAt: timestamp, updatedAt: timestamp },
+        });
+      }
+
+      // Counted over EVERY issue, not just the active one, so a revoked or
+      // superseded card still consumes its number and the sequence never
+      // repeats.
+      const issued = await tx.tenantMemberIdCard.aggregate({
+        where: { tenantMemberId: memberId },
+        _max: { issueNumber: true },
+      });
+
+      return tx.tenantMemberIdCard.create({
+        data: {
+          id: newId(),
+          systemCode: newSystemCode('MIC'),
+          tenantBusinessId: member.tenantBusinessId,
+          tenantMemberId: memberId,
+          templateId: template.id,
+          filePath,
+          fileSizeBytes: pdf.length,
+          issueNumber: (issued._max.issueNumber ?? 0) + 1,
+          issuedBy: actorId,
+          issuedAt: timestamp,
+          expiryAt: expiryFrom(timestamp, validityYears),
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        },
+        include: CARD_LIST_INCLUDE,
+      });
     });
 
-    const card = existing
-      ? await this.prisma.tenantMemberIdCard.update({
-          where: { id: existing.id },
-          data: {
-            templateId: template.id,
-            filePath,
-            fileSizeBytes: pdf.length,
-            generatedBy: actorId,
-            generatedAt: timestamp,
-            status: 'ACTIVE',
-            deletedAt: null,
-            updatedAt: timestamp,
-          },
-          include: CARD_LIST_INCLUDE,
-        })
-      : await this.prisma.tenantMemberIdCard.create({
-          data: {
-            id: newId(),
-            systemCode: newSystemCode('MIC'),
-            tenantBusinessId: member.tenantBusinessId,
-            tenantMemberId: memberId,
-            templateId: template.id,
-            filePath,
-            fileSizeBytes: pdf.length,
-            generatedBy: actorId,
-            generatedAt: timestamp,
-            createdAt: timestamp,
-            updatedAt: timestamp,
-          },
-          include: CARD_LIST_INCLUDE,
-        });
-
-    // After the row points at the new file, so a failure here leaves an
-    // orphaned file rather than a row pointing at a deleted one.
-    if (existing && existing.filePath !== filePath) {
-      await this.storage
-        .remove(existing.filePath, 'private')
-        .catch((error: Error) =>
-          this.logger.warn(`Could not remove superseded card: ${error.message}`),
-        );
-    }
-
+    // The superseded card's PDF is KEPT. That is what history means: a
+    // reissued card's predecessor is evidence of what was in circulation.
+    // Only an explicit delete removes a file - which does mean private
+    // storage grows with every reissue rather than holding one file per
+    // member.
     return card;
   }
 
@@ -387,6 +421,49 @@ export class TenantIdCardsService {
       );
     }
     return template;
+  }
+
+  /**
+   * The business's card validity in years, from the settings catalogue.
+   *
+   * An unset or unparseable value means NO expiry rather than an arbitrary
+   * default: issuing a card that silently expires because a setting was
+   * missing would be worse than issuing one that does not.
+   */
+  private async cardValidityYears(tenantBusinessId: string): Promise<number> {
+    const map = await this.settings.getSettingsMapForBusiness(tenantBusinessId, [
+      CARD_VALIDITY_SETTING_KEY,
+    ]);
+    const years = Number(map[CARD_VALIDITY_SETTING_KEY]);
+    return Number.isFinite(years) && years > 0 ? Math.floor(years) : 0;
+  }
+
+  /**
+   * Voids a card that is still in circulation - lost, stolen, or issued in
+   * error.
+   *
+   * Separate from delete: the row and its PDF stay, so the history still
+   * shows what was issued and why it stopped being valid. Revoking the
+   * current card also frees the member for a new ACTIVE one, which the
+   * partial unique index would otherwise refuse.
+   */
+  async revoke(id: string, reason: string | undefined, actorId?: string) {
+    const card = await this.findOne(id);
+    if (card.status === 'REVOKED') {
+      throw new BadRequestException('That card is already revoked');
+    }
+    const timestamp = now();
+    return this.prisma.tenantMemberIdCard.update({
+      where: { id },
+      data: {
+        status: 'REVOKED',
+        revokedAt: timestamp,
+        revokedBy: actorId,
+        revokeReason: reason,
+        updatedAt: timestamp,
+      },
+      include: CARD_LIST_INCLUDE,
+    });
   }
 
   private async assertRegisterOpen(tenantBusinessId: string): Promise<void> {

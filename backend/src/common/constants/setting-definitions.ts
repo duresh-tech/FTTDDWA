@@ -427,6 +427,19 @@ export const SETTING_DEFINITIONS: SettingDefinitionSeed[] = [
     sortOrder: 350,
   },
 
+  {
+    category: 'Member Register',
+    settingKey: 'memberIdCard.validityYears',
+    settingLabel: 'ID card validity (years)',
+    description:
+      'How long a newly issued membership card stays valid. 0 means cards ' +
+      'never expire.',
+    valueType: 'INTEGER',
+    defaultValue: '5',
+    validationRules: JSON.stringify({ min: 0, max: 50 }),
+    sortOrder: 410,
+  },
+
   // ---- Member Register ----
   {
     category: 'Member Register',

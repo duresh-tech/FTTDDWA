@@ -19,5 +19,11 @@ const BulkGenerateIdCardsSchema = z.object({
   templateId: z.string().uuid().optional(),
 });
 
+const RevokeIdCardSchema = z.object({
+  /** Why it was voided - lost, stolen, printed in error. Kept on the record. */
+  reason: z.string().max(255).optional(),
+});
+
+export class RevokeIdCardDto extends createZodDto(RevokeIdCardSchema) {}
 export class GenerateIdCardDto extends createZodDto(GenerateIdCardSchema) {}
 export class BulkGenerateIdCardsDto extends createZodDto(BulkGenerateIdCardsSchema) {}

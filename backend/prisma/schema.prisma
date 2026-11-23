@@ -989,6 +989,11 @@ model TenantMember {
   systemCode       String @unique @db.VarChar(30)
   tenantBusinessId String @db.Char(36)
 
+  /// Argon2id, as on TenantUser. NULLABLE on purpose: every member enrolled
+  /// by staff has no password and must not be forced one, and a member
+  /// without a hash simply cannot sign in to the member portal.
+  passwordHash String? @db.VarChar(255)
+
   /// The membership number, `<rtoCode><sequence>` - TN72001, TN72002, ...
   ///
   /// Allocated once at enrolment and NEVER regenerated, not even when the
@@ -1064,8 +1069,11 @@ model TenantMember {
   district            TenantDistrict            @relation(fields: [districtId], references: [id])
   taluk               TenantTaluk               @relation(fields: [talukId], references: [id])
   rto                 TenantRto                 @relation(fields: [rtoId], references: [id])
-  /// Optional and singular: a member either has a current ID card or does not.
-  idCard              TenantMemberIdCard?
+  /// Every issue, newest first when read. The CURRENT one is whichever has
+  /// status ACTIVE - there is no pointer column, because that would be a
+  /// second source of truth about which card is current.
+  idCards             TenantMemberIdCard[]
+  refreshTokens       TenantMemberRefreshToken[]
 
   /// One enrolment per person per business.
   @@unique([tenantBusinessId, aadhaarHash])
@@ -1129,6 +1137,28 @@ enum TenantIdCardTemplateStatus {
   ACTIVE
   INACTIVE
   DELETED
+}
+
+/// A member's portal session, mirroring TenantRefreshToken exactly.
+///
+/// The member portal shows somebody their own address and the last four
+/// digits of their Aadhaar, so it gets the same session handling as the staff
+/// portals rather than a weaker one: the refresh JWT is stored only as a
+/// SHA-256 hash, can be revoked, and cascades away with the member.
+model TenantMemberRefreshToken {
+  id             String  @id @db.Char(36) // UUIDv7
+  tenantMemberId String  @db.Char(36)
+  tokenHash      String  @db.VarChar(128) // SHA-256 hex of the refresh JWT
+  deviceType     String? @db.VarChar(30) // website | androidApp | iosApp | desktopApp
+  expiresAt      BigInt
+  revokedAt      BigInt?
+  createdAt      BigInt
+
+  member TenantMember @relation(fields: [tenantMemberId], references: [id], onDelete: Cascade)
+
+  @@index([tenantMemberId])
+  @@index([tokenHash])
+  @@map("tenant_member_refresh_tokens")
 }
 
 enum TenantMemberIdCardStatus {
@@ -1239,10 +1269,15 @@ model TenantMemberIdCard {
   member         TenantMember         @relation(fields: [tenantMemberId], references: [id])
   template       TenantIdCardTemplate @relation(fields: [templateId], references: [id])
 
-  /// One CURRENT card per member. Regenerating updates this row in place and
-  /// deletes the superseded file, rather than inserting a second row - which
-  /// is also what stops a soft-deleted row from blocking a reissue.
-  @@unique([tenantMemberId])
+  /// Cards are a HISTORY: one row per issue, so there is no unique constraint
+  /// on the member here.
+  ///
+  /// "Exactly one CURRENT card" is instead enforced by a PARTIAL unique index
+  /// on (tenantMemberId) WHERE status = 'ACTIVE', which Prisma cannot express
+  /// and the migration therefore adds by hand. That is what makes "the
+  /// current card is the ACTIVE one" a fact rather than a convention, and the
+  /// backstop for the issuing transaction.
+  @@index([tenantMemberId, status])
   @@index([status])
   @@index([tenantBusinessId])
   @@index([templateId])
