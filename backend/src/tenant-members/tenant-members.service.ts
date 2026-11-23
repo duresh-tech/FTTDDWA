@@ -355,6 +355,96 @@ export class TenantMembersService {
    * into a combination that never existed.
    */
   /**
+   * Creates a member from an approved application, inside the caller's
+   * transaction.
+   *
+   * Takes a `tx` rather than opening its own, so approving is atomic: either
+   * the member exists and the application is marked APPROVED, or neither
+   * happened. Two transactions could leave a member whose application still
+   * reads PENDING, and nothing would reconcile them.
+   *
+   * The application's fields are copied as they stand - including the already
+   * encrypted Aadhaar and the already hashed password, which are moved rather
+   * than re-derived. Re-hashing would invalidate the password the applicant
+   * chose; re-encrypting is not possible without the plaintext, which is the
+   * point of storing it encrypted.
+   *
+   * The member is ACTIVE rather than PENDING: the approval is the review that
+   * PENDING exists for.
+   */
+  async createFromApplication(
+    tx: Prisma.TransactionClient,
+    application: {
+      tenantBusinessId: string;
+      passwordHash: string | null;
+      memberName: string;
+      memberNameTamil: string | null;
+      businessName: string;
+      businessNameTamil: string | null;
+      associationPositionId: string;
+      industryId: string;
+      aadhaarNumber: string;
+      aadhaarHash: string;
+      aadhaarLast4: string;
+      phoneNumber: string;
+      whatsappNumber: string | null;
+      email: string;
+      stateId: string;
+      districtId: string;
+      talukId: string;
+      rtoId: string;
+      addressLine1: string;
+      addressLine2: string | null;
+      dateOfBirth: string;
+      isMarried: boolean;
+      weddingDate: string | null;
+      passportPhotoPath: string | null;
+    },
+    actorId?: string,
+  ) {
+    void actorId;
+    const timestamp = now();
+    const memberIdNumber = await this.allocateMemberIdNumber(tx, application.rtoId);
+
+    const row = await tx.tenantMember.create({
+      data: {
+        id: newId(),
+        systemCode: newSystemCode('MEM'),
+        memberIdNumber,
+        tenantBusinessId: application.tenantBusinessId,
+        passwordHash: application.passwordHash,
+        memberName: application.memberName,
+        memberNameTamil: application.memberNameTamil,
+        businessName: application.businessName,
+        businessNameTamil: application.businessNameTamil,
+        associationPositionId: application.associationPositionId,
+        industryId: application.industryId,
+        aadhaarNumber: application.aadhaarNumber,
+        aadhaarHash: application.aadhaarHash,
+        aadhaarLast4: application.aadhaarLast4,
+        phoneNumber: application.phoneNumber,
+        whatsappNumber: application.whatsappNumber,
+        email: application.email,
+        stateId: application.stateId,
+        districtId: application.districtId,
+        talukId: application.talukId,
+        rtoId: application.rtoId,
+        addressLine1: application.addressLine1,
+        addressLine2: application.addressLine2,
+        dateOfBirth: application.dateOfBirth,
+        isMarried: application.isMarried,
+        weddingDate: application.isMarried ? application.weddingDate : null,
+        passportPhotoPath: application.passportPhotoPath,
+        status: 'ACTIVE',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      },
+      include: INCLUDE,
+    });
+    return mask(row);
+  }
+
+  /**
    * The next membership number for an RTO: `<rtoCode><sequence>`, starting at
    * 001 and padded to three digits - TN72001, TN72002, ...
    *

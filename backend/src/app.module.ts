@@ -25,6 +25,8 @@ import { TenantTaluksModule } from './tenant-taluks/tenant-taluks.module';
 import { TenantIndustriesModule } from './tenant-industries/tenant-industries.module';
 import { TenantMembersModule } from './tenant-members/tenant-members.module';
 import { TenantRtosModule } from './tenant-rtos/tenant-rtos.module';
+import { TenantMemberApplicationsModule } from './tenant-member-applications/tenant-member-applications.module';
+import { MemberAuthModule } from './member-auth/member-auth.module';
 import { TenantIdCardTemplatesModule } from './tenant-id-card-templates/tenant-id-card-templates.module';
 import { TenantIdCardsModule } from './tenant-id-cards/tenant-id-cards.module';
 import { TenantStreetsModule } from './tenant-streets/tenant-streets.module';
@@ -82,6 +84,8 @@ import { ApiKeyGuard } from './api-keys/api-key.guard';
     TenantIndustriesModule,
     TenantRtosModule,
     TenantMembersModule,
+    TenantMemberApplicationsModule,
+    MemberAuthModule,
     TenantIdCardTemplatesModule,
     TenantIdCardsModule,
     TenantStreetsModule,

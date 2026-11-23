@@ -177,6 +177,7 @@ model TenantBusiness {
   industries           TenantIndustry[]
   members              TenantMember[]
   rtos                 TenantRto[]
+  memberApplications   TenantMemberApplication[]
   idCardTemplates      TenantIdCardTemplate[]
   memberIdCards        TenantMemberIdCard[]
   domains              TenantBusinessDomain[]
@@ -784,6 +785,7 @@ model TenantAssociationPosition {
 
   tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
   members        TenantMember[]
+  memberApplications TenantMemberApplication[]
 
   @@index([status])
   @@index([tenantBusinessId])
@@ -879,6 +881,7 @@ model TenantState {
   districts      TenantDistrict[]
   taluks         TenantTaluk[]
   members        TenantMember[]
+  memberApplications TenantMemberApplication[]
 
   /// Applies to every row regardless of soft-delete state, so a code held by a
   /// deleted-but-restorable state cannot be reissued.
@@ -908,6 +911,7 @@ model TenantDistrict {
   state          TenantState    @relation(fields: [stateId], references: [id])
   taluks         TenantTaluk[]
   members        TenantMember[]
+  memberApplications TenantMemberApplication[]
   rtos           TenantRto[]
 
   @@unique([tenantBusinessId, districtCode])
@@ -936,6 +940,7 @@ model TenantTaluk {
   state          TenantState    @relation(fields: [stateId], references: [id])
   district       TenantDistrict @relation(fields: [districtId], references: [id])
   members        TenantMember[]
+  memberApplications TenantMemberApplication[]
 
   @@index([status])
   @@index([tenantBusinessId])
@@ -959,6 +964,7 @@ model TenantIndustry {
 
   tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
   members        TenantMember[]
+  memberApplications TenantMemberApplication[]
 
   @@index([status])
   @@index([tenantBusinessId])
@@ -1122,6 +1128,7 @@ model TenantRto {
   tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
   district       TenantDistrict @relation(fields: [tenantDistrictId], references: [id])
   members        TenantMember[]
+  memberApplications TenantMemberApplication[]
 
   /// Scoped per business, and applying to every row regardless of soft-delete
   /// state, so a code held by a deleted-but-restorable RTO cannot be reissued.
@@ -1137,6 +1144,105 @@ enum TenantIdCardTemplateStatus {
   ACTIVE
   INACTIVE
   DELETED
+}
+
+enum TenantMemberApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  DELETED
+}
+
+/// A membership application, submitted from the public registration form.
+///
+/// A SEPARATE table from `tenant_members` on purpose. This is the one place in
+/// the system an unauthenticated caller can write, and `CLAUDE.md` is explicit
+/// about why that deserves care - `POST /system/register` was deleted for
+/// being exactly this and never closed. Keeping applications out of the
+/// register means an application grants nothing: no membership number, no
+/// permissions, no session, and no row anything else joins to until staff
+/// approve it.
+///
+/// It mirrors every field of `tenant_members` so the applicant supplies their
+/// details once and approval is a copy rather than a second interview. What it
+/// does NOT carry is `memberIdNumber`, which is allocated at conversion by the
+/// register's own allocator.
+model TenantMemberApplication {
+  id               String @id @db.Char(36) // UUIDv7
+  systemCode       String @unique @db.VarChar(30)
+  tenantBusinessId String @db.Char(36)
+
+  /// Zero-padded digits, allocated per business the same way membership
+  /// numbers are: a row lock plus a unique index, with the suffix compared
+  /// numerically so it does not stop advancing past 999999.
+  applicationNumber String @db.VarChar(20)
+
+  /// The password the applicant chose, Argon2id. Carried across to the member
+  /// on approval so they can sign in with what they already set.
+  passwordHash String? @db.VarChar(255)
+
+  memberName        String  @db.VarChar(100)
+  memberNameTamil   String? @db.VarChar(100)
+  businessName      String  @db.VarChar(100)
+  businessNameTamil String? @db.VarChar(100)
+
+  associationPositionId String @db.Char(36)
+  industryId            String @db.Char(36)
+
+  /// The same three columns the register uses, for the same reasons: AES
+  /// ciphertext, a keyed blind index so duplicates are still caught, and the
+  /// last four in the clear for display. A pending application holds the same
+  /// number as a member and gets the same protection.
+  aadhaarNumber String @db.VarChar(255)
+  aadhaarHash   String @db.Char(64)
+  aadhaarLast4  String @db.VarChar(4)
+
+  phoneNumber    String  @db.VarChar(20)
+  whatsappNumber String? @db.VarChar(20)
+  email          String  @db.VarChar(191)
+
+  stateId      String  @db.Char(36)
+  districtId   String  @db.Char(36)
+  talukId      String  @db.Char(36)
+  rtoId        String  @db.Char(36)
+  addressLine1 String  @db.VarChar(255)
+  addressLine2 String? @db.VarChar(255)
+
+  dateOfBirth String  @db.VarChar(10)
+  isMarried   Boolean @default(false)
+  weddingDate String? @db.VarChar(10)
+
+  passportPhotoPath String? @db.VarChar(255)
+  remark            String? @db.VarChar(255)
+
+  reviewedBy      String? @db.Char(36)
+  reviewedAt      BigInt?
+  rejectionReason String? @db.VarChar(255)
+
+  /// Set when approved. Also what makes approving twice detectable.
+  convertedMemberId String? @db.Char(36)
+
+  status    TenantMemberApplicationStatus @default(PENDING)
+  createdAt BigInt
+  updatedAt BigInt
+  deletedAt BigInt?
+
+  tenantBusiness      TenantBusiness            @relation(fields: [tenantBusinessId], references: [id])
+  associationPosition TenantAssociationPosition @relation(fields: [associationPositionId], references: [id])
+  industry            TenantIndustry            @relation(fields: [industryId], references: [id])
+  state               TenantState               @relation(fields: [stateId], references: [id])
+  district            TenantDistrict            @relation(fields: [districtId], references: [id])
+  taluk               TenantTaluk               @relation(fields: [talukId], references: [id])
+  rto                 TenantRto                 @relation(fields: [rtoId], references: [id])
+
+  @@unique([tenantBusinessId, applicationNumber])
+  /// Catches the same person applying twice while one is still pending. It
+  /// deliberately covers every status, so a rejected applicant cannot simply
+  /// resubmit without staff reopening it.
+  @@unique([tenantBusinessId, aadhaarHash])
+  @@index([status])
+  @@index([tenantBusinessId])
+  @@map("tenant_member_applications")
 }
 
 /// A member's portal session, mirroring TenantRefreshToken exactly.

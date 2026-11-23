@@ -212,6 +212,56 @@ exists to fix.
 Because it sits outside the shell, the editor provides its own
 `TenantSessionProvider`; that is what the permission checks read.
 
+## Cards are a history
+
+A card is one row per ISSUE, not one mutable row per member. Reissuing
+supersedes the previous card and inserts a new one; **the old PDF is kept**,
+because a reissued card's predecessor is evidence of what was in circulation.
+Private storage therefore grows with every reissue rather than holding one
+file per member.
+
+| Column | Meaning |
+| --- | --- |
+| `issueNumber` | 1-based per member — "issue 3 of this member's card" |
+| `expiryAt` | Null when the business issues cards that never expire |
+| `supersededAt` | When a newer issue replaced this one |
+| `revoked*` | Voiding a card that is still in somebody's wallet |
+
+**Exactly one current card, enforced by the database.** Prisma cannot express
+a partial unique index, so the migration adds one by hand:
+
+```sql
+CREATE UNIQUE INDEX "tenant_member_id_cards_one_active_per_member"
+  ON "tenant_member_id_cards" ("tenantMemberId") WHERE "status" = 'ACTIVE';
+```
+
+That is what makes "the current card is the ACTIVE one" a fact rather than a
+convention, and the backstop for the issuing transaction. It will not appear in
+`schema.prisma`.
+
+### There is no EXPIRED status
+
+`ApiKeyStatus` made this call first: expiry is a function of the date and the
+clock, so storing it as well gives two sources of truth that drift. `isExpired()`
+computes it wherever a card is shown, which also means a card cannot sit
+stale-`ACTIVE` past its date and no scheduled job is needed — this project has
+none.
+
+Validity comes from the `memberIdCard.validityYears` setting, so an association
+sets its policy once instead of retyping it per card. **Years are added on the
+calendar**, not as 365-day blocks, so a card issued on 29 February lands on a
+real date. A value of 0 issues cards that never expire.
+
+### Revoke is not delete
+
+Revoking voids a card that is still out there — lost, stolen, printed in error —
+and **keeps the row and the PDF**, so the history still shows what was issued
+and why it stopped being valid. Deleting removes both. They are separate
+permissions because you would plausibly grant one and not the other.
+
+Revoking the current card also frees the member for a new ACTIVE one, which
+the partial index would otherwise refuse.
+
 ## Generating
 
 `POST /tenant/member-id-cards/members/:memberId` renders with the given

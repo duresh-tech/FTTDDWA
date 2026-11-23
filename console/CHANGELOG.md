@@ -9,6 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The member portal** at `/member`: login with a membership number, a page
+  showing the member's own record in both scripts, and sign-out. Its own
+  layout, `MemberSessionProvider` and `lib/member-api.ts`, namespaced so a
+  member session, a staff session and an admin session coexist in one browser -
+  somebody who runs the association and is also a member of it is ordinary.
+- **A public registration form** at `/member/register`, collecting everything
+  the register needs, with the same cascades as the staff form (state ->
+  district -> taluk, and RTO from the DISTRICT, not the taluk above it). Every
+  lookup is fetched once with its parent id, so the cascades filter in the
+  browser rather than asking the server on each change. It shows the
+  application number on success and nothing else.
+- **A tenant home page.** `/` still resolves by hostname, but a business domain
+  now renders the association's own page - name in both scripts, logo, tagline,
+  contact details, Member login and Apply buttons - instead of bouncing to the
+  staff login. On a tenant's own domain the public are members, not
+  administrators; staff reach /tenant/login from a quiet link.
+- **A staff review screen** at Settings -> Applications, with view, approve and
+  reject. Approve and reject are offered only on a PENDING row, since approving
+  twice would mint a second member.
+
+- **The portal's card panel is live**: it shows the issue number and expiry of
+  the member's current card and downloads the PDF. `memberDownload()` carries
+  the token, because the file is behind a guard and a plain `<a href>` cannot
+  reach it.
+- **A system-side applications screen**, GENERATED from the tenant one by a
+  script whose every anchor is asserted, so the two cannot drift into showing
+  different fields or offering approve on different rows. It adds a business
+  column, which only a cross-tenant list needs.
+
+### Changed
+
+- The member ID card panel reflects the new history: issues, expiry and
+  revocation rather than a single current file.
+
+### Added
+
 - **Countries screens on both surfaces**, under Locations: the system-admin
   page at `/system/dashboard/tenant-countries` (status filter, restore) and its
   tenant portal twin at `/tenant/settings/countries`. Both use the shared

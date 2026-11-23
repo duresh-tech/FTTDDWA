@@ -9,6 +9,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Membership applications** (migration 0015). The public registration form
+  writes to `tenant_member_applications`, NEVER to `tenant_members`.
+  `CLAUDE.md` warns against adding an unauthenticated account-creation route,
+  because `POST /system/register` was exactly that and was never closed. This
+  is not one: it grants no permission, issues no session, and produces no
+  member until staff approve it.
+  - The business comes from the HOSTNAME, never the request body - a
+    body-supplied id would let anyone file against any association.
+  - Refused unless that business has `memberRegister.enabled` on, and
+    throttled at 5/minute like every other credential endpoint.
+  - The Aadhaar gets the register's three columns - ciphertext, blind index,
+    last four - and is checked against BOTH tables, so an existing member is
+    told to sign in rather than left waiting on a duplicate.
+  - `applicationNumber` is per-business zero-padded digits, allocated by
+    locking the BUSINESS row and comparing the suffix NUMERICALLY, for the
+    same two reasons membership numbers are.
+  - Approving converts in one transaction: the member is created ACTIVE (this
+    approval IS the review PENDING exists for), the membership number comes
+    from the RTO's sequence, and the password hash is MOVED rather than
+    re-derived so the applicant signs in with what they chose.
+
+- **Member authentication** (`member-auth/`), a third surface beside system
+  and tenant users. Login is the MEMBERSHIP NUMBER plus a password, scoped to
+  the hostname's business - the number is unique per business, not globally.
+  Email was rejected as the identity: it would need a unique index that two
+  members sharing a family address would fail.
+  - `tenant_members.passwordHash` is NULLABLE: staff-enrolled members have
+    none and must not be forced one.
+  - `tenant_member_refresh_tokens` stores only a SHA-256 hash and ROTATES on
+    refresh, so a stolen token is good for one use and its reuse is
+    detectable.
+  - The password is verified even when no member matched, so a wrong number
+    and a wrong password cost the same time; the status check comes AFTER it,
+    so a membership's status is not discoverable by guessing numbers.
+  - **No permissions guard**: a member holds no RBAC role. Authorisation is
+    structural - every endpoint reads the member from the token and no route
+    takes a member id.
+
+- **Public endpoints** `public/member/{site,options,apply}`, 404 on the system
+  host because there is no association there. `site` returns an ALLOW-LISTED
+  subset of the Association settings, not the whole map.
+
+- **A member's own ID card**, `GET member/id-card` and `.../download`. Both
+  resolve the card FROM THE TOKEN's member - neither takes a card id or a
+  member id, so there is no identifier to tamper with. Only the ACTIVE card is
+  reachable: a superseded or revoked one stays in the history for staff, but is
+  not something the member is entitled to hold. `expired` is computed, not
+  stored, so the portal and the PDF cannot disagree.
+
+- Permissions 145 -> 150 across 31 modules.
+
+### Added
+
 - **`tenant_countries`** (migration 0013) — a per-business country lookup with
   `countryName`, an optional `countryNameTamil` and a `countryCode` unique per
   business, alongside the usual `systemCode`, status and soft-delete columns.

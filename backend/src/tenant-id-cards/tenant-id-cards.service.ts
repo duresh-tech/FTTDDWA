@@ -310,6 +310,53 @@ export class TenantIdCardsService {
     return row;
   }
 
+  /**
+   * A member's own current card, or null.
+   *
+   * Takes the member id from the caller's TOKEN, never a parameter - this is
+   * the member portal's only view of a card, and there must be no shape of
+   * request that reads somebody else's.
+   *
+   * Expiry is computed here rather than stored, as it is everywhere else, so
+   * the portal and the PDF cannot disagree about whether a card is still
+   * valid.
+   */
+  async findCurrentForMember(tenantMemberId: string) {
+    const card = await this.prisma.tenantMemberIdCard.findFirst({
+      where: { tenantMemberId, status: 'ACTIVE' },
+      select: {
+        id: true,
+        systemCode: true,
+        issueNumber: true,
+        issuedAt: true,
+        expiryAt: true,
+        status: true,
+        fileSizeBytes: true,
+      },
+    });
+    if (!card) return null;
+    return { ...card, expired: isExpired(card.expiryAt, now()) };
+  }
+
+  /**
+   * The PDF of a member's own current card.
+   *
+   * Scoped the same way: it resolves the card FROM the member rather than
+   * accepting a card id, so there is no id to tamper with. A revoked or
+   * superseded card is not reachable here at all - only the ACTIVE one is,
+   * which is what the member is entitled to hold.
+   */
+  async readOwnCardFile(tenantMemberId: string) {
+    const card = await this.prisma.tenantMemberIdCard.findFirst({
+      where: { tenantMemberId, status: 'ACTIVE' },
+      select: { id: true },
+    });
+    if (!card) {
+      throw new NotFoundException('No membership card has been issued to you yet');
+    }
+    return this.readCardFile(card.id);
+  }
+
   async remove(id: string) {
     const card = await this.findOne(id);
     await this.prisma.tenantMemberIdCard.update({

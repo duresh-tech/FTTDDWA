@@ -63,6 +63,9 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   // is still in somebody's wallet and keeps the record, while deleting
   // removes the record and its PDF. You would plausibly grant one and not the
   // other.
+  // No `create`: the only way an application exists is the public
+  // registration form, so there is no staff route to grant.
+  { module: 'tenant-member-applications', label: 'Tenant Member Applications', actions: ['list', 'view', 'approve', 'reject', 'delete'] },
   { module: 'tenant-member-id-cards', label: 'Tenant Member ID Cards', actions: ['generate', 'view', 'list', 'delete', 'revoke'] },
   { module: 'tenant-mail-config', label: 'Tenant Mail Config', actions: ['create', 'view', 'update', 'delete', 'list', 'test'] },
   { module: 'app-settings', label: 'App Settings', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
@@ -157,6 +160,11 @@ export const TENANT_ROLE_PERMISSION_KEYS: string[] = [
   'tenant-members:change_status',
   // Listed longhand rather than through the loop above, because `generate`
   // is not one of the five actions that loop emits.
+  'tenant-member-applications:list',
+  'tenant-member-applications:view',
+  'tenant-member-applications:approve',
+  'tenant-member-applications:reject',
+  'tenant-member-applications:delete',
   'tenant-member-id-cards:generate',
   'tenant-member-id-cards:view',
   'tenant-member-id-cards:list',
