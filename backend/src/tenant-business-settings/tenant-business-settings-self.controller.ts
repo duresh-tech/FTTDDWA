@@ -1,5 +1,12 @@
-import { Body, Controller, Get, Patch, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { TenantBusinessSettingsService } from './tenant-business-settings.service';
 import { BatchUpdateTenantBusinessSettingDto } from './dto/tenant-business-setting.dto';
 import { Public } from '../common/decorators/public.decorator';
@@ -13,19 +20,25 @@ import { TenantPermissionsGuard } from '../common/guards/tenant-permissions.guar
 
 const OWN_SETTING_EXAMPLE = {
   id: '019f357b-f2c4-73aa-9062-adc0f927a584',
-  category: 'Customers',
+  category: 'Association',
   subCategory: null,
-  settingKey: 'customer.codeGeneration',
-  settingLabel: 'Customer code generation',
-  description: 'Whether customer codes are typed in or allocated automatically.',
+  settingKey: 'association.shortName',
+  settingLabel: 'Short name',
+  description: 'The abbreviation used where the full name will not fit.',
   valueType: 'STRING',
-  settingValue: 'MANUAL',
-  validationRules: '{"enum":["MANUAL","AUTOMATIC"]}',
+  settingValue: 'FTTDDWA',
+  validationRules: '{"maxLength":50}',
   isEncrypted: false,
   isReadonly: false,
   isVisible: true,
-  sortOrder: 10,
+  sortOrder: 120,
   status: 'ACTIVE',
+};
+
+const REF_OPTION_EXAMPLE = {
+  id: '019f357b-cc33-71a0-9062-adc0f927a584',
+  label: 'Tamil Nadu',
+  labelTamil: 'தமிழ்நாடு',
 };
 
 // @Public() escapes the SYSTEM JWT guard so the tenant guard pair below can
@@ -59,7 +72,8 @@ export class TenantBusinessSettingsSelfController {
     description:
       'Returns one category instead of all. Categories come from the seeded ' +
       'definitions rather than an enum, so a new one appears here with no code ' +
-      'change. Seeded today: General, Customers, Tax.',
+      'change. Seeded today: General, Tax, Association, Signatures, ' +
+      'Member Register.',
   })
   @ApiQuery({
     name: 'tenantBusinessId',
@@ -89,6 +103,33 @@ export class TenantBusinessSettingsSelfController {
     );
   }
 
+  // Guarded by this surface's OWN permission, deliberately. Borrowing
+  // GET /tenant/districts/states would have cost nothing to write and would
+  // have made editing an association's address require tenant-districts:list -
+  // an unrelated permission a settings-only role has no reason to hold.
+  @Get('options/:ref')
+  @RequireTenantPermissions('tenant-business-settings:view')
+  @ApiOperation({
+    summary: 'Options for a setting that points at another resource',
+    description:
+      'A setting whose validationRules carry a `ref` holds another record\'s ' +
+      'UUID in a plain string, and the screen renders a picker instead of a ' +
+      'UUID box. A bare array, not a paginated envelope - it fills a dropdown. ' +
+      'An unknown ref returns an empty array rather than an error, because ' +
+      '`ref` is free text in the catalogue and a typo there must not break the ' +
+      'settings screen.',
+  })
+  @ApiParam({ name: 'ref', description: 'The ref name, ex. "states"' })
+  @ApiResponse({
+    status: 200,
+    description: 'Options, or [] for an unknown ref.',
+    schema: { example: [REF_OPTION_EXAMPLE] },
+  })
+  @ApiResponse({ status: 404, description: 'No business mapped to this account.' })
+  listRefOptions(@CurrentTenantUser() user: TenantAuthUser, @Param('ref') ref: string) {
+    return this.tenantBusinessSettingsService.listRefOptionsForTenantUser(user.id, ref);
+  }
+
   @Patch()
   @RequireTenantPermissions('tenant-business-settings:update')
   @ApiOperation({
@@ -96,8 +137,9 @@ export class TenantBusinessSettingsSelfController {
     description:
       'Saves a screenful as one unit: if any value is rejected, or any targeted ' +
       'setting is locked (isReadonly) for this business, the WHOLE batch rolls ' +
-      'back. Half a saved form is worse than a refused one. On an encrypted ' +
-      'setting a blank value means "unchanged".',
+      'back. Half a saved form is worse than a refused one. A blank value ' +
+      'CLEARS the setting - except on an encrypted one, where it means ' +
+      '"unchanged", because the value reads back masked and cannot be retyped.',
   })
   @ApiResponse({
     status: 200,

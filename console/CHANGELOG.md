@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-11-23
+
+### Added
+
+- **Three rendering hints in `validationRules`**, joining `accept`. All are
+  read by the settings screen and ignored by the server by design - promoting
+  one to a write rule would start rejecting values the API should accept.
+  - `multiline` renders a `STRING` as a textarea (the office address fields).
+  - `ref` renders a `STRING` as a Combobox of another resource's records,
+    loaded lazily on first open, with each option showing its Tamil name
+    beside its English one. Without a `loadRefOptions` prop it degrades to a
+    plain text box, exactly as `FILE` does without `upload`.
+  - `showIf` hides a field until another setting reads a given value - used by
+    `association.whatsappNumber`. Evaluated against the **pending** form value,
+    so ticking the flag reveals the field with no save; hiding a row also drops
+    any edit pending on it, or the save would carry a value the user can no
+    longer see.
+- **Association, Signatures and Member Register** appear as three new groups on
+  both settings screens, with the four logos and six signature images arriving
+  as working uploaders. No page code: the screens group by whatever `category`
+  the API returns.
+- The Members nav item hides when `memberRegister.enabled` is off. Only an
+  explicit `'false'` hides it, and a failed read leaves it shown - neither an
+  unset setting nor a network error should hide a working feature.
+
+### Changed
+
+- The tenant business settings **support** screen deliberately applies neither
+  `showIf` nor `isVisible`. An operator looking into a tenant's configuration
+  needs to see a value stored while its condition is false, because that
+  contradiction is the kind of thing they are there to find.
+
 ## [3.2.0] - 2026-11-23
 
 ### Added

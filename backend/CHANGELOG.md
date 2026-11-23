@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-11-23
+
+### Added
+
+- **Association settings** - 25 per-business settings in three new categories.
+  `Association` holds the name, short name, registration number, tagline,
+  contact details, office address and four logos, each text field with a Tamil
+  twin; `Signatures` holds one image per office-bearer; `Member Register`
+  holds one flag. All of it is catalogue data, so there is **no migration** and
+  **no new permission** - `npm run seed` creates the definitions and backfills
+  every existing business.
+- **`ref`, a setting that points at another record.** `association.stateId`
+  holds a `tenant_states` UUID in a plain STRING, and the new
+  `GET {tenant,system}/…/business-settings/options/:ref` serves the choices so
+  the screen can render a picker instead of a UUID box. The server owns the
+  ref-name-to-table mapping in `listRefOptions()`; an unknown ref returns `[]`
+  rather than erroring, because `ref` is free text in the catalogue. Guarded by
+  `tenant-business-settings:view` rather than reusing
+  `GET /tenant/districts/states`, which would have made editing an address
+  require `tenant-districts:list`.
+- **`memberRegister.enabled` closes a business's own member register.** The
+  tenant self-service surface refuses when it reads `'false'`; system staff are
+  unaffected, because the flag is a business's choice about its own portal. An
+  **unset** value means enabled, so a business whose backfill has not run is
+  not locked out, and a caller mapped to several businesses sees the open ones
+  rather than an error for all of them. `isSettingEnabled()` is the helper.
+
+### Fixed
+
+- **A blank value could not clear an optional setting.** Every submitted value
+  was type-checked unconditionally, with a bypass for encrypted settings only -
+  so clearing an `EMAIL` or `PHONE` failed validation (`''` fails the email
+  pattern, and the phone pattern wants six characters) and, because the tenant
+  screen saves a screenful in one transaction, one blanked field rolled back
+  the entire form. Blank now stores `NULL` and skips the type check, which is
+  safe because `isRequired` is a label here and was never enforced on any write
+  path. The encrypted case still means "unchanged" and is kept deliberately
+  separate.
+
+### Changed
+
+- Swagger examples for tenant business settings no longer reference the
+  removed `customer.codeGeneration` setting.
+
 ## [3.2.0] - 2026-11-23
 
 ### Added

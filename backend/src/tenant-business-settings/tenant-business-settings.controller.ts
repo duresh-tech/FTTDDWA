@@ -3,6 +3,7 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -17,22 +18,28 @@ const TENANT_BUSINESS_SETTING_EXAMPLE = {
   systemCode: 'TBS-MWQNLU5O-1-9C21B8',
   tenantBusinessId: '019f357b-d398-73aa-9062-adc0f927a584',
   settingDefinitionId: '019f357b-e5b1-73aa-9062-adc0f927a584',
-  category: 'Customers',
+  category: 'Association',
   subCategory: null,
-  settingKey: 'customer.codeGeneration',
-  settingLabel: 'Customer code generation',
+  settingKey: 'association.shortName',
+  settingLabel: 'Short name',
   valueType: 'STRING',
-  description: 'Whether customer codes are typed in or allocated automatically.',
-  validationRules: '{"enum":["MANUAL","AUTOMATIC"]}',
-  settingValue: 'MANUAL',
+  description: 'The abbreviation used where the full name will not fit.',
+  validationRules: '{"maxLength":50}',
+  settingValue: 'FTTDDWA',
   isEncrypted: false,
   isReadonly: false,
   isVisible: true,
-  sortOrder: 10,
+  sortOrder: 120,
   status: 'ACTIVE',
   createdAt: 1783308735,
   updatedAt: 1783308735,
   deletedAt: null,
+};
+
+const REF_OPTION_EXAMPLE = {
+  id: '019f357b-cc33-71a0-9062-adc0f927a584',
+  label: 'Tamil Nadu',
+  labelTamil: 'தமிழ்நாடு',
 };
 
 @ApiTags('System / Tenant Business Settings')
@@ -64,6 +71,37 @@ export class TenantBusinessSettingsController {
   })
   findAll(@Query() query: TenantBusinessSettingListQueryDto) {
     return this.tenantBusinessSettingsService.findAll(query);
+  }
+
+  // Declared BEFORE @Get(':id'), or the param route swallows it and ":id"
+  // arrives as the literal string "options".
+  @Get('options/:ref')
+  @RequirePermissions('tenant-business-settings:view')
+  @ApiOperation({
+    summary: 'Options for a setting that points at another resource',
+    description:
+      'A setting whose validationRules carry a `ref` holds another record\'s ' +
+      'UUID in a plain string, and the screen renders a picker instead of a ' +
+      'UUID box. A bare array, not a paginated envelope - it fills a dropdown. ' +
+      'An unknown ref, or a missing tenantBusinessId, returns an empty array ' +
+      'rather than an error.',
+  })
+  @ApiParam({ name: 'ref', description: 'The ref name, ex. "states"' })
+  @ApiQuery({
+    name: 'tenantBusinessId',
+    required: true,
+    description: 'Options are per business, as the records they list are.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Options, or [] for an unknown ref.',
+    schema: { example: [REF_OPTION_EXAMPLE] },
+  })
+  listRefOptions(
+    @Param('ref') ref: string,
+    @Query('tenantBusinessId') tenantBusinessId: string,
+  ) {
+    return this.tenantBusinessSettingsService.listRefOptions(ref, tenantBusinessId);
   }
 
   @Get(':id')

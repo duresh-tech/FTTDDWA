@@ -39,6 +39,10 @@ import { TenantSessionProvider, useTenantSession } from "@/hooks/use-tenant-sess
 import { useSidebarCollapsed } from "@/hooks/use-sidebar-collapsed";
 import { cn } from "@/lib/utils";
 import { useAppSettings } from "@/hooks/use-app-settings";
+import { tenantApi } from "@/lib/tenant-api";
+
+/** The setting that closes the member register in a business's own portal. */
+const MEMBER_REGISTER_KEY = "memberRegister.enabled";
 
 const TENANT_NAV_ITEMS: NavItem[] = [
   { href: "/tenant/dashboard", label: "Dashboard", icon: LayoutDashboard, permission: "tenant-dashboard:view", section: "Main" },
@@ -85,6 +89,43 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
   const { user, loading, logout, hasPermission } = useTenantSession();
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const [paletteOpen, setPaletteOpen] = React.useState(false);
+
+  // The member register can be switched off per business. This is a business
+  // SETTING, not a permission, so it is not in the session and has to be
+  // fetched - but only when the caller could see Members at all, so a user
+  // without the permission costs no request.
+  const canSeeMembers = hasPermission("tenant-members:list");
+  const [memberRegisterOff, setMemberRegisterOff] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!canSeeMembers) return;
+    let cancelled = false;
+    tenantApi<{ settingKey: string; settingValue: string | null }[]>(
+      `/tenant/business-settings?category=${encodeURIComponent("Member Register")}`,
+    )
+      .then((rows) => {
+        if (cancelled) return;
+        const row = rows.find((r) => r.settingKey === MEMBER_REGISTER_KEY);
+        // Only an explicit "false" hides it. Unset means enabled, matching the
+        // server, so a business whose backfill has not run keeps the nav item.
+        setMemberRegisterOff(row?.settingValue === "false");
+      })
+      // A failed read must not hide a working feature.
+      .catch(() => {
+        if (!cancelled) setMemberRegisterOff(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canSeeMembers]);
+
+  const navItems = React.useMemo(
+    () =>
+      memberRegisterOff
+        ? TENANT_NAV_ITEMS.filter((item) => item.href !== "/tenant/members")
+        : TENANT_NAV_ITEMS,
+    [memberRegisterOff],
+  );
 
   if (loading || !user) {
     return (
@@ -148,7 +189,7 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
             hasPermission={hasPermission}
             instanceId="tenant-desktop"
             collapsed={collapsed}
-            navItems={TENANT_NAV_ITEMS}
+            navItems={navItems}
             rootHref="/tenant/dashboard"
           />
         </div>
@@ -186,7 +227,7 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
           {/* Mobile: the drawer is replaced by the scrolling strip below the header. */}
           <Brand iconOnly className="md:hidden" />
 
-          <NavBreadcrumb rootLabel="Tenant Portal" navItems={TENANT_NAV_ITEMS} />
+          <NavBreadcrumb rootLabel="Tenant Portal" navItems={navItems} />
 
           <Button
             variant="outline"
@@ -210,7 +251,7 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
             <Search className="size-4" />
           </Button>
           <CommandPalette
-            navItems={TENANT_NAV_ITEMS}
+            navItems={navItems}
             hasPermission={hasPermission}
             open={paletteOpen}
             onOpenChange={setPaletteOpen}
@@ -271,7 +312,7 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
             hasPermission={hasPermission}
             instanceId="tenant-mobile"
             orientation="horizontal"
-            navItems={TENANT_NAV_ITEMS}
+            navItems={navItems}
             rootHref="/tenant/dashboard"
           />
         </div>

@@ -3,6 +3,12 @@
 `tenant_members` is the register: who belongs to the association, what they
 trade as, where they are, and what state their membership is in.
 
+A business can close its own register with the `memberRegister.enabled`
+[business setting](./business-settings.md#memberregister-enabled-closes-the-register).
+That hides this feature in the tenant portal only — system staff reach the
+register either way — and an **unset** value means enabled, so a business whose
+settings backfill has not run keeps working.
+
 Each member names an association position, an industry, and a point in the
 [geography chain](./tenants-and-businesses.md#the-geography-chain) — state,
 district and taluk together. All six references are validated against the

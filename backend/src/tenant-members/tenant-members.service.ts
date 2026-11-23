@@ -15,6 +15,16 @@ import {
   UpdateTenantMemberDto,
 } from './dto/tenant-member.dto';
 import { TenantMemberListQueryDto } from './dto/tenant-member-query.dto';
+import { TenantBusinessSettingsService } from '../tenant-business-settings/tenant-business-settings.service';
+
+/**
+ * The flag that closes this register in a business's OWN portal.
+ *
+ * It gates the tenant self-service surface only. System staff reach the
+ * register through the system controller regardless, because the flag is a
+ * business's choice about its own portal, not a tenant's veto over support.
+ */
+const MEMBER_REGISTER_SETTING_KEY = 'memberRegister.enabled';
 
 const INCLUDE = {
   tenantBusiness: { select: { id: true, systemCode: true, name: true } },
@@ -58,7 +68,10 @@ function searchClause(search?: string) {
 
 @Injectable()
 export class TenantMembersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settings: TenantBusinessSettingsService,
+  ) {}
 
   async findAll(query: TenantMemberListQueryDto) {
     const where = this.buildWhere(query);
@@ -389,7 +402,9 @@ export class TenantMembersService {
   // ---------- Tenant self-service ----------
 
   async listMappedBusinesses(tenantUserId: string) {
-    const businessIds = await this.getMappedBusinessIds(tenantUserId);
+    const businessIds = await this.enabledBusinessIds(
+      await this.getMappedBusinessIds(tenantUserId),
+    );
     return this.prisma.tenantBusiness.findMany({
       where: { id: { in: businessIds }, status: { not: 'DELETED' } },
       select: { id: true, name: true },
@@ -399,9 +414,13 @@ export class TenantMembersService {
 
   async findAllForTenantUser(tenantUserId: string, query: TenantMemberListQueryDto) {
     const businessIds = await this.getMappedBusinessIds(tenantUserId);
-    const scoped = query.tenantBusinessId
+    const requested = query.tenantBusinessId
       ? businessIds.filter((b) => b === query.tenantBusinessId)
       : businessIds;
+    // Filtered rather than refused: a caller mapped to two businesses, one
+    // with the register closed, should see the other's members instead of an
+    // error for both.
+    const scoped = await this.enabledBusinessIds(requested);
     const where = this.buildWhere(query, scoped);
     const [items, total] = await this.prisma.$transaction([
       this.prisma.tenantMember.findMany({
@@ -422,6 +441,9 @@ export class TenantMembersService {
       include: INCLUDE,
     });
     if (!row) throw new NotFoundException('Member not found');
+    // Covers view, update, changeStatus and remove in one place: all four
+    // reach the row through here first.
+    await this.assertRegisterEnabled(row.tenantBusinessId);
     return mask(row);
   }
 
@@ -463,5 +485,41 @@ export class TenantMembersService {
     if (!businessIds.includes(tenantBusinessId)) {
       throw new ForbiddenException('You are not mapped to this business');
     }
+    await this.assertRegisterEnabled(tenantBusinessId);
+  }
+
+  private async assertRegisterEnabled(tenantBusinessId: string) {
+    const enabled = await this.settings.isSettingEnabled(
+      tenantBusinessId,
+      MEMBER_REGISTER_SETTING_KEY,
+    );
+    if (!enabled) {
+      throw new ForbiddenException('The member register is turned off for this business');
+    }
+  }
+
+  /**
+   * The subset of `businessIds` whose register is open.
+   *
+   * One query for the whole set, not one per business: this runs on every
+   * list request. It looks for the businesses explicitly switched OFF and
+   * removes them, which is also how "unset means enabled" falls out - a
+   * business with no row simply does not appear in `closed`.
+   */
+  private async enabledBusinessIds(businessIds: string[]): Promise<string[]> {
+    if (businessIds.length === 0) return [];
+    const closed = await this.prisma.tenantBusinessSetting.findMany({
+      where: {
+        tenantBusinessId: { in: businessIds },
+        settingKey: { equals: MEMBER_REGISTER_SETTING_KEY, mode: 'insensitive' },
+        // A BOOLEAN is written as exactly 'true' or 'false' by the settings
+        // validator, so this comparison is deliberately case-sensitive.
+        settingValue: 'false',
+        status: 'ACTIVE',
+      },
+      select: { tenantBusinessId: true },
+    });
+    const closedIds = new Set(closed.map((row) => row.tenantBusinessId));
+    return businessIds.filter((id) => !closedIds.has(id));
   }
 }

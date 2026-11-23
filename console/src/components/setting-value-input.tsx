@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { uploadUrl } from "@/lib/api";
@@ -63,6 +64,49 @@ interface ValidationRules {
   multiEnum?: string[];
   /** FILE only: the file picker's filter, ex. ".png,.webp". The server rule is the control. */
   accept?: string;
+  /** STRING only: render a textarea rather than a one-line input. */
+  multiline?: boolean;
+  /**
+   * STRING only: the value is another resource's id, so render a picker of
+   * that resource's records instead of a box to paste a UUID into. The name is
+   * resolved by the server (`GET …/business-settings/options/:ref`), which owns
+   * the mapping from a ref name to a table.
+   */
+  ref?: string;
+  /**
+   * Hide this setting unless another one currently reads `equals`. A rendering
+   * hint only: the API still accepts the value when the condition is false, so
+   * whatever READS this setting has to check the condition itself.
+   */
+  showIf?: { key: string; equals: string };
+}
+
+/** One choice in a `ref` setting's picker, as the options endpoint returns it. */
+export interface RefOption {
+  id: string;
+  label: string;
+  labelTamil: string | null;
+}
+
+/**
+ * The two scripts in one line, because a state named only in English is one
+ * the operator has to translate in their head, and this app treats Tamil as a
+ * rendering of the value rather than a translation of it. The Combobox
+ * searches against this whole string, so either script finds the record.
+ */
+function refOptionLabel(option: RefOption): string {
+  return option.labelTamil ? `${option.label} — ${option.labelTamil}` : option.label;
+}
+
+/**
+ * Reads a `showIf` hint. Exported because the DECISION belongs to the screen,
+ * not to this component: a row that fails the test is dropped from the form
+ * entirely, which this component cannot do from inside itself.
+ */
+export function settingShowIf(
+  validationRules?: string | null,
+): { key: string; equals: string } | null {
+  return parseValidationRules(validationRules)?.showIf ?? null;
 }
 
 function parseValidationRules(json?: string | null): ValidationRules | null {
@@ -86,6 +130,12 @@ interface SettingValueInputProps {
    * choosing. Without it a FILE setting stays a plain path box.
    */
   upload?: (file: File) => Promise<{ path: string }>;
+  /**
+   * Loads the choices for a `ref` setting. Supplied by the page for the same
+   * reason `upload` is: the endpoint is per portal and a client cannot choose.
+   * Without it a `ref` setting stays a plain text box.
+   */
+  loadRefOptions?: (ref: string) => Promise<RefOption[]>;
 }
 
 /**
@@ -104,6 +154,7 @@ export function SettingValueInput({
   disabled,
   validationRules,
   upload,
+  loadRefOptions,
 }: SettingValueInputProps) {
   const rules = parseValidationRules(validationRules);
 
@@ -252,6 +303,19 @@ export function SettingValueInput({
       );
     case "STRING":
     default:
+      // Most specific first. A `ref` setting is a STRING holding someone
+      // else's id, so without this it would render as a UUID box.
+      if (rules?.ref && loadRefOptions) {
+        return (
+          <RefValueInput
+            refName={rules.ref}
+            value={value}
+            onChange={onChange}
+            disabled={disabled}
+            loadRefOptions={loadRefOptions}
+          />
+        );
+      }
       if (rules?.multiEnum && rules.multiEnum.length > 0) {
         const chosen = value
           .split(",")
@@ -299,6 +363,17 @@ export function SettingValueInput({
           </Select>
         );
       }
+      if (rules?.multiline) {
+        return (
+          <Textarea
+            rows={3}
+            value={value}
+            disabled={disabled}
+            maxLength={rules.maxLength}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        );
+      }
       return (
         <Input
           value={value}
@@ -308,6 +383,69 @@ export function SettingValueInput({
         />
       );
   }
+}
+
+/**
+ * A `ref` setting's value: a picker of another resource's records.
+ *
+ * Options load on first open rather than on mount, because a settings screen
+ * may carry several of these and most will never be touched. `null` means "not
+ * loaded yet" and shows the Combobox's spinner; `[]` means "loaded, and there
+ * is nothing to choose" - a distinction worth keeping, since the second case
+ * needs to tell the operator to go and create some records first.
+ */
+function RefValueInput({
+  refName,
+  value,
+  onChange,
+  disabled,
+  loadRefOptions,
+}: {
+  refName: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  loadRefOptions: (ref: string) => Promise<RefOption[]>;
+}) {
+  const [options, setOptions] = React.useState<ComboboxOption[] | null>(null);
+  const requested = React.useRef(false);
+
+  // Loaded once per mount. A failure clears the guard so re-opening retries,
+  // rather than leaving a permanently empty dropdown with no way to recover.
+  const load = React.useCallback(() => {
+    if (requested.current) return;
+    requested.current = true;
+    loadRefOptions(refName)
+      .then((rows) =>
+        setOptions(rows.map((row) => ({ value: row.id, label: refOptionLabel(row) }))),
+      )
+      .catch(() => {
+        requested.current = false;
+        setOptions([]);
+        toast.error("Couldn't load the options for this setting");
+      });
+  }, [loadRefOptions, refName]);
+
+  // A stored value must be resolvable to a label before the list is ever
+  // opened, or an already-configured setting reads as "Select a record".
+  React.useEffect(() => {
+    if (value) load();
+  }, [value, load]);
+
+  return (
+    <Combobox
+      options={options}
+      value={value}
+      onValueChange={onChange}
+      disabled={disabled}
+      onOpenChange={(open) => {
+        if (open) load();
+      }}
+      placeholder="Select a record…"
+      searchPlaceholder="Search…"
+      emptyText={`No ${refName} to choose from yet — add some first.`}
+    />
+  );
 }
 
 /**

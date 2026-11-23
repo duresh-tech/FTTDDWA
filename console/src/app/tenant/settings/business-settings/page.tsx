@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   SettingValueInput,
+  settingShowIf,
+  type RefOption,
   type SettingValueType,
 } from "@/components/setting-value-input";
 import { useTenantSession } from "@/hooks/use-tenant-session";
@@ -85,6 +87,52 @@ export default function TenantBusinessSettingsPage() {
   }, [canView, load]);
 
   /**
+   * What each setting currently reads: the pending edit if there is one, else
+   * the stored value. `showIf` is evaluated against this rather than against
+   * the stored values alone, so ticking a flag reveals its dependent field
+   * immediately instead of after a save.
+   */
+  const effective = React.useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const row of settings ?? []) {
+      map[row.settingKey] = dirty[row.settingKey] ?? row.settingValue ?? "";
+    }
+    return map;
+  }, [settings, dirty]);
+
+  const isShown = React.useCallback(
+    (row: TenantBusinessSettingRow) => {
+      const condition = settingShowIf(row.validationRules);
+      return !condition || effective[condition.key] === condition.equals;
+    },
+    [effective],
+  );
+
+  /**
+   * Drop a pending edit on a row that has since been hidden. Without this the
+   * save would carry a value the user can no longer see, and the confirmation
+   * dialog would list a setting that is not on the form.
+   */
+  React.useEffect(() => {
+    if (!settings) return;
+    const orphaned = settings.filter(
+      (row) => dirty[row.settingKey] !== undefined && !isShown(row),
+    );
+    if (orphaned.length === 0) return;
+    setDirty((d) => {
+      const next = { ...d };
+      for (const row of orphaned) delete next[row.settingKey];
+      return next;
+    });
+  }, [settings, dirty, isShown]);
+
+  const loadRefOptions = React.useCallback(
+    (ref: string) =>
+      tenantApi<RefOption[]>(`/tenant/business-settings/options/${encodeURIComponent(ref)}`),
+    [],
+  );
+
+  /**
    * Categories come from the data, not an enum, so a setting in a new category
    * groups itself with no change here. Insertion order is the API's sortOrder.
    */
@@ -95,12 +143,15 @@ export default function TenantBusinessSettingsPage() {
       // Hidden settings are still served and still read by the app - they are
       // just not managed from this screen.
       if (row.isVisible === false) continue;
+      // A `showIf` row waits for its condition. The API still accepts it, so
+      // this hides the field rather than disabling the setting.
+      if (!isShown(row)) continue;
       const list = map.get(row.category) ?? [];
       list.push(row);
       map.set(row.category, list);
     }
     return [...map.entries()];
-  }, [settings]);
+  }, [settings, isShown]);
 
   const dirtyCount = Object.keys(dirty).length;
 
@@ -232,6 +283,7 @@ export default function TenantBusinessSettingsPage() {
                         disabled={locked}
                         validationRules={row.validationRules}
                         upload={locked ? undefined : (file) => uploadTenantFile(file)}
+                        loadRefOptions={loadRefOptions}
                       />
                       {row.isEncrypted && dirty[row.settingKey] === undefined && (
                         <p className="mt-1 text-xs text-muted-foreground">

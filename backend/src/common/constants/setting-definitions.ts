@@ -50,6 +50,16 @@ export interface SettingDefinitionSeed {
   sortOrder: number;
 }
 
+/**
+ * An image-only file picker. `accept` is a rendering hint the settings screen
+ * reads and the server ignores by design - a FILE value is checked as a
+ * relative storage path, not by extension.
+ */
+const IMAGE_FILE = JSON.stringify({ accept: 'image/*' });
+
+/** A multi-line STRING, bounded to the same width as an address column. */
+const ADDRESS_TEXT = JSON.stringify({ multiline: true, maxLength: 255 });
+
 export const SETTING_DEFINITIONS: SettingDefinitionSeed[] = [
   // ---- General ----
   {
@@ -106,6 +116,253 @@ export const SETTING_DEFINITIONS: SettingDefinitionSeed[] = [
     valueType: 'BOOLEAN',
     defaultValue: 'false',
     sortOrder: 80,
+  },
+
+  // ---- Association ----
+  //
+  // Who this business is, as it should appear on a membership card, a receipt
+  // or a certificate. Every text field has a Tamil twin, following the
+  // precedent set by placeNameTamil / positionNameTamil / memberNameTamil:
+  // Tamil is a first-class rendering of the same value, not a translation
+  // bolted on beside it.
+  {
+    category: 'Association',
+    settingKey: 'association.name',
+    settingLabel: 'Association name',
+    description: 'The full registered name, as it appears on official documents.',
+    valueType: 'STRING',
+    defaultValue:
+      'FEDERATION OF TAMILNADU TENT DEALERS & DECORATORS WELFARE ASSOCIATION',
+    validationRules: JSON.stringify({ maxLength: 150 }),
+    isRequired: true,
+    sortOrder: 100,
+  },
+  {
+    category: 'Association',
+    settingKey: 'association.nameTamil',
+    settingLabel: 'Association name (Tamil)',
+    description: 'The full registered name in Tamil.',
+    valueType: 'STRING',
+    validationRules: JSON.stringify({ maxLength: 150 }),
+    sortOrder: 110,
+  },
+  {
+    category: 'Association',
+    settingKey: 'association.shortName',
+    settingLabel: 'Short name',
+    description: 'The abbreviation used where the full name will not fit.',
+    valueType: 'STRING',
+    defaultValue: 'FTTDDWA',
+    validationRules: JSON.stringify({ maxLength: 50 }),
+    sortOrder: 120,
+  },
+  {
+    category: 'Association',
+    settingKey: 'association.shortNameTamil',
+    settingLabel: 'Short name (Tamil)',
+    valueType: 'STRING',
+    validationRules: JSON.stringify({ maxLength: 50 }),
+    sortOrder: 130,
+  },
+  {
+    category: 'Association',
+    settingKey: 'association.registrationNumber',
+    settingLabel: 'Registration number',
+    description: 'The society or trust registration number.',
+    valueType: 'STRING',
+    validationRules: JSON.stringify({ maxLength: 50 }),
+    sortOrder: 140,
+  },
+  {
+    category: 'Association',
+    settingKey: 'association.logo1Path',
+    settingLabel: 'Logo 1',
+    description: 'The primary logo. Used wherever a single mark is shown.',
+    valueType: 'FILE',
+    validationRules: IMAGE_FILE,
+    sortOrder: 150,
+  },
+  {
+    category: 'Association',
+    settingKey: 'association.logo2Path',
+    settingLabel: 'Logo 2',
+    valueType: 'FILE',
+    validationRules: IMAGE_FILE,
+    sortOrder: 160,
+  },
+  {
+    category: 'Association',
+    settingKey: 'association.logo3Path',
+    settingLabel: 'Logo 3',
+    valueType: 'FILE',
+    validationRules: IMAGE_FILE,
+    sortOrder: 170,
+  },
+  {
+    category: 'Association',
+    settingKey: 'association.logo4Path',
+    settingLabel: 'Logo 4',
+    valueType: 'FILE',
+    validationRules: IMAGE_FILE,
+    sortOrder: 180,
+  },
+  {
+    category: 'Association',
+    settingKey: 'association.tagline',
+    settingLabel: 'Tagline',
+    description: 'A single line printed under the name.',
+    valueType: 'STRING',
+    validationRules: JSON.stringify({ maxLength: 150 }),
+    sortOrder: 190,
+  },
+  {
+    category: 'Association',
+    settingKey: 'association.taglineTamil',
+    settingLabel: 'Tagline (Tamil)',
+    valueType: 'STRING',
+    validationRules: JSON.stringify({ maxLength: 150 }),
+    sortOrder: 200,
+  },
+  {
+    category: 'Association',
+    settingKey: 'association.email',
+    settingLabel: 'Email',
+    description: 'The address members should write to.',
+    valueType: 'EMAIL',
+    sortOrder: 210,
+  },
+  {
+    category: 'Association',
+    settingKey: 'association.phoneNumber',
+    settingLabel: 'Phone number',
+    valueType: 'PHONE',
+    sortOrder: 220,
+  },
+  {
+    category: 'Association',
+    settingKey: 'association.isWhatsapp',
+    settingLabel: 'Reachable on WhatsApp',
+    description: 'Turn on to publish a WhatsApp number alongside the phone number.',
+    valueType: 'BOOLEAN',
+    defaultValue: 'false',
+    sortOrder: 230,
+  },
+  {
+    category: 'Association',
+    settingKey: 'association.whatsappNumber',
+    settingLabel: 'WhatsApp number',
+    // `showIf` hides this field until the flag above is on. It steers the
+    // SCREEN only - the API still accepts a number with the flag off, so
+    // anything that reads this must check association.isWhatsapp itself.
+    valueType: 'PHONE',
+    validationRules: JSON.stringify({
+      showIf: { key: 'association.isWhatsapp', equals: 'true' },
+    }),
+    sortOrder: 240,
+  },
+  {
+    category: 'Association',
+    settingKey: 'association.stateId',
+    settingLabel: 'State',
+    description: 'The state the head office is registered in.',
+    // STRING, not a foreign key: this is a key-value store, so the value is a
+    // tenant_states UUID with nothing enforcing it. `ref` makes the screen
+    // render a picker of that business's states instead of a UUID box; it is a
+    // rendering hint and deliberately not a write rule.
+    valueType: 'STRING',
+    validationRules: JSON.stringify({ ref: 'states' }),
+    sortOrder: 250,
+  },
+  {
+    category: 'Association',
+    settingKey: 'association.officeAddress',
+    settingLabel: 'Office address',
+    description: 'The postal address of the head office.',
+    valueType: 'STRING',
+    validationRules: ADDRESS_TEXT,
+    sortOrder: 260,
+  },
+  {
+    category: 'Association',
+    settingKey: 'association.officeAddressTamil',
+    settingLabel: 'Office address (Tamil)',
+    valueType: 'STRING',
+    validationRules: ADDRESS_TEXT,
+    sortOrder: 270,
+  },
+
+  // ---- Signatures ----
+  //
+  // Its own category rather than a subCategory of Association: the settings
+  // screen groups by `category` alone, and SettingDefinitionSeed has no
+  // subCategory field for a catalogue row to set.
+  //
+  // One image per office-bearer, each printed on a different document, so they
+  // are six settings rather than one list - a business may hold the
+  // chairman's and not the treasurer's, and the screen has to show which.
+  {
+    category: 'Signatures',
+    settingKey: 'association.signature.chairmanPath',
+    settingLabel: "Chairman's signature",
+    valueType: 'FILE',
+    validationRules: IMAGE_FILE,
+    sortOrder: 300,
+  },
+  {
+    category: 'Signatures',
+    settingKey: 'association.signature.presidentPath',
+    settingLabel: "President's signature",
+    valueType: 'FILE',
+    validationRules: IMAGE_FILE,
+    sortOrder: 310,
+  },
+  {
+    category: 'Signatures',
+    settingKey: 'association.signature.vicePresidentPath',
+    settingLabel: "Vice President's signature",
+    valueType: 'FILE',
+    validationRules: IMAGE_FILE,
+    sortOrder: 320,
+  },
+  {
+    category: 'Signatures',
+    settingKey: 'association.signature.secretaryPath',
+    settingLabel: "Secretary's signature",
+    valueType: 'FILE',
+    validationRules: IMAGE_FILE,
+    sortOrder: 330,
+  },
+  {
+    category: 'Signatures',
+    settingKey: 'association.signature.jointSecretaryPath',
+    settingLabel: "Joint Secretary's signature",
+    valueType: 'FILE',
+    validationRules: IMAGE_FILE,
+    sortOrder: 340,
+  },
+  {
+    category: 'Signatures',
+    settingKey: 'association.signature.treasurerPath',
+    settingLabel: "Treasurer's signature",
+    valueType: 'FILE',
+    validationRules: IMAGE_FILE,
+    sortOrder: 350,
+  },
+
+  // ---- Member Register ----
+  {
+    category: 'Member Register',
+    settingKey: 'memberRegister.enabled',
+    settingLabel: 'Member register enabled',
+    description:
+      'Turn off to close the member register in this business’s own portal. ' +
+      'System staff keep access either way.',
+    valueType: 'BOOLEAN',
+    // Default ON. The register already exists and is in use, so shipping this
+    // flag must not switch a working feature off for every business at once.
+    // Readers treat an UNSET value as enabled for the same reason.
+    defaultValue: 'true',
+    sortOrder: 400,
   },
 ];
 

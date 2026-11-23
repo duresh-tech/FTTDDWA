@@ -22,6 +22,19 @@ type SettingRow = {
 };
 
 /**
+ * One choice offered by a `ref` setting's picker.
+ *
+ * `labelTamil` rides along rather than being resolved later: every lookup in
+ * this system carries a Tamil twin, and a picker that shows only the English
+ * name makes the operator guess which record they mean.
+ */
+export type RefOption = {
+  id: string;
+  label: string;
+  labelTamil: string | null;
+};
+
+/**
  * Blanks encrypted values on the way out. The ciphertext never leaves the
  * server, and a blank on the way back in means "unchanged" rather than
  * "clear it" - see update().
@@ -143,6 +156,19 @@ export class TenantBusinessSettingsService {
     return map;
   }
 
+  /**
+   * A BOOLEAN setting read as a feature flag, where UNSET means ENABLED.
+   *
+   * Which way an unset value falls is the whole question.
+   * getSettingsMapForBusiness() deliberately omits a key with no row and
+   * applies no default, so a business whose backfill has not run yet reads as
+   * absent - and treating that as "off" would shut it out of a feature it
+   * never chose to disable. Only an explicit 'false' turns anything off.
+   */
+  async isSettingEnabled(tenantBusinessId: string, settingKey: string): Promise<boolean> {
+    const map = await this.getSettingsMapForBusiness(tenantBusinessId, [settingKey]);
+    return map[settingKey] !== 'false';
+  }
 
   // ---------- System-admin cross-tenant surface ----------
 
@@ -179,24 +205,45 @@ export class TenantBusinessSettingsService {
     if (!row) throw new NotFoundException('Tenant business setting not found');
 
     let settingValue = row.settingValue;
-    // An encrypted setting reads back masked as '', so a blank submit means
-    // "I didn't change the secret", not "clear it". Encrypting '' here would
-    // destroy a working credential and only surface later, somewhere
-    // unrelated.
-    if (dto.settingValue !== undefined && !(row.isEncrypted && dto.settingValue === '')) {
-      // Against the valueType and rules on THIS ROW, not the definition's
-      // current ones - the row is what the business was set up with.
-      const error = validateValueForValueType(
-        row.valueType,
-        dto.settingValue,
-        row.validationRules,
-      );
-      if (error) throw new BadRequestException(`settingValue ${error}`);
-      if (row.valueType === 'FILE') {
-        const pathError = checkSettingPath(dto.settingValue);
-        if (pathError) throw new BadRequestException(`settingValue ${pathError}`);
+    if (dto.settingValue !== undefined) {
+      if (row.isEncrypted && dto.settingValue === '') {
+        // An encrypted setting reads back masked as '', so a blank submit means
+        // "I didn't change the secret", not "clear it". Encrypting '' here
+        // would destroy a working credential and only surface later, somewhere
+        // unrelated.
+        //
+        // KEEP THIS CASE AHEAD OF THE NEXT ONE AND KEEP THE TWO APART. They
+        // test nearly the same thing and mean opposite things, so folding them
+        // together silently destroys stored secrets.
+        settingValue = row.settingValue;
+      } else if (dto.settingValue === '') {
+        // Blank means "no value", not "a value that must parse". Validating ''
+        // against the valueType would make an optional EMAIL or PHONE
+        // impossible to clear - EMAIL_PATTERN rejects '' outright and
+        // PHONE_PATTERN demands at least six characters - and the tenant screen
+        // saves every edited row in ONE transaction, so a single blanked field
+        // would block the whole form.
+        //
+        // Safe because isRequired is a label here and not a write rule: it is
+        // stored, returned and badged on the definitions screen, and enforced
+        // on no write path anywhere. Blank already cleared a STRING; this makes
+        // every valueType agree.
+        settingValue = null;
+      } else {
+        // Against the valueType and rules on THIS ROW, not the definition's
+        // current ones - the row is what the business was set up with.
+        const error = validateValueForValueType(
+          row.valueType,
+          dto.settingValue,
+          row.validationRules,
+        );
+        if (error) throw new BadRequestException(`settingValue ${error}`);
+        if (row.valueType === 'FILE') {
+          const pathError = checkSettingPath(dto.settingValue);
+          if (pathError) throw new BadRequestException(`settingValue ${pathError}`);
+        }
+        settingValue = row.isEncrypted ? encryptValue(dto.settingValue) : dto.settingValue;
       }
-      settingValue = row.isEncrypted ? encryptValue(dto.settingValue) : dto.settingValue;
     }
 
     const updated = await this.prisma.tenantBusinessSetting.update({
@@ -288,6 +335,20 @@ export class TenantBusinessSettingsService {
           continue;
         }
 
+        // Blank on anything else means "no value". This must stay a SEPARATE
+        // case from the encrypted one directly above, which means the opposite
+        // - see update() for the full reasoning. Without it, clearing an
+        // optional EMAIL or PHONE fails validation and rolls back every other
+        // row in the same save.
+        if (settingValue === '') {
+          const cleared = await tx.tenantBusinessSetting.update({
+            where: { id: row.id },
+            data: { settingValue: null, updatedBy: tenantUserId, updatedAt: timestamp },
+          });
+          results.push(mask(cleared));
+          continue;
+        }
+
         const error = validateValueForValueType(
           row.valueType,
           settingValue,
@@ -313,6 +374,44 @@ export class TenantBusinessSettingsService {
       }
       return results;
     });
+  }
+
+  // ---------- Reference options (the `ref` rendering hint) ----------
+
+  /**
+   * The records a `ref` setting may point at.
+   *
+   * A setting whose validationRules carry `ref` holds another resource's UUID
+   * in a plain STRING - a key-value store has no foreign key to offer - and
+   * the settings screen renders a picker rather than a UUID box. This switch
+   * is the one place that says which ref name means which table.
+   *
+   * An unknown ref returns [] instead of throwing. `ref` is free text typed
+   * into the catalogue, and a typo there must not turn the whole settings
+   * screen into a 500.
+   */
+  async listRefOptions(ref: string, tenantBusinessId: string): Promise<RefOption[]> {
+    if (!tenantBusinessId) return [];
+    switch (ref) {
+      case 'states': {
+        const rows = await this.prisma.tenantState.findMany({
+          where: { tenantBusinessId, status: { not: 'DELETED' } },
+          select: { id: true, stateName: true, stateNameTamil: true },
+          orderBy: { stateName: 'asc' },
+        });
+        return rows.map((row) => ({
+          id: row.id,
+          label: row.stateName,
+          labelTamil: row.stateNameTamil,
+        }));
+      }
+      default:
+        return [];
+    }
+  }
+
+  async listRefOptionsForTenantUser(tenantUserId: string, ref: string): Promise<RefOption[]> {
+    return this.listRefOptions(ref, await this.getMyBusinessId(tenantUserId));
   }
 
   private async assertBusinessMapped(

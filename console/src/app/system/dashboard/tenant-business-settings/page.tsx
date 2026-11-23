@@ -11,6 +11,7 @@ import { InfoPopover } from "@/components/ui/info-popover";
 import { SystemBusinessPicker } from "@/components/system-business-picker";
 import {
   SettingValueInput,
+  type RefOption,
   type SettingValueType,
 } from "@/components/setting-value-input";
 import { useSession } from "@/hooks/use-session";
@@ -109,6 +110,24 @@ export default function TenantBusinessSettingsSupportPage() {
     }
   }
 
+  const loadRefOptions = React.useCallback(
+    (ref: string) =>
+      api<RefOption[]>(
+        `/system/tenant-business-settings/options/${encodeURIComponent(ref)}` +
+          `?tenantBusinessId=${encodeURIComponent(businessId)}`,
+      ),
+    [businessId],
+  );
+
+  /**
+   * Every row, in sortOrder, grouped by category.
+   *
+   * This screen deliberately applies NEITHER of the filters the tenant screen
+   * applies - not `isVisible`, and not `showIf`. It is the support view: an
+   * operator looking into a tenant's configuration needs to see a value that
+   * is stored while its condition is false, because that contradiction is
+   * exactly the kind of thing they are here to find.
+   */
   const grouped = React.useMemo(() => {
     if (!settings) return [];
     const map = new Map<string, TenantBusinessSettingRow[]>();
@@ -218,6 +237,7 @@ export default function TenantBusinessSettingsSupportPage() {
                             disabled={!canUpdate}
                             validationRules={row.validationRules}
                             upload={canUpdate ? (file) => uploadFile(file) : undefined}
+                            loadRefOptions={loadRefOptions}
                           />
                           {row.isEncrypted && dirty[row.id] === undefined && (
                             <p className="mt-1 text-xs text-muted-foreground">
