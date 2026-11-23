@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
-import { BadgeCheck, Building2, Car, Contact, Factory, Globe, KeyRound, Landmark, LayoutDashboard, LayoutList, Mail, Map, MapPin, Milestone, Network, Route, Settings2, ShieldCheck, SlidersHorizontal, UserCog, Users } from "lucide-react";
+import { BadgeCheck, Building2, Car, Contact, Factory, Globe, Globe2, KeyRound, Landmark, LayoutDashboard, LayoutList, Mail, Map, MapPin, Milestone, Network, Route, Settings2, ShieldCheck, SlidersHorizontal, UserCog, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -42,6 +42,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/system/dashboard/tenant-association-positions", label: "Association Positions", icon: BadgeCheck, permission: "tenant-association-positions:list", section: "Tenants" },
   { href: "/system/dashboard/tenant-industries", label: "Industries", icon: Factory, permission: "tenant-industries:list", section: "Tenants" },
 
+  { href: "/system/dashboard/tenant-countries", label: "Countries", icon: Globe2, permission: "tenant-countries:list", section: "Locations" },
   { href: "/system/dashboard/tenant-states", label: "States", icon: Map, permission: "tenant-states:list", section: "Locations" },
   { href: "/system/dashboard/tenant-districts", label: "Districts", icon: Landmark, permission: "tenant-districts:list", section: "Locations" },
   { href: "/system/dashboard/tenant-taluks", label: "Taluks", icon: Milestone, permission: "tenant-taluks:list", section: "Locations" },

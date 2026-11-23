@@ -23,7 +23,7 @@ the backend is down.
 | --- | --- |
 | `src/main.ts` | Bootstrap: helmet, cookies, CORS, URI versioning, static `/uploads`, Swagger |
 | `src/app.module.ts` | Module registry and the global guard chain |
-| `src/common/constants/permissions.ts` | The permission catalogue — 122 keys, 26 modules |
+| `src/common/constants/permissions.ts` | The permission catalogue — 144 keys, 30 modules |
 | `src/common/bootstrap/bootstrap.ts` | First-run bootstrap, shared by the wizard and the seed |
 | `src/common/guards/` | Throttle, device header, JWT, RBAC |
 | `src/config/env.validation.ts` | Boot-time env schema |
@@ -31,7 +31,7 @@ the backend is down.
 | `src/health/` | `GET /system/health` |
 | `src/auth/` · `src/tenant-auth/` | The two parallel auth audiences |
 | `src/<resource>/` | One module per resource, controller + service + DTOs |
-| `prisma/schema.prisma` | 19 models |
+| `prisma/schema.prisma` | 31 models |
 | `prisma/migrations/` | Committed migration history |
 | `docker/` | Compose stacks and the entrypoint |
 
@@ -82,8 +82,8 @@ Both share one permission-key namespace. So `tenant-places:create` means the
 same thing on either surface, and the service holds the business logic once.
 
 Resources following this pattern: business, mapped business, network
-providers, association positions, states, districts, taluks, industries, mail
-config, places, streets, and tenant users.
+providers, association positions, countries, states, districts, taluks,
+industries, mail config, places, streets, and tenant users.
 
 ## Console layout
 

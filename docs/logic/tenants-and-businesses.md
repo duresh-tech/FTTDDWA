@@ -10,8 +10,8 @@ tenant_users ──► tenant_mapped_business ──► tenant_business
                                                  │
                         ┌────────────────────────┴────────────────────┐
                         │  members, mail config, places, streets,     │
-                        │  states, districts, taluks, industries,     │
-                        │  association positions, business domains,   │
+                        │  countries, states, districts, taluks,      │
+                        │  association positions, industries, domains, │
                         │  api keys                                   │
                         └─────────────────────────────────────────────┘
 ```
@@ -42,9 +42,8 @@ the scoping lives in the tenant controller's service methods
 (`findAllForTenantUser` and friends), which resolve the caller's business ids
 first.
 
-Resources on this pattern: business, mapped business, branches, network
-mail config,
-places, streets, and tenant users themselves.
+Resources on this pattern: business, mapped business, countries, states,
+districts, taluks, mail config, places, streets, and tenant users themselves.
 
 ## Tenant users manage their own team
 
@@ -83,7 +82,8 @@ position, industry and geography lookups below.
 
 ## The geography chain
 
-`tenant_states` → `tenant_districts` → `tenant_taluks`. A district names its
+`tenant_countries` → `tenant_states` → `tenant_districts` → `tenant_taluks`.
+A state names its country with a required `countryId` FK; a district names its
 state; a taluk names **both** its district and its state.
 
 That redundancy is deliberate — it lets taluks be filtered by state without a
@@ -91,7 +91,7 @@ join — but the database cannot express "this district belongs to that state",
 so each service walks the chain itself before writing. Skip that check and the
 two ids drift apart silently.
 
-`tenant_states`, `tenant_districts` and `tenant_rtos` each carry a code that is
+`tenant_countries`, `tenant_states`, `tenant_districts` and `tenant_rtos` each carry a code that is
 unique **per business**, enforced the way `tenant_streets` enforces
 `streetCode`: by an assert that deliberately ignores soft-deleted rows, so a
 code held by a deleted-but-restorable row cannot be reissued.
@@ -102,8 +102,8 @@ code held by a deleted-but-restorable row cannot be reissued.
 rather than extending it: an RTO names a **district** and nothing below it.
 
 ```
-tenant_states ──> tenant_districts ──> tenant_taluks
-                         └──────────> tenant_rtos
+tenant_countries ──> tenant_states ──> tenant_districts ──> tenant_taluks
+                                              └──────────> tenant_rtos
 ```
 
 This matters because the member form shows Taluk and RTO next to each other,

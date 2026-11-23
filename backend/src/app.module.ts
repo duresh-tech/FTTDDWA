@@ -18,6 +18,7 @@ import { TenantMappedBusinessModule } from './tenant-mapped-business/tenant-mapp
 import { TenantMailConfigModule } from './tenant-mail-config/tenant-mail-config.module';
 import { TenantPlacesModule } from './tenant-places/tenant-places.module';
 import { TenantAssociationPositionsModule } from './tenant-association-positions/tenant-association-positions.module';
+import { TenantCountriesModule } from './tenant-countries/tenant-countries.module';
 import { TenantStatesModule } from './tenant-states/tenant-states.module';
 import { TenantDistrictsModule } from './tenant-districts/tenant-districts.module';
 import { TenantTaluksModule } from './tenant-taluks/tenant-taluks.module';
@@ -74,6 +75,7 @@ import { ApiKeyGuard } from './api-keys/api-key.guard';
     TenantMailConfigModule,
     TenantPlacesModule,
     TenantAssociationPositionsModule,
+    TenantCountriesModule,
     TenantStatesModule,
     TenantDistrictsModule,
     TenantTaluksModule,

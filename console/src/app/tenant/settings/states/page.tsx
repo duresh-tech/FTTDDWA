@@ -37,7 +37,8 @@ interface TenantStateRow {
   stateName: string;
   stateNameTamil: string | null;
   stateCode: string;
-  country: string;
+  countryId: string;
+  country?: { id: string; countryName: string; countryCode: string };
   status: "ACTIVE" | "INACTIVE" | "DELETED";
   tenantBusiness?: { id: string; systemCode: string; name: string };
 }
@@ -47,12 +48,19 @@ interface BusinessOption {
   name: string;
 }
 
+interface CountryOption {
+  id: string;
+  tenantBusinessId: string;
+  countryName: string;
+  countryCode: string;
+}
+
 interface FormValues {
   tenantBusinessId: string;
   stateName: string;
   stateNameTamil: string;
   stateCode: string;
-  country: string;
+  countryId: string;
   status: "ACTIVE" | "INACTIVE";
 }
 
@@ -61,7 +69,7 @@ const EMPTY_FORM: FormValues = {
   stateName: "",
   stateNameTamil: "",
   stateCode: "",
-  country: "India",
+  countryId: "",
   status: "ACTIVE",
 };
 
@@ -76,6 +84,7 @@ export default function TenantStateTenantPagePage() {
   const list = useResourceList<TenantStateRow>("/tenant/states", {}, tenantApi);
 
   const [businessOptions, setBusinessOptions] = React.useState<BusinessOption[] | null>(null);
+  const [countryOptions, setCountryOptions] = React.useState<CountryOption[] | null>(null);
 
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<TenantStateRow | null>(null);
@@ -98,7 +107,21 @@ export default function TenantStateTenantPagePage() {
       });
   }
 
+  function loadCountryOptions(): Promise<CountryOption[]> {
+    if (countryOptions) return Promise.resolve(countryOptions);
+    return tenantApi<{ items: CountryOption[] }>("/tenant/countries?limit=100&page=1")
+      .then((data) => {
+        setCountryOptions(data.items);
+        return data.items;
+      })
+      .catch(() => {
+        toast.error("Failed to load countries");
+        return [];
+      });
+  }
+
   function openCreate() {
+    loadCountryOptions();
     setEditing(null);
     setForm(EMPTY_FORM);
     setFormOpen(true);
@@ -113,13 +136,14 @@ export default function TenantStateTenantPagePage() {
 
   function openEdit(row: TenantStateRow) {
     loadBusinessOptions();
+    loadCountryOptions();
     setEditing(row);
     setForm({
       tenantBusinessId: row.tenantBusinessId,
       stateName: row.stateName,
       stateNameTamil: row.stateNameTamil ?? "",
       stateCode: row.stateCode,
-      country: row.country,
+      countryId: row.countryId,
       status: row.status === "DELETED" ? "ACTIVE" : row.status,
     });
     setFormOpen(true);
@@ -135,7 +159,7 @@ export default function TenantStateTenantPagePage() {
         // "" means not given, never an empty Tamil name.
         stateNameTamil: form.stateNameTamil || undefined,
         stateCode: form.stateCode,
-        country: form.country,
+        countryId: form.countryId,
         ...(editing ? { status: form.status } : {}),
       };
       if (editing) {
@@ -173,7 +197,7 @@ export default function TenantStateTenantPagePage() {
     { header: "State", cell: (row) => <span className="font-medium">{row.stateName}</span> },
     { header: "Tamil Name", cell: (row) => row.stateNameTamil ?? "\u2014" },
     { header: "Code", cell: (row) => row.stateCode },
-    { header: "Country", cell: (row) => row.country },
+    { header: "Country", cell: (row) => row.country?.countryName ?? "\u2014" },
     { header: "Status", cell: (row) => <StatusBadgeText status={row.status} /> },
   ];
 
@@ -288,12 +312,22 @@ export default function TenantStateTenantPagePage() {
               </div>
 
               <div className="grid gap-2">
-                <Label required htmlFor="country">Country</Label>
-                <Input
-                  id="country"
-                  required
-                  value={form.country}
-                  onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
+                <Label required>Country</Label>
+                <Combobox
+                  options={
+                    countryOptions
+                      ?.filter((c) => c.tenantBusinessId === form.tenantBusinessId)
+                      .map((c) => ({
+                        value: c.id,
+                        label: `${c.countryCode} — ${c.countryName}`,
+                      })) ?? null
+                  }
+                  value={form.countryId}
+                  onValueChange={(v) => setForm((f) => ({ ...f, countryId: v }))}
+                  onOpenChange={(open) => open && loadCountryOptions()}
+                  placeholder="Select a country"
+                  searchPlaceholder="Search countries..."
+                  emptyText="No countries found."
                 />
               </div>
 
@@ -321,7 +355,7 @@ export default function TenantStateTenantPagePage() {
               <Button type="button" variant="outline" onClick={() => setFormOpen(false)} disabled={saving}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={saving || !form.tenantBusinessId}>
+              <Button type="submit" disabled={saving || !form.tenantBusinessId || !form.countryId}>
                 {saving && <LoaderCircle className="size-4 animate-spin" />}
                 Save
               </Button>

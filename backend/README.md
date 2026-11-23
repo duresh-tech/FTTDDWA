@@ -92,7 +92,7 @@ controllers (see `CHANGELOG.md` for the full per-resource list).
 | Setting definitions | `GET/POST /system/setting-definitions`, `GET/PATCH /system/setting-definitions/:id`. No delete - a definition is retired with `status=INACTIVE`, because businesses hold copies. |
 | Settings sync | `POST /system/settings-sync` backfills definitions to businesses that already exist; `GET /system/settings-sync/logs` says what each run did. |
 | Tenant members | `GET/POST /system/tenant-members`, `GET/PATCH/DELETE /system/tenant-members/:id`, `PATCH .../:id/status`, `PATCH .../:id/restore`; tenant twin at `/tenant/members`. The Aadhaar number is stored encrypted and never returned - only `aadhaarLast4`. |
-| Tenant states, districts, taluks, industries, association positions, mail config, places, streets | Each: `GET/POST /system/tenant-<resource>`, `GET/PATCH/DELETE /system/tenant-<resource>/:id` (+ `restore` where applicable); tenant self-service twin at `/tenant/<resource>` scoped to the caller's mapped business. Mail config additionally has `POST .../:id/test-email`, and tenant self-service create is capped at one config per account (system-admin create is not). |
+| Tenant countries, states, districts, taluks, industries, association positions, mail config, places, streets | Each: `GET/POST /system/tenant-<resource>`, `GET/PATCH/DELETE /system/tenant-<resource>/:id` (+ `restore` where applicable); tenant self-service twin at `/tenant/<resource>` scoped to the caller's mapped business. Mail config additionally has `POST .../:id/test-email`, and tenant self-service create is capped at one config per account (system-admin create is not). |
 | App settings | `GET /system/app-settings/public/branding` (public), `GET/POST /system/app-settings`, `GET/PATCH/DELETE /system/app-settings/:id`, `PATCH .../restore`, `GET .../key/:key`, `POST .../logo` |
 | Dashboard | `GET /system/dashboard` |
 | Uploads | `POST /system/uploads`; tenant self-service twin at `POST /tenant/uploads` |
@@ -125,6 +125,7 @@ Seeded permission keys (module: actions):
 | `tenant-business` | `create`, `view`, `update`, `delete`, `list`, `restore` |
 | `tenant-mapped-business` | `create`, `view`, `update`, `delete`, `list`, `restore` |
 | `tenant-association-positions` | `create`, `view`, `update`, `delete`, `list`, `restore` |
+| `tenant-countries` | `create`, `view`, `update`, `delete`, `list`, `restore` |
 | `tenant-states` | `create`, `view`, `update`, `delete`, `list`, `restore` |
 | `tenant-districts` | `create`, `view`, `update`, `delete`, `list`, `restore` |
 | `tenant-taluks` | `create`, `view`, `update`, `delete`, `list`, `restore` |
@@ -157,7 +158,7 @@ shared across businesses cannot be removed from the tenant portal.
 
 ### Where the catalogue lives
 
-`src/common/constants/permissions.ts` holds all 122 permission keys across 20
+`src/common/constants/permissions.ts` holds all 144 permission keys across 30
 modules, and `src/common/bootstrap/bootstrap.ts` holds the bootstrap itself.
 Both the setup wizard and `prisma/seed.ts` import them, so the two paths
 cannot drift.

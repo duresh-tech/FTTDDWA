@@ -37,7 +37,9 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   { module: 'tenant-mapped-business', label: 'Tenant Mapped Business', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   { module: 'tenant-places', label: 'Tenant Places', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   { module: 'tenant-association-positions', label: 'Tenant Association Positions', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
-  // Geography chain: a district belongs to a state, a taluk to both.
+  // Geography chain: a state belongs to a country, a district to a state,
+  // a taluk to both the state and the district.
+  { module: 'tenant-countries', label: 'Tenant Countries', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   { module: 'tenant-states', label: 'Tenant States', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   { module: 'tenant-districts', label: 'Tenant Districts', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   { module: 'tenant-taluks', label: 'Tenant Taluks', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
@@ -127,6 +129,7 @@ export const TENANT_ROLE_PERMISSION_KEYS: string[] = [
     'places',
     'streets',
     'association-positions',
+    'countries',
     'states',
     'districts',
     'taluks',

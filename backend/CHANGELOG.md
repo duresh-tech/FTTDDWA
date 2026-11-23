@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`tenant_countries`** (migration 0013) — a per-business country lookup with
+  `countryName`, an optional `countryNameTamil` and a `countryCode` unique per
+  business, alongside the usual `systemCode`, status and soft-delete columns.
+  Both surfaces follow the dual-surface pattern: `/system/tenant-countries`
+  (with restore) and `/tenant/countries` (scoped to the caller's mapped
+  businesses, no restore). Six `tenant-countries:*` permissions join the
+  catalogue; `TENANT_ADMIN` receives the five non-`restore` actions. Existing
+  installs need `npm run seed` for the new permission rows and grants.
+
+### Changed
+
+- **`tenant_states.country` is now a required `countryId` FK** to
+  `tenant_countries`, not free text. Migration 0013 backfills one country per
+  distinct (business, legacy country text) — using the business's own code when
+  the texts match, and a deterministic hash otherwise — before dropping the old
+  column. Review the generated rows on a restored dump before applying to real
+  data. State create/update reject a country that is deleted or belongs to a
+  different business, and a country still used by active states cannot be
+  soft-deleted.
+
 ## [3.8.0] - 2026-11-23
 
 ### Added

@@ -165,11 +165,12 @@ model TenantBusiness {
   updatedAt        BigInt
   deletedAt        BigInt?
 
-  mappedTenantUsers TenantMappedBusiness[]
-  mailConfigs       TenantMailConfig[]
-  places            TenantPlace[]
-  streets           TenantStreet[]
+  mappedTenantUsers    TenantMappedBusiness[]
+  mailConfigs          TenantMailConfig[]
+  places               TenantPlace[]
+  streets              TenantStreet[]
   associationPositions TenantAssociationPosition[]
+  countries            TenantCountry[]
   states               TenantState[]
   districts            TenantDistrict[]
   taluks               TenantTaluk[]
@@ -178,10 +179,10 @@ model TenantBusiness {
   rtos                 TenantRto[]
   idCardTemplates      TenantIdCardTemplate[]
   memberIdCards        TenantMemberIdCard[]
-  domains           TenantBusinessDomain[]
-  apiKeys           ApiKey[]
-  settings          TenantBusinessSetting[]
-  settingSyncLogs   TenantBusinessSettingSyncLog[]
+  domains              TenantBusinessDomain[]
+  apiKeys              ApiKey[]
+  settings             TenantBusinessSetting[]
+  settingSyncLogs      TenantBusinessSettingSyncLog[]
 
   @@index([status])
   @@index([country])
@@ -203,20 +204,20 @@ model TenantBusiness {
 ///     name they do not control and have the edge request a certificate for
 ///     it, so claiming a hostname stays a system-admin action.
 model TenantBusinessDomain {
-  id               String  @id @db.Char(36) // UUIDv7
-  tenantBusinessId String  @db.Char(36)
+  id                    String  @id @db.Char(36) // UUIDv7
+  tenantBusinessId      String  @db.Char(36)
   /// Lowercase, no scheme, port or path - normalized on write AND on lookup
   /// by normalizeHost() in src/site/site.service.ts. Plain VarChar rather
   /// than citext: that would need the Postgres extension plus Prisma's
   /// postgresqlExtensions preview flag, for no behavioural gain once every
   /// read lowercases first.
-  hostname         String  @unique @db.VarChar(253)
+  hostname              String  @unique @db.VarChar(253)
   /// Turns a domain off without losing it. A disabled domain stops getting
   /// certificates renewed and stops resolving to its business.
-  enabled          Boolean @default(true)
+  enabled               Boolean @default(true)
   createdBySystemUserId String? @db.Char(36)
-  createdAt        BigInt
-  updatedAt        BigInt
+  createdAt             BigInt
+  updatedAt             BigInt
 
   tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
 
@@ -373,7 +374,7 @@ model TenantPlace {
   updatedAt        BigInt
   deletedAt        BigInt?
 
-  tenantBusiness TenantBusiness   @relation(fields: [tenantBusinessId], references: [id])
+  tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
   streets        TenantStreet[]
 
   @@index([status])
@@ -404,8 +405,8 @@ model TenantStreet {
   updatedAt        BigInt
   deletedAt        BigInt?
 
-  tenantBusiness TenantBusiness   @relation(fields: [tenantBusinessId], references: [id])
-  tenantPlace    TenantPlace      @relation(fields: [tenantPlaceId], references: [id])
+  tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
+  tenantPlace    TenantPlace    @relation(fields: [tenantPlaceId], references: [id])
 
   @@unique([tenantBusinessId, streetCode])
   @@index([status])
@@ -636,15 +637,15 @@ enum SettingSyncAction {
 /// staff. Retiring one is `status = INACTIVE`, never a row delete, because
 /// businesses still hold copies that must keep working.
 model SettingDefinition {
-  id          String  @id @db.Char(36) // UUIDv7
-  systemCode  String  @unique @db.VarChar(30)
-  category    String  @db.VarChar(50)
-  subCategory String? @db.VarChar(50)
-  settingKey  String  @unique @db.VarChar(150)
-  settingLabel String @db.VarChar(150)
-  description String? @db.VarChar(255)
-  valueType   SettingValueType
-  defaultValue String? @db.Text
+  id           String           @id @db.Char(36) // UUIDv7
+  systemCode   String           @unique @db.VarChar(30)
+  category     String           @db.VarChar(50)
+  subCategory  String?          @db.VarChar(50)
+  settingKey   String           @unique @db.VarChar(150)
+  settingLabel String           @db.VarChar(150)
+  description  String?          @db.VarChar(255)
+  valueType    SettingValueType
+  defaultValue String?          @db.Text
 
   /// JSON object: { min, max, minLength, maxLength, pattern, enum[], multiEnum[] }.
   /// An `enum` makes the settings screen render a dropdown with no UI code.
@@ -764,11 +765,11 @@ enum TenantAssociationPositionStatus {
 }
 
 model TenantAssociationPosition {
-  id               String  @id @db.Char(36) // UUIDv7
-  systemCode       String  @unique @db.VarChar(30)
-  tenantBusinessId String  @db.Char(36)
+  id               String @id @db.Char(36) // UUIDv7
+  systemCode       String @unique @db.VarChar(30)
+  tenantBusinessId String @db.Char(36)
 
-  positionName String @db.VarChar(100)
+  positionName      String  @db.VarChar(100)
   /// Optional: a position may be recorded in English only. Same length as the
   /// English name - VarChar counts CHARACTERS in Postgres, not bytes, so 100
   /// Tamil characters fit exactly as 100 Latin ones do.
@@ -792,16 +793,47 @@ model TenantAssociationPosition {
 // ---------------------------------------------------------------------------
 // Geography and trade lookups.
 //
-// State -> District -> Taluk is a chain: a taluk carries BOTH stateId and
-// districtId, as tenant_streets carries both tenantBusinessId and
-// tenantPlaceId. The redundancy is deliberate - it lets a taluk be filtered by
-// state without a join - but it means the services must check the district
-// really belongs to the state, or the pair silently drifts.
+// Country -> State -> District -> Taluk is a chain: a state carries countryId,
+// a taluk carries BOTH stateId and districtId, as tenant_streets carries both
+// tenantBusinessId and tenantPlaceId. The redundancy is deliberate - it lets a
+// taluk be filtered by state without a join - but it means the services must
+// check the district really belongs to the state, or the pair silently drifts.
 //
-// All four are scoped per tenant business, which duplicates reference data
+// All five are scoped per tenant business, which duplicates reference data
 // across businesses. That is what the spec asked for; making them global would
 // mean dropping tenantBusinessId and managing them system-side.
 // ---------------------------------------------------------------------------
+
+enum TenantCountryStatus {
+  ACTIVE
+  INACTIVE
+  DELETED
+}
+
+model TenantCountry {
+  id               String @id @db.Char(36) // UUIDv7
+  systemCode       String @unique @db.VarChar(30)
+  tenantBusinessId String @db.Char(36)
+
+  countryName      String  @db.VarChar(100)
+  countryNameTamil String? @db.VarChar(100)
+  countryCode      String  @db.VarChar(10)
+
+  status    TenantCountryStatus @default(ACTIVE)
+  createdAt BigInt
+  updatedAt BigInt
+  deletedAt BigInt?
+
+  tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
+  states         TenantState[]
+
+  /// Applies to every row regardless of soft-delete state, so a code held by a
+  /// deleted-but-restorable country cannot be reissued.
+  @@unique([tenantBusinessId, countryCode])
+  @@index([status])
+  @@index([tenantBusinessId])
+  @@map("tenant_countries")
+}
 
 enum TenantStateStatus {
   ACTIVE
@@ -831,11 +863,11 @@ model TenantState {
   id               String @id @db.Char(36) // UUIDv7
   systemCode       String @unique @db.VarChar(30)
   tenantBusinessId String @db.Char(36)
+  countryId        String @db.Char(36)
 
   stateName      String  @db.VarChar(100)
   stateNameTamil String? @db.VarChar(100)
   stateCode      String  @db.VarChar(10)
-  country        String  @db.VarChar(100)
 
   status    TenantStateStatus @default(ACTIVE)
   createdAt BigInt
@@ -843,6 +875,7 @@ model TenantState {
   deletedAt BigInt?
 
   tenantBusiness TenantBusiness   @relation(fields: [tenantBusinessId], references: [id])
+  country        TenantCountry    @relation(fields: [countryId], references: [id])
   districts      TenantDistrict[]
   taluks         TenantTaluk[]
   members        TenantMember[]
@@ -852,6 +885,7 @@ model TenantState {
   @@unique([tenantBusinessId, stateCode])
   @@index([status])
   @@index([tenantBusinessId])
+  @@index([countryId])
   @@map("tenant_states")
 }
 
@@ -1099,8 +1133,21 @@ enum TenantIdCardTemplateStatus {
 
 enum TenantMemberIdCardStatus {
   ACTIVE
+  /// Replaced by a newer issue. The row and its PDF are kept: a reissued
+  /// card's predecessor is evidence of what was in circulation.
+  SUPERSEDED
+  /// Voided while still out there - lost, stolen, or issued in error.
+  REVOKED
   DELETED
 }
+
+/// NOTE there is deliberately NO `EXPIRED` member.
+///
+/// `ApiKeyStatus` made this call first, and the reasoning is the same: expiry
+/// is a function of `expiryAt` and the clock, so storing it as well would give
+/// two sources of truth that drift apart. It is computed wherever a card is
+/// shown, which also means a card cannot sit stale-ACTIVE past its date, and
+/// no scheduled job is needed - this project has none.
 
 /// A business's own ID card design.
 ///
@@ -1162,8 +1209,26 @@ model TenantMemberIdCard {
   filePath      String @db.VarChar(255)
   fileSizeBytes Int
 
-  generatedBy String? @db.Char(36)
-  generatedAt BigInt
+  /// 1-based, per member: "issue 3 of this member's card". Computed from the
+  /// member's previous issue inside the issuing transaction.
+  issueNumber Int @default(1)
+
+  issuedBy String? @db.Char(36)
+  issuedAt BigInt
+
+  /// Null means this card never expires, which is what a validityYears of 0
+  /// produces. Expiry is DERIVED from this and the clock - see the note on
+  /// the status enum for why there is no EXPIRED status.
+  expiryAt BigInt?
+
+  /// When a newer issue replaced this one.
+  supersededAt BigInt?
+
+  /// Voiding a card that is still in circulation. Separate from deleting,
+  /// which removes the record and the file.
+  revokedAt    BigInt?
+  revokedBy    String? @db.Char(36)
+  revokeReason String? @db.VarChar(255)
 
   status    TenantMemberIdCardStatus @default(ACTIVE)
   createdAt BigInt

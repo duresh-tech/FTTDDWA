@@ -12,6 +12,7 @@ import { TenantStateListQueryDto } from './dto/tenant-state-query.dto';
 
 const INCLUDE = {
   tenantBusiness: { select: { id: true, systemCode: true, name: true } },
+  country: { select: { id: true, countryName: true, countryCode: true, status: true } },
 };
 
 /**
@@ -30,6 +31,7 @@ function searchClause(search?: string) {
       { stateName: { contains: search, mode: 'insensitive' as const } },
       { stateNameTamil: { contains: search, mode: 'insensitive' as const } },
       { stateCode: { contains: search, mode: 'insensitive' as const } },
+      { country: { countryName: { contains: search, mode: 'insensitive' as const } } },
       { systemCode: { contains: search, mode: 'insensitive' as const } },
     ],
   };
@@ -69,6 +71,7 @@ export class TenantStatesService {
 
   async create(dto: CreateTenantStateDto) {
     await this.assertBusinessExists(dto.tenantBusinessId);
+    await this.assertCountryExists(dto.countryId, dto.tenantBusinessId);
     await this.assertStateCodeUnique(dto.tenantBusinessId, dto.stateCode);
 
     const timestamp = now();
@@ -80,7 +83,7 @@ export class TenantStatesService {
         stateName: dto.stateName,
         stateNameTamil: dto.stateNameTamil,
         stateCode: dto.stateCode,
-        country: dto.country,
+        countryId: dto.countryId,
         createdAt: timestamp,
         updatedAt: timestamp,
       },
@@ -94,6 +97,14 @@ export class TenantStatesService {
     });
     if (!row) throw new NotFoundException('State not found');
     if (dto.tenantBusinessId) await this.assertBusinessExists(dto.tenantBusinessId);
+    // The country must stay in the same business as the state, so re-check it
+    // when either the country or the business changes.
+    if (dto.countryId || dto.tenantBusinessId) {
+      await this.assertCountryExists(
+        dto.countryId ?? row.countryId,
+        dto.tenantBusinessId ?? row.tenantBusinessId,
+      );
+    }
     // Re-assert when EITHER half of the key changes, falling back to the
     // stored value for the other half.
     if (dto.stateCode || dto.tenantBusinessId) {
@@ -143,6 +154,20 @@ export class TenantStatesService {
     });
     if (!business) {
       throw new BadRequestException('Tenant business does not exist or is deleted');
+    }
+  }
+
+  /**
+   * A state may only point at an active country of its own business. Without
+   * the business check a caller could attach a state to another tenant's
+   * country by guessing its id.
+   */
+  private async assertCountryExists(countryId: string, tenantBusinessId: string) {
+    const country = await this.prisma.tenantCountry.findFirst({
+      where: { id: countryId, tenantBusinessId, status: 'ACTIVE' },
+    });
+    if (!country) {
+      throw new BadRequestException('Country does not exist, is deleted, or belongs to another business');
     }
   }
 

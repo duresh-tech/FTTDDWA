@@ -31,7 +31,7 @@ the end, so a failure can never leave a half-initialized instance.
 
 1. Re-checks that no system user exists (closing the race between two
    concurrent calls).
-2. Inserts all **122 permissions** across 26 modules, in one statement.
+2. Inserts all **144 permissions** across 30 modules, in one statement.
 3. Creates **`SYSTEM_SUPER_ADMIN`** (`isSystem: true`,
    `visibleToTenants: false`) and grants it every permission.
 4. Optionally creates `TENANT_ADMIN` (`visibleToTenants: true`) with the
@@ -150,6 +150,6 @@ Create one under **Roles** with "visible to tenants" enabled, or tick the box
 in the wizard.
 
 ::: danger Never make SYSTEM_SUPER_ADMIN tenant-visible
-A tenant user assigned it would sign into the tenant portal holding all 122
+A tenant user assigned it would sign into the tenant portal holding all 144
 system-level permissions.
 :::

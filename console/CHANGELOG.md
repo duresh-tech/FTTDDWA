@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Countries screens on both surfaces**, under Locations: the system-admin
+  page at `/system/dashboard/tenant-countries` (status filter, restore) and its
+  tenant portal twin at `/tenant/settings/countries`. Both use the shared
+  table/dialog pattern and the new `tenant-countries:*` permission keys.
+
+### Changed
+
+- **State forms pick a country instead of taking free text.** The picker is
+  narrowed to the selected business, options are labelled `CODE — Name`, and
+  the list now shows the linked country's name. Saving is blocked until both a
+  business and a country are chosen.
+
 ## [3.8.0] - 2026-11-23
 
 ### Added

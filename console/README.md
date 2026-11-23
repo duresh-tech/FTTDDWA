@@ -64,7 +64,8 @@ default credentials.
 | `/system/dashboard/tenant-mail-config` | Mail Config — list, create, edit, delete, send test email |
 | `/system/dashboard/tenant-association-positions` | Association Positions — list, create, edit, delete, restore |
 | `/system/dashboard/tenant-members` | Members — the register; cascading state → district → taluk, photo upload, lifecycle status |
-| `/system/dashboard/tenant-states` | States — list, create, edit, delete, restore |
+| `/system/dashboard/tenant-countries` | Countries — list, create, edit, delete, restore |
+| `/system/dashboard/tenant-states` | States — list, create, edit, delete, restore; country picker |
 | `/system/dashboard/tenant-districts` | Districts — list, create, edit, delete, restore; state picker |
 | `/system/dashboard/tenant-taluks` | Taluks — list, create, edit, delete, restore; cascading state → district pickers |
 | `/system/dashboard/tenant-industries` | Industries — list, create, edit, delete, restore |
@@ -85,7 +86,7 @@ default credentials.
 | `/tenant/settings/user-account` | Own profile — name, username, email, phone, password, avatar |
 | `/tenant/settings/business-information` | Own business profile (view/update, per permission) |
 | `/tenant/settings/business-settings` | Own business settings — grouped by category, saved as one batch with a from/to confirmation |
-| `/tenant/settings/states`, `/districts`, `/taluks`, `/industries`, `/association-positions`, `/mail-config`, `/places`, `/streets`, `/api-keys` | Self-service CRUD twins of the matching system-admin pages, scoped to the caller's own business |
+| `/tenant/settings/countries`, `/states`, `/districts`, `/taluks`, `/industries`, `/association-positions`, `/mail-config`, `/places`, `/streets`, `/api-keys` | Self-service CRUD twins of the matching system-admin pages, scoped to the caller's own business |
 
 ## Permission-gated UI
 

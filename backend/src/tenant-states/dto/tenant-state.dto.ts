@@ -10,7 +10,8 @@ const CreateTenantStateSchema = z.object({
   /** Optional: may be recorded in English only. */
   stateNameTamil: z.string().max(100).optional(),
   stateCode: z.string().min(1).max(10),
-  country: z.string().min(1).max(100),
+  /** A country owned by the same tenant business. */
+  countryId: z.string().uuid(),
 });
 
 /**

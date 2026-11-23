@@ -14,7 +14,7 @@ PostgreSQL 17, through Prisma. MySQL is no longer supported.
   (`USR-MBX2K1-4F7A`).
 - **No raw SQL** anywhere except the health check's `SELECT 1`.
 
-19 models, 22 native enums.
+31 models, 28 native enums.
 
 ::: tip CHAR(36) in Postgres
 `char(n)` is blank-padded in Postgres. That is harmless here because every
