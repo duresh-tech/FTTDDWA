@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-11-23
+
+### Added
+
+- **Cascading `ref` pickers**, via the new `refParent` hint. District lists only
+  the chosen state's districts, Taluk only that district's, Street only that
+  place's. `settingRefParent()` is exported beside `settingShowIf()` for the
+  same reason - the hint names a SIBLING setting, and only the screen holds
+  sibling values.
+  - A child with no parent chosen renders a Combobox whose **placeholder is the
+    hint** ("Select a state first"), mirroring the streets screen. Not
+    `disabled`, which would read as "you may not edit this".
+  - When the parent changes, the loaded options drop back to `null` as well as
+    refetching - leaving them would keep the previous state's districts on
+    screen and selectable.
+- **Changing a parent clears its descendants** on the tenant settings screen.
+  Switching the state clears district *and* taluk: clearing only the direct
+  child would leave a taluk from the old district under a new state, and
+  nothing re-reads the pair afterwards. A descendant that was already empty is
+  skipped rather than written, so switching a parent does not inflate the save
+  count.
+
+### Changed
+
+- The support screen **narrows but does not clear.** It saves one row at a
+  time, so queueing an edit to a row the operator never touched would be a
+  surprise write - and leaving the stored values alone is what makes a
+  mismatched pair visible there, which is the point of a support screen. It
+  carries its own settingKey-keyed map, since its `dirty` is keyed by row id.
+
 ## [3.3.0] - 2026-11-23
 
 ### Added

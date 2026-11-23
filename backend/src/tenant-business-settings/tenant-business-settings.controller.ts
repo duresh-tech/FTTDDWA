@@ -92,16 +92,31 @@ export class TenantBusinessSettingsController {
     required: true,
     description: 'Options are per business, as the records they list are.',
   })
+  @ApiQuery({
+    name: 'parentId',
+    required: false,
+    description:
+      'Narrows a ref that is only meaningful under a parent - the catalogue ' +
+      'names it with `refParent`. A ref that NEEDS a parent and is given none ' +
+      'returns an empty array rather than the unfiltered list. `districts` ' +
+      'takes a state, `taluks` a district, `streets` a PLACE (not a taluk), ' +
+      'and `places` takes none.',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Options, or [] for an unknown ref.',
+    description: 'Options, or [] for an unknown ref or a missing parent.',
     schema: { example: [REF_OPTION_EXAMPLE] },
   })
   listRefOptions(
     @Param('ref') ref: string,
     @Query('tenantBusinessId') tenantBusinessId: string,
+    @Query('parentId') parentId?: string,
   ) {
-    return this.tenantBusinessSettingsService.listRefOptions(ref, tenantBusinessId);
+    return this.tenantBusinessSettingsService.listRefOptions(
+      ref,
+      tenantBusinessId,
+      parentId,
+    );
   }
 
   @Get(':id')

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   SettingValueInput,
+  settingRefParent,
   settingShowIf,
   type RefOption,
   type SettingValueType,
@@ -127,9 +128,64 @@ export default function TenantBusinessSettingsPage() {
   }, [settings, dirty, isShown]);
 
   const loadRefOptions = React.useCallback(
-    (ref: string) =>
-      tenantApi<RefOption[]>(`/tenant/business-settings/options/${encodeURIComponent(ref)}`),
+    (ref: string, parentId: string) =>
+      tenantApi<RefOption[]>(
+        `/tenant/business-settings/options/${encodeURIComponent(ref)}` +
+          (parentId ? `?parentId=${encodeURIComponent(parentId)}` : ""),
+      ),
     [],
+  );
+
+  /** settingKey -> the settingKey that narrows its picker, for each ref child. */
+  const refParents = React.useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const row of settings ?? []) {
+      const parent = settingRefParent(row.validationRules);
+      if (parent) map[row.settingKey] = parent;
+    }
+    return map;
+  }, [settings]);
+
+  /** settingKey -> label and stored value, for the hint text and the cascade. */
+  const byKey = React.useMemo(() => {
+    const map: Record<string, { label: string; stored: string }> = {};
+    for (const row of settings ?? []) {
+      map[row.settingKey] = { label: row.settingLabel, stored: row.settingValue ?? "" };
+    }
+    return map;
+  }, [settings]);
+
+  /**
+   * Set one setting, and blank every descendant whose parent chain reaches it.
+   *
+   * Changing the state has to clear the district **and** the taluk. Clearing
+   * only the direct child would leave a taluk from the old district hanging
+   * under a new state - exactly the inconsistency the cascade exists to stop,
+   * and invisible afterwards because nothing re-reads the pair.
+   *
+   * A descendant that already has no value is marked drained but not written,
+   * so switching a parent does not inflate the save count with rows that were
+   * empty anyway. Blanking is a real clear on save, by the blank-clears rule.
+   */
+  const setValue = React.useCallback(
+    (settingKey: string, nextValue: string) => {
+      setDirty((d) => {
+        const next = { ...d, [settingKey]: nextValue };
+        const drained = new Set([settingKey]);
+        // Repeated until nothing more drains, so a chain of any depth clears.
+        for (let grew = true; grew; ) {
+          grew = false;
+          for (const [child, parent] of Object.entries(refParents)) {
+            if (!drained.has(parent) || drained.has(child)) continue;
+            if ((next[child] ?? byKey[child]?.stored ?? "") !== "") next[child] = "";
+            drained.add(child);
+            grew = true;
+          }
+        }
+        return next;
+      });
+    },
+    [refParents, byKey],
   );
 
   /**
@@ -279,11 +335,13 @@ export default function TenantBusinessSettingsPage() {
                             ? ""
                             : currentValue
                         }
-                        onChange={(v) => setDirty((d) => ({ ...d, [row.settingKey]: v }))}
+                        onChange={(v) => setValue(row.settingKey, v)}
                         disabled={locked}
                         validationRules={row.validationRules}
                         upload={locked ? undefined : (file) => uploadTenantFile(file)}
                         loadRefOptions={loadRefOptions}
+                        refParentValue={effective[refParents[row.settingKey] ?? ""] ?? ""}
+                        refParentLabel={byKey[refParents[row.settingKey] ?? ""]?.label}
                       />
                       {row.isEncrypted && dirty[row.settingKey] === undefined && (
                         <p className="mt-1 text-xs text-muted-foreground">

@@ -120,14 +120,33 @@ export class TenantBusinessSettingsSelfController {
       'settings screen.',
   })
   @ApiParam({ name: 'ref', description: 'The ref name, ex. "states"' })
+  @ApiQuery({
+    name: 'parentId',
+    required: false,
+    description:
+      'Narrows a ref that is only meaningful under a parent - the catalogue ' +
+      'names it with `refParent`. A ref that NEEDS a parent and is given none ' +
+      'returns an empty array rather than the unfiltered list, because an ' +
+      'unfiltered list is what lets a district from one state be chosen under ' +
+      'another. `districts` takes a state, `taluks` a district, `streets` a ' +
+      'PLACE (not a taluk), and `places` takes none.',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Options, or [] for an unknown ref.',
+    description: 'Options, or [] for an unknown ref or a missing parent.',
     schema: { example: [REF_OPTION_EXAMPLE] },
   })
   @ApiResponse({ status: 404, description: 'No business mapped to this account.' })
-  listRefOptions(@CurrentTenantUser() user: TenantAuthUser, @Param('ref') ref: string) {
-    return this.tenantBusinessSettingsService.listRefOptionsForTenantUser(user.id, ref);
+  listRefOptions(
+    @CurrentTenantUser() user: TenantAuthUser,
+    @Param('ref') ref: string,
+    @Query('parentId') parentId?: string,
+  ) {
+    return this.tenantBusinessSettingsService.listRefOptionsForTenantUser(
+      user.id,
+      ref,
+      parentId,
+    );
   }
 
   @Patch()

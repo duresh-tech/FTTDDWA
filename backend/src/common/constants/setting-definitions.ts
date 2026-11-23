@@ -273,6 +273,84 @@ export const SETTING_DEFINITIONS: SettingDefinitionSeed[] = [
     validationRules: JSON.stringify({ ref: 'states' }),
     sortOrder: 250,
   },
+  // The rest of the address, broadest first, so the block reads as a hierarchy
+  // and fills top-down. `refParent` names the setting whose value filters this
+  // picker; a child with no parent chosen offers nothing rather than listing
+  // every record, which is the whole point - a flat list lets you file a
+  // Coimbatore district under Kerala and the API would accept it, since `ref`
+  // is a rendering hint and not a write rule.
+  //
+  // NOTE the chain forks. State -> District -> Taluk is real (TenantDistrict
+  // has stateId, TenantTaluk has districtId), but TenantPlace has NO talukId -
+  // it is a geofence hanging off the business - and TenantStreet belongs to a
+  // PLACE. So Place is a second root, and Street cascades from it, not from the
+  // taluk above it on screen. It looks like a bug and is not.
+  //
+  // These slot into 251-255 rather than renumbering their neighbours on
+  // purpose: syncSettingDefinitions() only CREATES definitions the database
+  // lacks, and tenant_business_settings copies sortOrder at creation, so
+  // editing the sortOrder of a shipped row changes nothing on an existing
+  // instance.
+  {
+    category: 'Association',
+    settingKey: 'association.districtId',
+    settingLabel: 'District',
+    description: 'Chosen from the districts of the state above.',
+    valueType: 'STRING',
+    validationRules: JSON.stringify({
+      ref: 'districts',
+      refParent: 'association.stateId',
+    }),
+    sortOrder: 251,
+  },
+  {
+    category: 'Association',
+    settingKey: 'association.talukId',
+    settingLabel: 'Taluk',
+    description: 'Chosen from the taluks of the district above.',
+    valueType: 'STRING',
+    validationRules: JSON.stringify({
+      ref: 'taluks',
+      refParent: 'association.districtId',
+    }),
+    sortOrder: 252,
+  },
+  {
+    category: 'Association',
+    settingKey: 'association.placeId',
+    settingLabel: 'Place',
+    description:
+      'A root of its own - places are not filed under a taluk, so this lists ' +
+      'every place the business has.',
+    valueType: 'STRING',
+    validationRules: JSON.stringify({ ref: 'places' }),
+    sortOrder: 253,
+  },
+  {
+    category: 'Association',
+    settingKey: 'association.streetId',
+    settingLabel: 'Street',
+    description: 'Chosen from the streets of the place above, not the taluk.',
+    valueType: 'STRING',
+    validationRules: JSON.stringify({
+      ref: 'streets',
+      refParent: 'association.placeId',
+    }),
+    sortOrder: 254,
+  },
+  {
+    category: 'Association',
+    settingKey: 'association.pincode',
+    settingLabel: 'Pincode',
+    description: 'Six digits, as issued by India Post.',
+    // STRING, not INTEGER: a PIN is an identifier, not a quantity. INTEGER
+    // would invite arithmetic on it and would drop a leading zero if one ever
+    // mattered. Blank is accepted - a blank value skips the type and rule
+    // checks so an optional setting can be cleared.
+    valueType: 'STRING',
+    validationRules: JSON.stringify({ pattern: '^[1-9][0-9]{5}$', maxLength: 6 }),
+    sortOrder: 255,
+  },
   {
     category: 'Association',
     settingKey: 'association.officeAddress',

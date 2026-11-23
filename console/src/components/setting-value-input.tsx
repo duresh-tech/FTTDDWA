@@ -74,6 +74,13 @@ interface ValidationRules {
    */
   ref?: string;
   /**
+   * STRING + `ref` only: the settingKey whose value narrows this picker. With
+   * no parent chosen the picker offers nothing rather than listing every
+   * record — an unfiltered list is what lets a district from one state be
+   * chosen under another.
+   */
+  refParent?: string;
+  /**
    * Hide this setting unless another one currently reads `equals`. A rendering
    * hint only: the API still accepts the value when the condition is false, so
    * whatever READS this setting has to check the condition itself.
@@ -109,6 +116,15 @@ export function settingShowIf(
   return parseValidationRules(validationRules)?.showIf ?? null;
 }
 
+/**
+ * The settingKey that narrows this setting's picker, or null. Exported for the
+ * same reason as `settingShowIf`: the hint names a SIBLING setting, and only
+ * the screen holds sibling values.
+ */
+export function settingRefParent(validationRules?: string | null): string | null {
+  return parseValidationRules(validationRules)?.refParent ?? null;
+}
+
 function parseValidationRules(json?: string | null): ValidationRules | null {
   if (!json) return null;
   try {
@@ -135,7 +151,14 @@ interface SettingValueInputProps {
    * reason `upload` is: the endpoint is per portal and a client cannot choose.
    * Without it a `ref` setting stays a plain text box.
    */
-  loadRefOptions?: (ref: string) => Promise<RefOption[]>;
+  loadRefOptions?: (ref: string, parentId: string) => Promise<RefOption[]>;
+  /**
+   * The current value of the setting named by this one's `refParent`, and a
+   * human name for it. Both come from the page, which is the only place that
+   * can see a sibling setting.
+   */
+  refParentValue?: string;
+  refParentLabel?: string;
 }
 
 /**
@@ -155,6 +178,8 @@ export function SettingValueInput({
   validationRules,
   upload,
   loadRefOptions,
+  refParentValue,
+  refParentLabel,
 }: SettingValueInputProps) {
   const rules = parseValidationRules(validationRules);
 
@@ -313,6 +338,9 @@ export function SettingValueInput({
             onChange={onChange}
             disabled={disabled}
             loadRefOptions={loadRefOptions}
+            requiresParent={Boolean(rules.refParent)}
+            parentId={refParentValue ?? ""}
+            parentLabel={refParentLabel}
           />
         );
       }
@@ -400,37 +428,71 @@ function RefValueInput({
   onChange,
   disabled,
   loadRefOptions,
+  requiresParent,
+  parentId,
+  parentLabel,
 }: {
   refName: string;
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
-  loadRefOptions: (ref: string) => Promise<RefOption[]>;
+  loadRefOptions: (ref: string, parentId: string) => Promise<RefOption[]>;
+  requiresParent: boolean;
+  parentId: string;
+  parentLabel?: string;
 }) {
   const [options, setOptions] = React.useState<ComboboxOption[] | null>(null);
-  const requested = React.useRef(false);
+  // Which parent the loaded options belong to. Compared rather than counted,
+  // so going back to a parent already fetched still refetches - its records
+  // may have changed - while a re-render with the same parent does not.
+  const loadedFor = React.useRef<string | null>(null);
 
-  // Loaded once per mount. A failure clears the guard so re-opening retries,
-  // rather than leaving a permanently empty dropdown with no way to recover.
+  const blocked = requiresParent && !parentId;
+
   const load = React.useCallback(() => {
-    if (requested.current) return;
-    requested.current = true;
-    loadRefOptions(refName)
+    if (blocked || loadedFor.current === parentId) return;
+    loadedFor.current = parentId;
+    loadRefOptions(refName, parentId)
       .then((rows) =>
         setOptions(rows.map((row) => ({ value: row.id, label: refOptionLabel(row) }))),
       )
       .catch(() => {
-        requested.current = false;
+        // Clear the marker so re-opening retries, rather than leaving a
+        // permanently empty dropdown with no way to recover.
+        loadedFor.current = null;
         setOptions([]);
         toast.error("Couldn't load the options for this setting");
       });
-  }, [loadRefOptions, refName]);
+  }, [blocked, loadRefOptions, parentId, refName]);
 
-  // A stored value must be resolvable to a label before the list is ever
-  // opened, or an already-configured setting reads as "Select a record".
+  // When the parent changes, the loaded records belong to the OLD parent.
+  // Dropping them back to null is what matters here: leaving them would keep
+  // the previous state's districts on screen and selectable.
+  React.useEffect(() => {
+    if (loadedFor.current !== null && loadedFor.current !== parentId) {
+      loadedFor.current = null;
+      setOptions(null);
+    }
+  }, [parentId]);
+
+  // A stored value must resolve to a label before the list is ever opened, or
+  // an already-configured setting reads as "Select a record".
   React.useEffect(() => {
     if (value) load();
   }, [value, load]);
+
+  if (blocked) {
+    // The placeholder doubles as the hint, as the child picker on the streets
+    // screen does. Not `disabled`, which would read as "you may not edit this".
+    return (
+      <Combobox
+        options={[]}
+        value=""
+        onValueChange={onChange}
+        placeholder={`Select a ${parentLabel ?? "parent"} first`}
+      />
+    );
+  }
 
   return (
     <Combobox

@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-11-23
+
+### Added
+
+- **The rest of the association's address** - five settings at sortOrder
+  251-255, between `association.stateId` and `association.officeAddress`:
+  `districtId`, `talukId`, `placeId`, `streetId` and `pincode`. Broadest first,
+  so the block reads as a hierarchy and fills top-down. No migration, no new
+  permission.
+
+  They slot into the gap rather than renumbering their neighbours because
+  `syncSettingDefinitions()` only CREATES definitions the database lacks, and
+  `tenant_business_settings` copies `sortOrder` at creation - so editing the
+  sortOrder of a shipped row changes nothing on an instance that already seeded
+  it.
+
+- **`refParent`, so a `ref` picker narrows by another setting.**
+  `listRefOptions()` takes a `parentId` and gains four cases beside `states`:
+  `districts` (by state), `taluks` (by district), `places` (no parent) and
+  `streets` (by PLACE). Both options routes take `?parentId=`.
+
+  **A ref that needs a parent and is given none returns `[]`, never the
+  unfiltered list.** Falling back to everything is the exact failure this
+  prevents - it is what lets a Coimbatore district be filed under Kerala, and
+  nothing downstream would reject the pair, since `ref` is a rendering hint and
+  deliberately not a write rule.
+
+  Note the chain forks: TenantPlace has no `talukId` - it is a geofence hanging
+  off the business - and TenantStreet belongs to a PLACE. So Place is a second
+  root and Street narrows by place, not by the taluk above it on screen.
+
+- `association.pincode` is a STRING with `^[1-9][0-9]{5}$`, not an INTEGER: a
+  PIN is an identifier, not a quantity.
+
 ## [3.3.0] - 2026-11-23
 
 ### Added

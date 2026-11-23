@@ -389,13 +389,30 @@ export class TenantBusinessSettingsService {
    * An unknown ref returns [] instead of throwing. `ref` is free text typed
    * into the catalogue, and a typo there must not turn the whole settings
    * screen into a 500.
+   *
+   * `parentId` narrows a ref that is only meaningful under a parent - the
+   * catalogue names it with `refParent`. **A ref that needs a parent and is
+   * given none returns [], never the unfiltered list.** Falling back to
+   * everything is exactly the wrong answer: it is what lets a district from
+   * one state be filed under another, which is the thing this narrowing
+   * exists to prevent.
+   *
+   * Note the chain forks. `districts` -> `taluks` follows the real FK chain,
+   * but `places` takes no parent (TenantPlace has no talukId; it hangs off the
+   * business) and `streets` narrows by PLACE, not by taluk.
    */
-  async listRefOptions(ref: string, tenantBusinessId: string): Promise<RefOption[]> {
+  async listRefOptions(
+    ref: string,
+    tenantBusinessId: string,
+    parentId?: string,
+  ): Promise<RefOption[]> {
     if (!tenantBusinessId) return [];
+    const owned = { tenantBusinessId, status: { not: 'DELETED' as const } };
+
     switch (ref) {
       case 'states': {
         const rows = await this.prisma.tenantState.findMany({
-          where: { tenantBusinessId, status: { not: 'DELETED' } },
+          where: owned,
           select: { id: true, stateName: true, stateNameTamil: true },
           orderBy: { stateName: 'asc' },
         });
@@ -405,13 +422,70 @@ export class TenantBusinessSettingsService {
           labelTamil: row.stateNameTamil,
         }));
       }
+      case 'districts': {
+        if (!parentId) return [];
+        const rows = await this.prisma.tenantDistrict.findMany({
+          where: { ...owned, stateId: parentId },
+          select: { id: true, districtName: true, districtNameTamil: true },
+          orderBy: { districtName: 'asc' },
+        });
+        return rows.map((row) => ({
+          id: row.id,
+          label: row.districtName,
+          labelTamil: row.districtNameTamil,
+        }));
+      }
+      case 'taluks': {
+        if (!parentId) return [];
+        const rows = await this.prisma.tenantTaluk.findMany({
+          where: { ...owned, districtId: parentId },
+          select: { id: true, talukName: true, talukNameTamil: true },
+          orderBy: { talukName: 'asc' },
+        });
+        return rows.map((row) => ({
+          id: row.id,
+          label: row.talukName,
+          labelTamil: row.talukNameTamil,
+        }));
+      }
+      case 'places': {
+        // No parent: a place is not filed under a taluk, so this is every
+        // place the business has.
+        const rows = await this.prisma.tenantPlace.findMany({
+          where: owned,
+          select: { id: true, placeName: true, placeNameTamil: true },
+          orderBy: { placeName: 'asc' },
+        });
+        return rows.map((row) => ({
+          id: row.id,
+          label: row.placeName,
+          labelTamil: row.placeNameTamil,
+        }));
+      }
+      case 'streets': {
+        if (!parentId) return [];
+        const rows = await this.prisma.tenantStreet.findMany({
+          where: { ...owned, tenantPlaceId: parentId },
+          select: { id: true, streetName: true, streetNameTamil: true },
+          orderBy: { streetName: 'asc' },
+        });
+        return rows.map((row) => ({
+          id: row.id,
+          label: row.streetName,
+          labelTamil: row.streetNameTamil,
+        }));
+      }
       default:
         return [];
     }
   }
 
-  async listRefOptionsForTenantUser(tenantUserId: string, ref: string): Promise<RefOption[]> {
-    return this.listRefOptions(ref, await this.getMyBusinessId(tenantUserId));
+  async listRefOptionsForTenantUser(
+    tenantUserId: string,
+    ref: string,
+    parentId?: string,
+  ): Promise<RefOption[]> {
+    return this.listRefOptions(ref, await this.getMyBusinessId(tenantUserId), parentId);
   }
 
   private async assertBusinessMapped(

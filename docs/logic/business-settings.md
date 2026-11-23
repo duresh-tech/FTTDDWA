@@ -73,6 +73,11 @@ status to `INACTIVE`.
 | `association.isWhatsapp` | `false` | Association |
 | `association.whatsappNumber` | — | Association |
 | `association.stateId` | — | Association |
+| `association.districtId` | — | Association |
+| `association.talukId` | — | Association |
+| `association.placeId` | — | Association |
+| `association.streetId` | — | Association |
+| `association.pincode` | — | Association |
 | `association.officeAddress` / `.officeAddressTamil` | — | Association |
 | `association.signature.chairmanPath` | — | Signatures |
 | `association.signature.presidentPath` | — | Signatures |
@@ -92,11 +97,11 @@ catalogue row could not set one even if the screen read it.
 
 #### The association block is what gets printed
 
-These 24 settings exist to be rendered onto something — a membership card, a
-receipt, a certificate — which is why there are four logos and six separate
-signature images rather than one of each. A document needs a particular
-office-bearer's signature, and a business may hold the secretary's and not the
-treasurer's, so they have to be addressable one at a time.
+The Association and Signatures settings exist to be rendered onto something —
+a membership card, a receipt, a certificate — which is why there are four logos
+and six separate signature images rather than one of each. A document needs a
+particular office-bearer's signature, and a business may hold the secretary's
+and not the treasurer's, so they have to be addressable one at a time.
 
 Every text field has a Tamil twin, following `placeNameTamil`,
 `positionNameTamil` and `memberNameTamil`: Tamil is a second rendering of the
@@ -152,6 +157,21 @@ screen. The difference is only durability: a definition in the constants file
 is recreated on any fresh install, one added through the UI exists in that
 database alone.
 
+#### Editing `sortOrder` does nothing to an existing instance
+
+`syncSettingDefinitions()` only **creates** definitions the database lacks, and
+`tenant_business_settings` copies `sortOrder` when the row is created. So
+renumbering a shipped setting in the catalogue changes nothing on an instance
+that already seeded it — the new number reaches fresh installs only.
+
+Leave gaps, and slot new settings into them. The association block is numbered
+in tens for exactly this reason, which is how the five address settings landed
+at 251–255 between `association.stateId` (250) and `association.officeAddress`
+(260) without renumbering either.
+
+If a shipped row really must move, that is a data migration, not a catalogue
+edit.
+
 ### Rendering hints live in `validationRules`
 
 `validationRules` carries two kinds of key. Some are **write rules** the server
@@ -164,6 +184,7 @@ the server ignores by design:
 | `accept` | `FILE` | The file picker's filter, ex. `"image/*"`. |
 | `multiline` | `STRING` | A textarea instead of a one-line input. |
 | `ref` | `STRING` | A picker of another resource's records. |
+| `refParent` | `STRING` + `ref` | Narrow that picker by another setting's value. |
 | `showIf` | any | Hide the field until another setting reads a given value. |
 
 Keeping these out of the validator is the point: a hint steers a screen, and
@@ -178,12 +199,11 @@ deleting the record it names leaves the setting dangling and the field reads
 blank. That is the accepted cost of configuration living in rows rather than
 columns.
 
-`association.stateId` is the only one today, with `{"ref":"states"}`. The
-**server owns the mapping** from a ref name to a table, in
+The **server owns the mapping** from a ref name to a table, in
 `TenantBusinessSettingsService.listRefOptions()`, and serves the choices from:
 
-- `GET /tenant/business-settings/options/:ref`
-- `GET /system/tenant-business-settings/options/:ref?tenantBusinessId=`
+- `GET /tenant/business-settings/options/:ref?parentId=`
+- `GET /system/tenant-business-settings/options/:ref?tenantBusinessId=&parentId=`
 
 Both are guarded by `tenant-business-settings:view` — **their own surface's
 permission, deliberately.** `GET /tenant/districts/states` already returns the
@@ -194,6 +214,66 @@ require an unrelated permission.
 An unknown ref returns `[]` rather than an error: `ref` is free text typed into
 the catalogue, and a typo there must not turn the settings screen into a 500.
 Options carry `labelTamil` alongside `label`, and the picker shows both.
+
+#### `refParent` — a picker narrowed by another setting
+
+`refParent` names the settingKey whose value narrows this picker, so the six
+address settings fill top-down:
+
+| Setting | `ref` | `refParent` |
+| --- | --- | --- |
+| `association.stateId` | `states` | — |
+| `association.districtId` | `districts` | `association.stateId` |
+| `association.talukId` | `taluks` | `association.districtId` |
+| `association.placeId` | `places` | — |
+| `association.streetId` | `streets` | `association.placeId` |
+
+**A ref that needs a parent and is given none returns `[]`, never the
+unfiltered list.** Falling back to everything is precisely the failure this
+prevents: it is what lets a Coimbatore district be filed under Kerala, and
+nothing downstream would reject the pair, because `ref` is a hint and not a
+write rule.
+
+##### The chain forks, and the screen cannot hide it
+
+```
+TenantState ──> TenantDistrict ──> TenantTaluk      a real FK chain
+
+TenantPlace ──> TenantStreet                        separate
+```
+
+`TenantPlace` has **no `talukId`** — it is a geofence (`latitude`,
+`longitude`, `radiusMeters`) hanging off the business — and `TenantStreet`
+belongs to a *place*. So **Place is a second root** whose picker lists every
+place the business has, and **Street narrows by place, not by the taluk sitting
+directly above it on screen.** Choosing a taluk leaves Street empty. That looks
+like a bug and is not.
+
+`TenantMember` is the same shape: it references state, district and taluk, and
+not place or street.
+
+##### Changing a parent clears its descendants — on the tenant screen only
+
+Switching the state clears the district **and** the taluk. Clearing just the
+direct child would leave a taluk from the old district hanging under a new
+state, and nothing re-reads the pair afterwards, so the contradiction would
+survive indefinitely. A descendant that was already empty is skipped rather
+than written, so switching a parent does not inflate the save count.
+
+Clearing writes a blank, which is a real `NULL` on save by the rule above —
+before blank-clears existed, a cascade would have failed validation.
+
+The **support screen narrows but does not clear.** It saves one row at a time,
+so queueing an edit to a row the operator never touched would be a surprise
+write; and leaving the stored values alone is what makes a mismatched pair
+visible there, which is the point of a support screen.
+
+#### `association.pincode`
+
+A `STRING` with `{"pattern":"^[1-9][0-9]{5}$","maxLength":6}`, not an
+`INTEGER`: a PIN is an identifier, not a quantity, and `INTEGER` would invite
+arithmetic on it and drop a leading digit if one ever mattered. Blank is
+accepted, since a blank value skips the rule checks.
 
 #### `showIf` — a field that waits for another
 

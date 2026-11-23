@@ -11,6 +11,7 @@ import { InfoPopover } from "@/components/ui/info-popover";
 import { SystemBusinessPicker } from "@/components/system-business-picker";
 import {
   SettingValueInput,
+  settingRefParent,
   type RefOption,
   type SettingValueType,
 } from "@/components/setting-value-input";
@@ -111,13 +112,38 @@ export default function TenantBusinessSettingsSupportPage() {
   }
 
   const loadRefOptions = React.useCallback(
-    (ref: string) =>
+    (ref: string, parentId: string) =>
       api<RefOption[]>(
         `/system/tenant-business-settings/options/${encodeURIComponent(ref)}` +
-          `?tenantBusinessId=${encodeURIComponent(businessId)}`,
+          `?tenantBusinessId=${encodeURIComponent(businessId)}` +
+          (parentId ? `&parentId=${encodeURIComponent(parentId)}` : ""),
       ),
     [businessId],
   );
+
+  /**
+   * A `ref` picker here is narrowed by its parent too, so it needs the parent's
+   * value by settingKey - and `dirty` on this screen is keyed by ROW ID,
+   * because it saves one row at a time. Hence a second map.
+   *
+   * It deliberately stops at narrowing. This screen does NOT cascade-clear a
+   * child when its parent changes: with a save button per row, queueing an
+   * edit to a row the operator never touched would be a surprise write. The
+   * values stay as stored, which is also what makes a mismatched pair visible
+   * here - the thing a support screen is for.
+   */
+  const refContext = React.useMemo(() => {
+    const parentOf: Record<string, string> = {};
+    const label: Record<string, string> = {};
+    const effective: Record<string, string> = {};
+    for (const row of settings ?? []) {
+      const parent = settingRefParent(row.validationRules);
+      if (parent) parentOf[row.settingKey] = parent;
+      label[row.settingKey] = row.settingLabel;
+      effective[row.settingKey] = dirty[row.id] ?? row.settingValue ?? "";
+    }
+    return { parentOf, label, effective };
+  }, [settings, dirty]);
 
   /**
    * Every row, in sortOrder, grouped by category.
@@ -238,6 +264,14 @@ export default function TenantBusinessSettingsSupportPage() {
                             validationRules={row.validationRules}
                             upload={canUpdate ? (file) => uploadFile(file) : undefined}
                             loadRefOptions={loadRefOptions}
+                            refParentValue={
+                              refContext.effective[
+                                refContext.parentOf[row.settingKey] ?? ""
+                              ] ?? ""
+                            }
+                            refParentLabel={
+                              refContext.label[refContext.parentOf[row.settingKey] ?? ""]
+                            }
                           />
                           {row.isEncrypted && dirty[row.id] === undefined && (
                             <p className="mt-1 text-xs text-muted-foreground">
