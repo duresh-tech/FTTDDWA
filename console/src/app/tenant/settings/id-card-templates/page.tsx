@@ -198,7 +198,7 @@ export default function IdCardTemplatesPage() {
 
             <div className="mt-4 flex flex-wrap gap-2">
               <Button asChild size="sm" variant="outline">
-                <Link href={`/tenant/settings/id-card-templates/${row.id}`}>
+                <Link href={`/tenant/id-card-templates/${row.id}`}>
                   <Pencil className="size-3.5" /> {canUpdate ? "Design" : "View"}
                 </Link>
               </Button>

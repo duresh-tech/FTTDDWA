@@ -7,7 +7,8 @@ import {
   IdCardContext,
   resolveToken,
 } from './id-card-fields';
-import { IdCardElement, IdCardLayout, IdCardSide } from './id-card-layout.schema';
+import { Fill, IdCardElement, IdCardLayout, IdCardSide } from './id-card-layout.schema';
+import { scaleUnitPath, shapePath } from './id-card-shapes';
 
 /**
  * The ONLY file that knows about pdfkit.
@@ -124,14 +125,20 @@ export class IdCardRendererService {
     const heightPt = mmToPt(layout.card.heightMm);
     if (newPage) doc.addPage({ size: [widthPt, heightPt], margin: 0 });
 
-    doc.rect(0, 0, widthPt, heightPt).fill(side.background.color);
+    doc
+      .rect(0, 0, widthPt, heightPt)
+      .fill(this.paint(doc, side.background.color, 0, 0, widthPt, heightPt));
     if (side.background.imagePath) {
       await this.drawImageAt(doc, side.background.imagePath, 0, 0, widthPt, heightPt, 'cover');
     }
 
     // Painted in z order, with array order as the tiebreak, so the designer's
-    // "bring to front" means the same thing here as on the canvas.
-    const ordered = [...side.elements].sort((a, b) => a.z - b.z);
+    // "bring to front" means the same thing here as on the canvas. Hidden
+    // elements are dropped HERE rather than only on the canvas, or the PDF
+    // would disagree with the preview the design was approved from.
+    const ordered = [...side.elements]
+      .filter((element) => !element.hidden)
+      .sort((a, b) => a.z - b.z);
     for (const element of ordered) {
       try {
         await this.drawElement(doc, element, ctx);
@@ -157,16 +164,37 @@ export class IdCardRendererService {
     switch (element.type) {
       case 'rect': {
         doc.save();
-        if (element.radiusMm > 0) doc.roundedRect(x, y, w, h, mmToPt(element.radiusMm));
-        else doc.rect(x, y, w, h);
-        if (element.fill && element.borderColor) {
-          doc.lineWidth(mmToPt(element.borderWidthMm)).fillAndStroke(element.fill, element.borderColor);
-        } else if (element.fill) {
-          doc.fill(element.fill);
+        this.traceShape(doc, element.shape, x, y, w, h, mmToPt(element.radiusMm));
+        const fill = element.fill
+          ? this.paint(doc, element.fill, x, y, w, h)
+          : null;
+        if (fill && element.borderColor) {
+          doc.lineWidth(mmToPt(element.borderWidthMm)).fillAndStroke(fill, element.borderColor);
+        } else if (fill) {
+          doc.fill(fill);
         } else if (element.borderColor) {
           doc.lineWidth(mmToPt(element.borderWidthMm)).stroke(element.borderColor);
         }
         doc.restore();
+        return;
+      }
+
+      case 'line': {
+        // Drawn inside the element's own box: the horizontal or vertical
+        // midline, or corner to corner. Keeping the box model is what makes
+        // dragging and resizing a line behave like everything else.
+        const [x1, y1, x2, y2] =
+          element.direction === 'horizontal'
+            ? [x, y + h / 2, x + w, y + h / 2]
+            : element.direction === 'vertical'
+              ? [x + w / 2, y, x + w / 2, y + h]
+              : [x, y, x + w, y + h];
+        const stroke = mmToPt(element.widthMm);
+        doc.save().lineWidth(stroke).strokeColor(element.color);
+        if (element.dash === 'dashed') doc.dash(stroke * 3, { space: stroke * 2 });
+        else if (element.dash === 'dotted') doc.dash(stroke, { space: stroke * 1.5 });
+        doc.moveTo(x1, y1).lineTo(x2, y2).stroke();
+        doc.undash().restore();
         return;
       }
 
@@ -198,6 +226,79 @@ export class IdCardRendererService {
         return;
       }
     }
+  }
+
+  /**
+   * Traces a shape's outline into the current path, ready to fill or stroke.
+   *
+   * A rectangle is drawn directly so `radiusMm` can use pdfkit's own rounded
+   * rect. Every other shape comes from the unit-square table, with its
+   * COORDINATES scaled into the box - never by transforming the canvas.
+   *
+   * That distinction is not stylistic. PDF requires path construction to be
+   * followed directly by a painting operator, so changing the CTM between
+   * `path()` and `fill()` yields a stream renderers silently discard: the
+   * shape just does not appear, with nothing logged anywhere. Scaling the
+   * numbers also keeps stroke widths uniform and gradients in page space.
+   */
+  private traceShape(
+    doc: PDFKit.PDFDocument,
+    shape: string,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    radiusPt: number,
+  ): void {
+    if (shape === 'rect') {
+      if (radiusPt > 0) doc.roundedRect(x, y, w, h, radiusPt);
+      else doc.rect(x, y, w, h);
+      return;
+    }
+    doc.path(scaleUnitPath(shapePath(shape), x, y, w, h));
+  }
+
+  /**
+   * Turns a Fill into something pdfkit can fill with: a colour string, or a
+   * gradient object anchored to the element's own box.
+   *
+   * A gradient is positioned per element rather than per page, so the same
+   * fill reads the same whether the shape is a 5mm dot or the whole card.
+   */
+  private paint(
+    doc: PDFKit.PDFDocument,
+    fill: Fill,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+  ): string | PDFKit.PDFGradient {
+    if (typeof fill === 'string') return fill;
+
+    const gradient =
+      fill.type === 'radial'
+        ? doc.radialGradient(
+            x + w / 2,
+            y + h / 2,
+            0,
+            x + w / 2,
+            y + h / 2,
+            Math.max(w, h) / 2,
+          )
+        : (() => {
+            // The angle is measured clockwise from "left to right", and the
+            // line is taken across the box's centre so 0deg spans its full
+            // width and 90deg its full height.
+            const radians = (fill.angle * Math.PI) / 180;
+            const dx = (Math.cos(radians) * w) / 2;
+            const dy = (Math.sin(radians) * h) / 2;
+            const cx = x + w / 2;
+            const cy = y + h / 2;
+            return doc.linearGradient(cx - dx, cy - dy, cx + dx, cy + dy);
+          })();
+
+    for (const stop of fill.stops) gradient.stop(stop.offset, stop.color);
+    return gradient;
   }
 
   /**

@@ -7,13 +7,14 @@ import { ArrowLeft, LoaderCircle, Save } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { IdCardDesigner } from "@/components/id-card/designer";
 import {
-  IdCardDesigner,
   emptyLayout,
   type IdCardField,
   type IdCardLayout,
-} from "@/components/id-card-designer";
-import { useTenantSession } from "@/hooks/use-tenant-session";
+  type IdCardShape,
+} from "@/components/id-card/types";
+import { TenantSessionProvider, useTenantSession } from "@/hooks/use-tenant-session";
 import { TenantApiError, tenantApi } from "@/lib/tenant-api";
 
 interface TemplateRow {
@@ -26,16 +27,32 @@ interface TemplateRow {
   layout: string;
 }
 
-export default function IdCardTemplateDesignerPage() {
+/**
+ * The full-screen designer.
+ *
+ * It provides its own TenantSessionProvider because it sits outside
+ * TenantShell - which is what gives it the whole viewport - and the session
+ * hook is what the permission checks read.
+ */
+export default function IdCardTemplateEditorPage() {
+  return (
+    <TenantSessionProvider>
+      <Editor />
+    </TenantSessionProvider>
+  );
+}
+
+function Editor() {
   const params = useParams<{ id: string }>();
   const templateId = params.id;
 
-  const { hasPermission } = useTenantSession();
+  const { hasPermission, loading: sessionLoading } = useTenantSession();
   const canView = hasPermission("tenant-id-card-templates:view");
   const canUpdate = hasPermission("tenant-id-card-templates:update");
 
   const [template, setTemplate] = React.useState<TemplateRow | null>(null);
   const [fields, setFields] = React.useState<IdCardField[]>([]);
+  const [shapes, setShapes] = React.useState<IdCardShape[]>([]);
   const [layout, setLayout] = React.useState<IdCardLayout | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -43,6 +60,7 @@ export default function IdCardTemplateDesignerPage() {
   const [dirty, setDirty] = React.useState(false);
 
   React.useEffect(() => {
+    if (sessionLoading) return;
     if (!canView) {
       setLoading(false);
       return;
@@ -50,13 +68,15 @@ export default function IdCardTemplateDesignerPage() {
     setLoading(true);
     Promise.all([
       tenantApi<TemplateRow>(`/tenant/id-card-templates/${templateId}`),
-      // The field catalogue comes from the SERVER, never a hardcoded list
-      // here: the server owns which tokens exist and what each resolves to.
+      // Both catalogues come from the SERVER, never a hardcoded list here:
+      // it owns which tokens exist and what each shape's geometry is.
       tenantApi<IdCardField[]>("/tenant/id-card-templates/fields"),
+      tenantApi<IdCardShape[]>("/tenant/id-card-templates/shapes"),
     ])
-      .then(([row, catalogue]) => {
+      .then(([row, fieldList, shapeList]) => {
         setTemplate(row);
-        setFields(catalogue);
+        setFields(fieldList);
+        setShapes(shapeList);
         // A row whose JSON cannot be read opens as an empty card of the right
         // size rather than a crash - the operator can then redesign it.
         try {
@@ -68,10 +88,10 @@ export default function IdCardTemplateDesignerPage() {
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load the template"))
       .finally(() => setLoading(false));
-  }, [canView, templateId]);
+  }, [canView, sessionLoading, templateId]);
 
-  // Browser-level guard only. A React-router navigation inside the console
-  // will not hit this, which is why Save is prominent rather than implicit.
+  // Browser-level guard only; an in-app navigation will not hit it, which is
+  // why Save is prominent rather than implicit.
   React.useEffect(() => {
     if (!dirty) return;
     const onBeforeUnload = (event: BeforeUnloadEvent) => event.preventDefault();
@@ -83,12 +103,16 @@ export default function IdCardTemplateDesignerPage() {
     if (!layout) return;
     setSaving(true);
     try {
-      // The whole layout goes in one PATCH: the canvas is the single source of
-      // truth while editing, and a deep merge of positioned elements has no
-      // sensible meaning.
+      // Width and height go with the layout. The service reconciles the two
+      // with the COLUMNS winning, so sending only the layout would silently
+      // keep the old card size.
       await tenantApi(`/tenant/id-card-templates/${templateId}`, {
         method: "PATCH",
-        body: { layout },
+        body: {
+          layout,
+          widthMm: layout.card.widthMm,
+          heightMm: layout.card.heightMm,
+        },
       });
       toast.success("Design saved");
       setDirty(false);
@@ -99,55 +123,63 @@ export default function IdCardTemplateDesignerPage() {
     }
   }
 
-  if (!canView) {
-    return (
-      <div className="rounded-lg border py-10 text-center text-sm text-muted-foreground">
-        You don&apos;t have permission to view ID card templates.
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Button asChild size="sm" variant="outline">
-            <Link href="/tenant/settings/id-card-templates">
-              <ArrowLeft className="size-4" />
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-xl font-semibold">{template?.name ?? "Designer"}</h1>
-            <p className="text-xs text-muted-foreground">
-              {template
-                ? `${Number(template.widthMm)} × ${Number(template.heightMm)} mm`
-                : "Loading…"}
-            </p>
-          </div>
+    <div className="flex h-dvh flex-col">
+      <header className="flex shrink-0 items-center gap-3 border-b px-3 py-2">
+        <Button asChild size="sm" variant="outline">
+          <Link href="/tenant/settings/id-card-templates">
+            <ArrowLeft className="size-4" />
+          </Link>
+        </Button>
+        <div className="min-w-0">
+          <h1 className="truncate text-sm font-semibold">
+            {template?.name ?? "ID card designer"}
+          </h1>
+          <p className="text-xs text-muted-foreground">
+            {template ? `${Number(template.widthMm)} × ${Number(template.heightMm)} mm saved` : "Loading…"}
+          </p>
         </div>
         {canUpdate && (
-          <Button type="button" onClick={onSave} disabled={saving || !layout || !dirty}>
+          <Button
+            type="button"
+            size="sm"
+            className="ml-auto"
+            onClick={onSave}
+            disabled={saving || !layout || !dirty}
+          >
             {saving ? (
               <LoaderCircle className="size-4 animate-spin" />
             ) : (
               <Save className="size-4" />
             )}
-            Save design{dirty ? " •" : ""}
+            Save{dirty ? " •" : ""}
           </Button>
         )}
-      </div>
+      </header>
 
-      {loading && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      {(loading || sessionLoading) && (
+        <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
           <LoaderCircle className="size-4 animate-spin" /> Loading the design…
         </div>
       )}
-      {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {!loading && layout && (
+      {!sessionLoading && !canView && (
+        <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+          You don&apos;t have permission to view ID card templates.
+        </div>
+      )}
+
+      {error && (
+        <div className="flex flex-1 items-center justify-center text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      {!loading && !error && layout && (
         <IdCardDesigner
           layout={layout}
           fields={fields}
+          shapes={shapes}
           disabled={!canUpdate}
           onChange={(next) => {
             setLayout(next);

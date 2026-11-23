@@ -32,6 +32,7 @@ import {
 import { TenantJwtAuthGuard } from '../common/guards/tenant-jwt-auth.guard';
 import { TenantPermissionsGuard } from '../common/guards/tenant-permissions.guard';
 import { ID_CARD_FIELDS } from '../tenant-id-cards/id-card-fields';
+import { ID_CARD_SHAPES } from '../tenant-id-cards/id-card-shapes';
 
 // @Public() escapes the SYSTEM JWT guard so the tenant guard pair below can
 // take over. It does NOT make the route public: an API key is still required,
@@ -59,6 +60,20 @@ export class TenantIdCardTemplatesSelfController {
   @ApiResponse({ status: 200, description: 'Field catalogue.' })
   listFields() {
     return ID_CARD_FIELDS;
+  }
+
+  @Get('shapes')
+  @RequireTenantPermissions('tenant-id-card-templates:view')
+  @ApiOperation({
+    summary: 'The shapes a template may draw',
+    description:
+      'Each shape is an SVG path in a UNIT SQUARE, so the designer draws it ' +
+      'with viewBox="0 0 1 1" and the renderer scales the same path. The ' +
+      'console never holds a copy of this list.',
+  })
+  @ApiResponse({ status: 200, description: 'Shape catalogue.' })
+  listShapes() {
+    return ID_CARD_SHAPES;
   }
 
   @Get('businesses')

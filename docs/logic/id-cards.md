@@ -92,7 +92,22 @@ in points, because that is what type is measured in.
 Storing pixels is how a layout ends up correct on the designer's monitor and
 wrong on the printer.
 
-CR80 — 85.6 × 54 mm — is the standard ID card and the default.
+CR80 — 85.6 × 54 mm — is the standard ID card and the default. CR79, A7 and A6
+are offered as presets, and any size from 20 to 500 mm can be typed in.
+**Orientation is simply the two dimensions swapped**; there is no separate
+field for it to drift out of step with them.
+
+Resizing a card **pulls stranded elements back inside and says how many
+moved**. A shrink or an orientation flip that quietly left elements off the
+card would only be noticed at the printer.
+
+The card size lives in two places — the `widthMm`/`heightMm` columns, for
+listing and sorting, and `layout.card`, for the renderer — and the service
+reconciles them with **the columns winning**. So a save that changes the size
+must PATCH all three; sending only the layout silently keeps the old size.
+
+Zoom is a view concern. The canvas picks a px-per-mm scale (Fit, or 50–200%)
+and converts on the way in and out; nothing that is saved ever sees a pixel.
 
 The layout is validated by a Zod schema **on write**, so a malformed design is
 rejected at the API rather than discovered halfway through generating a few
@@ -124,6 +139,78 @@ Fonts are bundled in `backend/assets/fonts` (Noto, OFL) rather than fetched at
 run time, because the prod filesystem is read-only and the build must not
 depend on the network. `nest build` copies only compiled TypeScript, so the
 Dockerfile copies `assets/` explicitly.
+
+## Shapes are defined once, on the server
+
+Each shape is an **SVG path inside a unit square** (`0 0 1 1`), listed in
+`backend/src/tenant-id-cards/id-card-shapes.ts` and served by
+`GET …/id-card-templates/shapes`. The designer draws it with
+`viewBox="0 0 1 1"` and the renderer scales the same path, so adding a shape is
+a change to that one file — the console holds no copy to keep in step. This is
+the same discipline as the field catalogue.
+
+Nine today: rectangle, ellipse, triangle, diamond, pentagon, hexagon, star,
+arrow, chevron. Plus a separate `line` element, which is a stroke with no fill:
+it keeps the box model so dragging and resizing behave as they do everywhere
+else, and `direction` says whether it runs along the horizontal midline, the
+vertical one, or corner to corner.
+
+> **The renderer scales a shape's coordinates, never the canvas.** PDF requires
+> path construction to be followed directly by a painting operator, so changing
+> the CTM between `path()` and `fill()` produces a stream that renderers
+> silently discard — the shape simply does not appear, with nothing logged.
+> `scaleUnitPath()` rewrites the numbers instead, which also keeps stroke
+> widths uniform and gradient coordinates in page space.
+
+A shape the current build does not know falls back to a rectangle rather than
+failing the template, for the same reason an unknown token renders empty.
+
+## Fills can be gradients
+
+A fill is **either a hex string or a gradient**:
+
+```jsonc
+{ "type": "linear", "angle": 20, "stops": [
+  { "offset": 0, "color": "#1e3a8a" }, { "offset": 1, "color": "#06b6d4" } ] }
+```
+
+Keeping a plain string as one arm of that union is what lets every template
+written before gradients existed stay valid, with no migration and no
+transform over stored JSON.
+
+Shape fills and side backgrounds both take one. The canvas renders CSS
+`linear-gradient` / `radial-gradient`; the renderer builds `doc.linearGradient`
+or `doc.radialGradient` **anchored to the element's own box**, so the same fill
+reads the same on a 5 mm dot and on a whole card. `angle` is measured clockwise
+from left-to-right, and the gradient line runs through the box's centre, so 0°
+spans its full width and 90° its full height.
+
+## Layers
+
+The designer lists a side's elements topmost-first, with drag-to-reorder,
+forward/back, a visibility toggle and a lock.
+
+- **`z` is derived from position in that list**, and the inspector carries no z
+  field. Two ways to set the same thing is how they end up disagreeing.
+- **Hidden elements are skipped by the renderer**, not just the canvas — a
+  preview that disagreed with the PDF would be worse than no preview.
+- **Locked elements still print**; they just cannot be dragged. That is what
+  makes a full-bleed background usable, since otherwise it swallows every click
+  meant for something on top of it. A locked element is still selectable, so it
+  can be inspected and unlocked.
+
+## The editor is its own page
+
+The template **list** is at `/tenant/settings/id-card-templates`, under
+Settings → Business, because it is configuration. The **editor** is at
+`/tenant/id-card-templates/[id]` and is deliberately *not* nested under
+settings: in the App Router a nested layout always wraps its parent, so a page
+there could never escape `TenantShell` and the settings rail — and a design
+canvas squeezed beside a navigation rail is the thing the full-screen editor
+exists to fix.
+
+Because it sits outside the shell, the editor provides its own
+`TenantSessionProvider`; that is what the permission checks read.
 
 ## Generating
 

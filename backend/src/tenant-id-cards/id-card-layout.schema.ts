@@ -20,6 +20,31 @@ const hexColor = z
   .string()
   .regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, 'must be a hex colour');
 
+/**
+ * A fill: a flat colour, or a gradient.
+ *
+ * A plain hex STRING is one arm of the union on purpose. Every template saved
+ * before gradients existed holds `"#1e3a8a"`, and keeping that valid is what
+ * lets this ship with no migration and no transform over stored JSON.
+ */
+const gradientFill = z.object({
+  type: z.enum(['linear', 'radial']),
+  /** Degrees, clockwise from "left to right". Linear only; radial ignores it. */
+  angle: z.number().min(0).max(360).default(0),
+  stops: z
+    .array(
+      z.object({
+        offset: z.number().min(0).max(1),
+        color: hexColor,
+      }),
+    )
+    .min(2)
+    .max(8),
+});
+
+export const FillSchema = z.union([hexColor, gradientFill]);
+export type Fill = z.infer<typeof FillSchema>;
+
 const baseElement = {
   id: z.string().min(1).max(64),
   xMm: mm,
@@ -28,6 +53,13 @@ const baseElement = {
   hMm: mm,
   /** Paint order. Equal values fall back to array order. */
   z: z.number().int().min(0).max(999).default(0),
+  /**
+   * Hidden elements are skipped by the RENDERER too, not just the canvas.
+   * A preview that disagrees with the PDF would be worse than no preview.
+   */
+  hidden: z.boolean().default(false),
+  /** Locked elements cannot be dragged on the canvas. They still print. */
+  locked: z.boolean().default(false),
 };
 
 /**
@@ -69,25 +101,58 @@ const qrElement = z.object({
   token: z.string().max(100).default('member.qr'),
 });
 
-const rectElement = z.object({
+/**
+ * A filled shape.
+ *
+ * The discriminator stays `'rect'` and the SHAPE is a separate field
+ * defaulting to `'rect'`, rather than nine new members of the union. That is
+ * what makes every layout written before shapes existed parse unchanged - it
+ * simply has no `shape` key and gets the default.
+ *
+ * `shape` is free text here, not an enum built from the catalogue: a layout
+ * may name a shape a later build has dropped, and `shapePath()` falls back to
+ * a rectangle rather than failing the whole template.
+ */
+const shapeElement = z.object({
   ...baseElement,
   type: z.literal('rect'),
-  fill: hexColor.nullable().default(null),
+  shape: z.string().max(40).default('rect'),
+  fill: FillSchema.nullable().default(null),
   borderColor: hexColor.nullable().default(null),
   borderWidthMm: z.number().min(0).max(20).default(0),
+  /** Rounded corners, honoured for `shape: 'rect'` only. */
   radiusMm: z.number().min(0).max(50).default(0),
+});
+
+/**
+ * A line.
+ *
+ * Its own type because a line is a stroke with no fill. It keeps the box
+ * model so dragging and resizing behave exactly as they do everywhere else,
+ * and `direction` says which way it runs inside that box: the horizontal or
+ * vertical midline, or corner to corner.
+ */
+const lineElement = z.object({
+  ...baseElement,
+  type: z.literal('line'),
+  direction: z.enum(['horizontal', 'vertical', 'diagonal']).default('horizontal'),
+  color: hexColor.default('#111111'),
+  widthMm: z.number().min(0.05).max(20).default(0.4),
+  dash: z.enum(['solid', 'dashed', 'dotted']).default('solid'),
 });
 
 export const IdCardElementSchema = z.discriminatedUnion('type', [
   textElement,
   imageElement,
   qrElement,
-  rectElement,
+  shapeElement,
+  lineElement,
 ]);
 
 const sideSchema = z.object({
   background: z.object({
-    color: hexColor.default('#ffffff'),
+    /** A hex string or a gradient; see FillSchema. */
+    color: FillSchema.default('#ffffff'),
     imagePath: z.string().max(255).nullable().default(null),
   }),
   elements: z.array(IdCardElementSchema).max(100),

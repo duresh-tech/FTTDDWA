@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-11-23
+
+### Added
+
+- **Shapes.** Nine of them - rectangle, ellipse, triangle, diamond, pentagon,
+  hexagon, star, arrow, chevron - each an SVG path in a UNIT SQUARE, listed in
+  `id-card-shapes.ts` and served by `GET …/id-card-templates/shapes`. The
+  designer draws the path with `viewBox="0 0 1 1"` and the renderer scales the
+  same one, so adding a shape is a change to that single file and the console
+  holds no copy to drift.
+
+  The discriminator stays `type: 'rect'` with the shape in a separate field
+  defaulting to `'rect'`, which is what makes every 3.5.0 layout parse
+  unchanged.
+
+- **Lines** as their own element type, since a line is a stroke with no fill:
+  horizontal, vertical or diagonal within its box, solid/dashed/dotted.
+
+- **Gradient fills**, linear and radial, for shape fills and side backgrounds.
+  A fill is `string | { type, angle, stops[] }` - keeping the plain hex string
+  as one arm of the union is what lets stored templates stay valid with no
+  migration. Gradients are anchored to the element's own box, so the same fill
+  reads the same on a 5mm dot and on a whole card.
+
+- **`hidden` and `locked` on every element.** Hidden elements are skipped by
+  the RENDERER, not just the canvas - a preview that disagreed with the PDF
+  would be worse than no preview.
+
+### Fixed
+
+- **A shape drawn from a path did not appear in the PDF at all.** The first
+  implementation scaled the canvas around `doc.path()`, but PDF requires path
+  construction to be followed directly by a painting operator, so changing the
+  CTM in between produced a stream renderers silently discard - no error, no
+  log, just a missing shape. `scaleUnitPath()` rewrites the coordinates
+  instead, which also keeps stroke widths uniform and gradient coordinates in
+  page space. Caught by rasterising a test card and looking at it.
+
 ## [3.5.0] - 2026-11-23
 
 ### Added

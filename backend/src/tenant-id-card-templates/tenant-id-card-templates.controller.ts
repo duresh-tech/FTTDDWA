@@ -23,6 +23,7 @@ import {
 import { IdCardTemplateListQueryDto } from './dto/id-card-template-query.dto';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { ID_CARD_FIELDS } from '../tenant-id-cards/id-card-fields';
+import { ID_CARD_SHAPES } from '../tenant-id-cards/id-card-shapes';
 
 export const TEMPLATE_EXAMPLE = {
   id: '019f357b-d398-73aa-9062-adc0f927a584',
@@ -63,6 +64,21 @@ export class IdCardTemplatesController {
   @ApiResponse({ status: 200, description: 'Field catalogue.' })
   listFields() {
     return ID_CARD_FIELDS;
+  }
+
+  @Get('shapes')
+  @RequirePermissions('tenant-id-card-templates:view')
+  @ApiOperation({
+    summary: 'The shapes a template may draw',
+    description:
+      'Each shape is an SVG path in a UNIT SQUARE, so the designer draws it ' +
+      'with viewBox="0 0 1 1" and the renderer scales the same path. Served ' +
+      'rather than duplicated in the console, so adding a shape is a change ' +
+      'to one server file and nothing else.',
+  })
+  @ApiResponse({ status: 200, description: 'Shape catalogue.' })
+  listShapes() {
+    return ID_CARD_SHAPES;
   }
 
   @Get()

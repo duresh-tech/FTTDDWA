@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-11-23
+
+### Added
+
+- **A full-screen designer.** The editor moved from
+  `/tenant/settings/id-card-templates/[id]` to `/tenant/id-card-templates/[id]`
+  with its own bare layout. It had to move: in the App Router a nested layout
+  always wraps its parent, so a page under settings can never escape
+  `TenantShell` and the settings rail - which is exactly what made the canvas
+  cramped. The list stays in Settings, where configuration belongs.
+- **Card sizing**: CR80/CR79/A7/A6 presets, an orientation toggle and free
+  width/height in mm. Orientation IS the two dimensions swapped, with no
+  separate field to drift. Resizing pulls stranded elements back onto the card
+  and reports how many moved, rather than leaving them off-card to be
+  discovered at the printer.
+- **Zoom** (Fit, 50-200%), which variable card sizes make necessary - a fixed
+  6px/mm is unusable at A6. It is a view concern only; everything saved stays
+  in millimetres.
+- **A layers panel**: topmost-first, drag to reorder, forward/back, visibility
+  and lock. `z` is now DERIVED from list position and the inspector's z field
+  is gone - two ways to set the same thing is how they disagree. A locked
+  element is still selectable but cannot be dragged, which is what makes a
+  full-bleed background usable instead of a click sponge.
+- **A fill editor** - solid, linear or radial - for shape fills and side
+  backgrounds, with an angle slider and add/remove colour stops. Switching
+  mode keeps the colours already chosen.
+- **Shape and line tools** in the palette, drawn from the server's catalogue.
+
+### Changed
+
+- `id-card-designer.tsx` (845 lines) split into `components/id-card/`:
+  `types`, `designer`, `canvas`, `element-preview`, `layers-panel`,
+  `inspector`, `fill-editor`.
+
+### Fixed
+
+- **Preview text was smaller than it printed.** The canvas converted points to
+  pixels via CSS's 96dpi while drawing at 6px/mm (~152dpi), so every text block
+  rendered about 40% small relative to the card. It now converts through the
+  canvas's own scale.
+
 ## [3.5.0] - 2026-11-23
 
 ### Added
