@@ -97,13 +97,13 @@ export class TenantStatesService {
     });
     if (!row) throw new NotFoundException('State not found');
     if (dto.tenantBusinessId) await this.assertBusinessExists(dto.tenantBusinessId);
-    // The country must stay in the same business as the state, so re-check it
-    // when either the country or the business changes.
-    if (dto.countryId || dto.tenantBusinessId) {
-      await this.assertCountryExists(
-        dto.countryId ?? row.countryId,
-        dto.tenantBusinessId ?? row.tenantBusinessId,
-      );
+    // Re-check the link only when it actually changes. Re-validating an
+    // unchanged country would block every edit of a state whose country has
+    // since been set INACTIVE.
+    if (dto.countryId) {
+      await this.assertCountryExists(dto.countryId, dto.tenantBusinessId ?? row.tenantBusinessId);
+    } else if (dto.tenantBusinessId) {
+      await this.assertCountryExists(row.countryId, dto.tenantBusinessId);
     }
     // Re-assert when EITHER half of the key changes, falling back to the
     // stored value for the other half.
