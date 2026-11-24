@@ -5,7 +5,7 @@ All notable changes to the backend are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.9.0] - 2026-11-24
 
 ### Added
 
@@ -59,8 +59,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stored, so the portal and the PDF cannot disagree.
 
 - Permissions 145 -> 150 across 31 modules.
-
-### Added
 
 - **`tenant_countries`** (migration 0013) — a per-business country lookup with
   `countryName`, an optional `countryNameTamil` and a `countryCode` unique per

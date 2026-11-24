@@ -5,7 +5,7 @@ All notable changes to the console (formerly `frontend/`) are documented in this
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.9.0] - 2026-11-24
 
 ### Added
 
@@ -38,19 +38,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   different fields or offering approve on different rows. It adds a business
   column, which only a cross-tenant list needs.
 
-### Changed
-
-- The member ID card panel reflects the new history: issues, expiry and
-  revocation rather than a single current file.
-
-### Added
-
 - **Countries screens on both surfaces**, under Locations: the system-admin
   page at `/system/dashboard/tenant-countries` (status filter, restore) and its
   tenant portal twin at `/tenant/settings/countries`. Both use the shared
   table/dialog pattern and the new `tenant-countries:*` permission keys.
 
 ### Changed
+
+- The member ID card panel reflects the new history: issues, expiry and
+  revocation rather than a single current file.
 
 - **State forms pick a country instead of taking free text.** The picker is
   narrowed to the selected business, options are labelled `CODE — Name`, and
