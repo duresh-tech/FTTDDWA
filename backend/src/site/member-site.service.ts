@@ -106,7 +106,14 @@ export class MemberSiteService {
 
     const [positions, industries, states, districts, taluks, rtos] = await Promise.all([
       this.prisma.tenantAssociationPosition.findMany({
-        where: fixedPositionId ? { ...owned, id: fixedPositionId } : owned,
+        // Two filters, narrowest first. A FIXED position wins outright - the
+        // business named exactly one, and that answer does not depend on a
+        // flag. Otherwise only positions flagged for the application form are
+        // offered, so an association can keep Treasurer out of a stranger's
+        // reach without hiding it from its own staff.
+        where: fixedPositionId
+          ? { ...owned, id: fixedPositionId }
+          : { ...owned, showOnApplicationForm: true },
         select: { id: true, positionName: true, positionNameTamil: true },
         orderBy: { positionName: 'asc' },
       }),

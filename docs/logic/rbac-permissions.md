@@ -15,7 +15,7 @@ declare the keys they need:
 
 ```ts
 @RequirePermissions('roles:delete')          // system routes
-@RequireTenantPermissions('tenant-places:create')  // tenant routes
+@RequireTenantPermissions('tenant-members:create') // tenant routes
 ```
 
 Both guards do the same thing — compare the route's required keys against the
@@ -47,7 +47,7 @@ be maintained.
 30 modules, **144** keys of the form `${moduleName}:${action}`.
 
 ```ts
-{ module: 'tenant-places', label: 'Tenant Places',
+{ module: 'tenant-members', label: 'Tenant Members',
   actions: ['create','view','update','delete','list','restore'] }
 ```
 

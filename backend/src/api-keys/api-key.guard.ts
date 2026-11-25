@@ -16,7 +16,7 @@ export const API_KEY_SCOPES = 'apiKeyScopes';
 /**
  * States what a key must be allowed to do on this route.
  *
- *   @RequireApiScopes('tenant-places:list')
+ *   @RequireApiScopes('tenant-members:list')
  *
  * A route with no scopes listed still requires a valid key, but accepts any
  * scope set - a valid key is authentication of the calling application, and

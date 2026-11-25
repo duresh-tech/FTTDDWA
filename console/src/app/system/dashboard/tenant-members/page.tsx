@@ -70,7 +70,7 @@ interface MemberRow {
   associationPositionId: string;
   industryId: string;
   /** The number itself is never sent - only these four digits. */
-  aadhaarLast4: string;
+  aadhaarLast4: string | null;
   phoneNumber: string;
   whatsappNumber: string | null;
   email: string;
@@ -461,7 +461,7 @@ export default function SystemMembersPage() {
       header: "Aadhaar",
       cell: (row) => (
         <span className="font-mono text-xs text-muted-foreground">
-          XXXX XXXX {row.aadhaarLast4}
+          {row.aadhaarLast4 ? `XXXX XXXX ${row.aadhaarLast4}` : "—"}
         </span>
       ),
     },
@@ -656,8 +656,8 @@ export default function SystemMembersPage() {
               </div>
 
               <div className="grid gap-2 sm:col-span-2">
-                <Label required={!editing} htmlFor="aadhaarNumber">
-                  Aadhaar Number{editing ? " (leave blank to keep)" : ""}
+                <Label htmlFor="aadhaarNumber">
+                  Aadhaar Number{editing ? " (leave blank to keep)" : " (optional)"}
                 </Label>
                 {editing && (
                   <p className="font-mono text-xs text-muted-foreground">

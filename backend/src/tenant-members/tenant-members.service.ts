@@ -37,7 +37,7 @@ const INCLUDE = {
   rto: { select: { id: true, rtoName: true, rtoCode: true } },
 };
 
-type WithAadhaar = { aadhaarNumber: string; aadhaarHash: string };
+type WithAadhaar = { aadhaarNumber: string | null; aadhaarHash: string | null };
 
 /**
  * Drops the ciphertext and the blind index on the way out, keeping only
@@ -110,8 +110,14 @@ export class TenantMembersService {
     );
     await this.assertRefs(dto.tenantBusinessId, dto.associationPositionId, dto.industryId);
 
-    const aadhaarHash = blindIndex(dto.aadhaarNumber);
-    await this.assertAadhaarUnique(dto.tenantBusinessId, aadhaarHash);
+    // OPTIONAL. With no number there is nothing to hash and nothing to match
+    // on, so the uniqueness check is skipped rather than run against a null -
+    // which would collide with every other member who also has none.
+    const digits = dto.aadhaarNumber ? normaliseAadhaar(dto.aadhaarNumber) : null;
+    const aadhaarHash = digits ? blindIndex(digits) : null;
+    if (aadhaarHash) {
+      await this.assertAadhaarUnique(dto.tenantBusinessId, aadhaarHash);
+    }
 
     const timestamp = now();
     // One transaction, because the membership number is allocated by reading
@@ -131,9 +137,9 @@ export class TenantMembersService {
         businessNameTamil: dto.businessNameTamil,
         associationPositionId: dto.associationPositionId,
         industryId: dto.industryId,
-        aadhaarNumber: encryptValue(normaliseAadhaar(dto.aadhaarNumber)),
+        aadhaarNumber: digits ? encryptValue(digits) : null,
         aadhaarHash,
-        aadhaarLast4: normaliseAadhaar(dto.aadhaarNumber).slice(-4),
+        aadhaarLast4: digits ? digits.slice(-4) : null,
         phoneNumber: dto.phoneNumber,
         whatsappNumber: dto.whatsappNumber,
         email: dto.email,
@@ -230,7 +236,11 @@ export class TenantMembersService {
    */
   private async resolveAadhaar(
     dto: UpdateTenantMemberDto,
-    row: { aadhaarNumber: string; aadhaarHash: string; aadhaarLast4: string },
+    row: {
+      aadhaarNumber: string | null;
+      aadhaarHash: string | null;
+      aadhaarLast4: string | null;
+    },
     tenantBusinessId: string,
   ) {
     if (dto.aadhaarNumber === undefined || dto.aadhaarNumber === '') {
@@ -241,8 +251,8 @@ export class TenantMembersService {
       };
     }
     const digits = normaliseAadhaar(dto.aadhaarNumber);
-    const hash = blindIndex(dto.aadhaarNumber);
-    await this.assertAadhaarUnique(tenantBusinessId, hash, row.aadhaarHash);
+    const hash = blindIndex(digits);
+    await this.assertAadhaarUnique(tenantBusinessId, hash, row.aadhaarHash ?? undefined);
     return {
       aadhaarNumber: encryptValue(digits),
       aadhaarHash: hash,
@@ -383,9 +393,9 @@ export class TenantMembersService {
       businessNameTamil: string | null;
       associationPositionId: string;
       industryId: string;
-      aadhaarNumber: string;
-      aadhaarHash: string;
-      aadhaarLast4: string;
+      aadhaarNumber: string | null;
+      aadhaarHash: string | null;
+      aadhaarLast4: string | null;
       phoneNumber: string;
       whatsappNumber: string | null;
       email: string;

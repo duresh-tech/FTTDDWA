@@ -317,29 +317,6 @@ export const SETTING_DEFINITIONS: SettingDefinitionSeed[] = [
   },
   {
     category: 'Association',
-    settingKey: 'association.placeId',
-    settingLabel: 'Place',
-    description:
-      'A root of its own - places are not filed under a taluk, so this lists ' +
-      'every place the business has.',
-    valueType: 'STRING',
-    validationRules: JSON.stringify({ ref: 'places' }),
-    sortOrder: 253,
-  },
-  {
-    category: 'Association',
-    settingKey: 'association.streetId',
-    settingLabel: 'Street',
-    description: 'Chosen from the streets of the place above, not the taluk.',
-    valueType: 'STRING',
-    validationRules: JSON.stringify({
-      ref: 'streets',
-      refParent: 'association.placeId',
-    }),
-    sortOrder: 254,
-  },
-  {
-    category: 'Association',
     settingKey: 'association.pincode',
     settingLabel: 'Pincode',
     description: 'Six digits, as issued by India Post.',
@@ -498,4 +475,8 @@ export const REMOVED_SETTING_DEFINITIONS: string[] = [
   'customer.codeGeneration',
   'customer.codePrefix',
   'customer.nextCode',
+  // Retired with places and streets. Both pointed at tables that no longer
+  // exist, so leaving the definitions would render pickers over nothing.
+  'association.placeId',
+  'association.streetId',
 ];

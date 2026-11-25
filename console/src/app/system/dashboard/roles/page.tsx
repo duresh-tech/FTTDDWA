@@ -104,11 +104,37 @@ export default function RolesPage() {
   const [deleteTarget, setDeleteTarget] = React.useState<RoleRow | null>(null);
   const [deleting, setDeleting] = React.useState(false);
 
-  function ensurePermissionOptions() {
+  /**
+   * Loads EVERY permission, a page at a time.
+   *
+   * This used to ask for `limit=100&page=1` and keep whatever came back. The
+   * API caps `limit` at 100 and the catalogue passed that long ago, so the
+   * tail of the list - everything after the hundredth row - simply could not
+   * be granted through this screen, with nothing on screen to say so.
+   *
+   * Paging rather than raising the cap: the catalogue grows every time a
+   * module is added, and a bigger fixed number is the same bug again with a
+   * later trigger.
+   */
+  async function ensurePermissionOptions() {
     if (permissionOptions) return;
-    api<ListResponse<PermissionOption>>("/system/permissions?limit=100&page=1")
-      .then((data) => setPermissionOptions(data.items))
-      .catch(() => toast.error("Failed to load permission list"));
+    try {
+      const all: PermissionOption[] = [];
+      for (let page = 1; ; page += 1) {
+        const data = await api<ListResponse<PermissionOption>>(
+          `/system/permissions?limit=100&page=${page}`,
+        );
+        all.push(...data.items);
+        // Stop on a short page as well as on the count, so a miscounted total
+        // cannot spin this forever.
+        if (all.length >= (data.meta?.total ?? all.length) || data.items.length === 0) {
+          break;
+        }
+      }
+      setPermissionOptions(all);
+    } catch {
+      toast.error("Failed to load permission list");
+    }
   }
 
   function openCreate() {

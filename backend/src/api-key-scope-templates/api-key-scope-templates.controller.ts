@@ -23,7 +23,7 @@ const TEMPLATE_EXAMPLE = {
   isTenant: true,
   displayOrder: 10,
   status: 'ACTIVE',
-  scopes: ['tenant-places:list', 'tenant-streets:list'],
+  scopes: ['tenant-members:list', 'tenant-members:view'],
 };
 
 /**
@@ -63,7 +63,7 @@ export class ApiKeyScopeTemplatesController {
     schema: {
       example: {
         items: [
-          { permissionKey: 'tenant-places:list', moduleName: 'tenant-places', displayName: 'List Tenant Places' },
+          { permissionKey: 'tenant-members:list', moduleName: 'tenant-members', displayName: 'List Tenant Members' },
         ],
         total: 86,
       },

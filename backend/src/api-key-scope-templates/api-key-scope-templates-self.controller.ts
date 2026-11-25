@@ -40,7 +40,7 @@ export class ApiKeyScopeTemplatesSelfController {
           id: '019f357b-e5b1-73aa-9062-adc0f927a584',
           name: 'Reporting client',
           description: 'Read-only access',
-          scopes: ['tenant-places:list'],
+          scopes: ['tenant-members:list'],
           grantable: true,
           missingScopes: [],
         },

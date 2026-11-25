@@ -5,6 +5,7 @@ import { LoaderCircle, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
@@ -40,6 +41,8 @@ interface TenantAssociationPositionRow {
   positionName: string;
   positionNameTamil: string | null;
   remark: string | null;
+  /** Whether a public APPLICANT may claim this position. */
+  showOnApplicationForm: boolean;
   status: PositionStatus;
   tenantBusiness?: { id: string; systemCode: string; name: string };
 }
@@ -54,6 +57,7 @@ interface PositionFormValues {
   positionName: string;
   positionNameTamil: string;
   remark: string;
+  showOnApplicationForm: boolean;
   status: "ACTIVE" | "INACTIVE" | "BLOCKED";
 }
 
@@ -62,6 +66,9 @@ const EMPTY_FORM: PositionFormValues = {
   positionName: "",
   positionNameTamil: "",
   remark: "",
+  // Offered on the application form unless somebody says otherwise,
+  // matching the column default.
+  showOnApplicationForm: true,
   status: "ACTIVE",
 };
 
@@ -124,6 +131,7 @@ export default function TenantAssociationPositionsSettingsPage() {
       positionName: row.positionName,
       positionNameTamil: row.positionNameTamil ?? "",
       remark: row.remark ?? "",
+      showOnApplicationForm: row.showOnApplicationForm,
       status: row.status === "DELETED" ? "ACTIVE" : row.status,
     });
     setFormOpen(true);
@@ -139,6 +147,7 @@ export default function TenantAssociationPositionsSettingsPage() {
         // "" means "not given", never an empty Tamil name.
         positionNameTamil: form.positionNameTamil || undefined,
         remark: form.remark || undefined,
+        showOnApplicationForm: form.showOnApplicationForm,
         ...(editing ? { status: form.status } : {}),
       };
       if (editing) {
@@ -179,6 +188,10 @@ export default function TenantAssociationPositionsSettingsPage() {
     },
     { header: "Tamil Name", cell: (row) => row.positionNameTamil ?? "—" },
     { header: "Remark", cell: (row) => row.remark ?? "—" },
+    {
+      header: "On application form",
+      cell: (row) => (row.showOnApplicationForm ? "Yes" : "No"),
+    },
     { header: "Status", cell: (row) => <StatusBadgeText status={row.status} /> },
   ];
 
@@ -286,6 +299,26 @@ export default function TenantAssociationPositionsSettingsPage() {
                   value={form.remark}
                   onChange={(e) => setForm((f) => ({ ...f, remark: e.target.value }))}
                 />
+              </div>
+
+              {/* Governs the PUBLIC form only. Staff always see every position
+                  here, because an association has to be able to record a
+                  Treasurer even if no stranger may claim to be one. */}
+              <div className="flex items-start gap-3 rounded-md border p-3">
+                <Checkbox
+                  id="showOnApplicationForm"
+                  checked={form.showOnApplicationForm}
+                  onCheckedChange={(checked) =>
+                    setForm((f) => ({ ...f, showOnApplicationForm: checked === true }))
+                  }
+                />
+                <div className="grid gap-1">
+                  <Label htmlFor="showOnApplicationForm">Show on application form</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Applicants may choose this position when registering. Staff
+                    enrolling a member directly always see every position.
+                  </p>
+                </div>
               </div>
 
               {editing && (

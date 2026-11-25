@@ -134,6 +134,26 @@ Without the second, clearing the flag would leave the old date behind — the
 kind of contradiction that survives for years because nothing reads both
 fields at once.
 
+## The Aadhaar is optional
+
+It was required, and is not any more. A member or applicant may be recorded
+without one.
+
+The consequence is worth stating rather than discovering: **the blind index is
+the only thing that catches a duplicate**, and it has nothing to work with when
+there is no number. So:
+
+- **supplied** — still encrypted, still given a keyed blind index, still
+  checked against *both* the register and the pending applications
+- **absent** — stored as null, and no duplicate check happens at all
+
+Two records for one person therefore become possible when neither carries a
+number. That is the honest cost of the field being optional, not an oversight.
+
+The `@@unique([tenantBusinessId, aadhaarHash])` on both tables survives
+unchanged: Postgres treats NULLs as distinct in a unique index, so any number
+of people may have no Aadhaar while two people still cannot share one.
+
 ## Status is a lifecycle, not a delete flag
 
 `PENDING`, `ACTIVE`, `INACTIVE` — plus `DELETED`, which only `DELETE` can

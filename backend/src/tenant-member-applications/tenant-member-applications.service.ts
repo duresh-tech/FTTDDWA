@@ -9,6 +9,7 @@ import * as argon2 from 'argon2';
 import { PrismaService } from '../prisma/prisma.service';
 import { encryptValue } from '../common/utils/encryption.util';
 import { blindIndex, normaliseAadhaar } from '../common/utils/blind-index.util';
+import { isApplicantPhotoPath } from '../site/member-photo.util';
 import { newId, newSystemCode, now } from '../common/utils/id.util';
 import { listResponse, paginate } from '../common/dto/query.dto';
 import { TenantBusinessSettingsService } from '../tenant-business-settings/tenant-business-settings.service';
@@ -34,7 +35,11 @@ const INCLUDE = {
   rto: { select: { id: true, rtoName: true, rtoCode: true } },
 };
 
-type WithSecrets = { aadhaarNumber: string; aadhaarHash: string; passwordHash: string | null };
+type WithSecrets = {
+  aadhaarNumber: string | null;
+  aadhaarHash: string | null;
+  passwordHash: string | null;
+};
 
 /**
  * Drops everything that must never leave the server.
@@ -107,29 +112,50 @@ export class TenantMemberApplicationsService {
 
     await this.assertChain(tenantBusinessId, dto);
 
-    const digits = normaliseAadhaar(dto.aadhaarNumber);
-    const aadhaarHash = blindIndex(dto.aadhaarNumber);
-
-    // Checked against BOTH tables: somebody already in the register should be
-    // told to sign in, not left waiting on an application that will be
-    // rejected as a duplicate.
-    const member = await this.prisma.tenantMember.findFirst({
-      where: { tenantBusinessId, aadhaarHash },
-      select: { id: true },
-    });
-    if (member) {
+    // `passportPhotoPath` arrives from the public form as a plain string, so
+    // it is confined to files the photo endpoint itself created. Without this
+    // an applicant could submit ANY storage path they could guess - another
+    // member's photo, say - and have it copied onto their own record when the
+    // application is approved.
+    if (dto.passportPhotoPath && !isApplicantPhotoPath(dto.passportPhotoPath)) {
       throw new BadRequestException(
-        'This Aadhaar number already belongs to a member of this association',
+        'Upload the photo through the registration form',
       );
     }
-    const existing = await this.prisma.tenantMemberApplication.findFirst({
-      where: { tenantBusinessId, aadhaarHash },
-      select: { status: true },
-    });
-    if (existing) {
-      throw new BadRequestException(
-        'An application with this Aadhaar number has already been submitted',
-      );
+
+    // The Aadhaar is OPTIONAL. When it is absent there is nothing to hash and
+    // therefore nothing to match on, so the duplicate checks below are skipped
+    // rather than run against a null - which would match every other applicant
+    // who also left it blank.
+    //
+    // The honest consequence: two records for one person become possible when
+    // neither supplies a number. The blind index was only ever able to speak
+    // about people who gave one.
+    const digits = dto.aadhaarNumber ? normaliseAadhaar(dto.aadhaarNumber) : null;
+    const aadhaarHash = digits ? blindIndex(digits) : null;
+
+    if (aadhaarHash) {
+      // Checked against BOTH tables: somebody already in the register should
+      // be told to sign in, not left waiting on an application that will be
+      // rejected as a duplicate.
+      const member = await this.prisma.tenantMember.findFirst({
+        where: { tenantBusinessId, aadhaarHash },
+        select: { id: true },
+      });
+      if (member) {
+        throw new BadRequestException(
+          'This Aadhaar number already belongs to a member of this association',
+        );
+      }
+      const existing = await this.prisma.tenantMemberApplication.findFirst({
+        where: { tenantBusinessId, aadhaarHash },
+        select: { status: true },
+      });
+      if (existing) {
+        throw new BadRequestException(
+          'An application with this Aadhaar number has already been submitted',
+        );
+      }
     }
 
     const timestamp = now();
@@ -150,9 +176,9 @@ export class TenantMemberApplicationsService {
           businessNameTamil: dto.businessNameTamil,
           associationPositionId: dto.associationPositionId,
           industryId: dto.industryId,
-          aadhaarNumber: encryptValue(digits),
+          aadhaarNumber: digits ? encryptValue(digits) : null,
           aadhaarHash,
-          aadhaarLast4: digits.slice(-4),
+          aadhaarLast4: digits ? digits.slice(-4) : null,
           phoneNumber: dto.phoneNumber,
           whatsappNumber: dto.whatsappNumber,
           email: dto.email,
@@ -254,6 +280,53 @@ export class TenantMemberApplicationsService {
 
   // ---------- Staff review ----------
 
+  /**
+   * Puts a NAME against `reviewedBy` on each row.
+   *
+   * The column holds a bare actor id with no relation behind it, and the actor
+   * may be either a system user or a tenant user depending on which surface
+   * approved - so it cannot be an `include` and has to be looked up in both
+   * tables.
+   *
+   * Resolved at READ time rather than stored at review time: a name copied
+   * into the row would be a second place to maintain and would go stale the
+   * moment somebody's account is renamed. The cost is one extra query per
+   * page, over a set of ids that is usually tiny.
+   *
+   * An id that resolves to neither reads as null, not as an error. A reviewer
+   * whose account was since deleted must not break the screen showing what
+   * they did.
+   */
+  private async withReviewer<T extends { reviewedBy: string | null }>(
+    rows: T[],
+  ): Promise<(T & { reviewedByName: string | null })[]> {
+    const ids = [...new Set(rows.map((r) => r.reviewedBy).filter(Boolean))] as string[];
+    if (ids.length === 0) {
+      return rows.map((row) => ({ ...row, reviewedByName: null }));
+    }
+
+    const [systemUsers, tenantUsers] = await Promise.all([
+      this.prisma.systemUser.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, fName: true, username: true },
+      }),
+      this.prisma.tenantUser.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, fName: true, username: true },
+      }),
+    ]);
+
+    const names = new Map<string, string>();
+    for (const user of [...systemUsers, ...tenantUsers]) {
+      names.set(user.id, user.fName || user.username);
+    }
+
+    return rows.map((row) => ({
+      ...row,
+      reviewedByName: row.reviewedBy ? (names.get(row.reviewedBy) ?? null) : null,
+    }));
+  }
+
   async findAll(query: MemberApplicationListQueryDto) {
     const { page, limit, search, status, tenantBusinessId, sortBy, sortOrder } = query;
     const where = {
@@ -270,7 +343,7 @@ export class TenantMemberApplicationsService {
       }),
       this.prisma.tenantMemberApplication.count({ where }),
     ]);
-    return listResponse(items.map(mask), total, page, limit);
+    return listResponse(await this.withReviewer(items.map(mask)), total, page, limit);
   }
 
   async findOne(id: string) {
@@ -279,7 +352,7 @@ export class TenantMemberApplicationsService {
       include: INCLUDE,
     });
     if (!row) throw new NotFoundException('Application not found');
-    return mask(row);
+    return (await this.withReviewer([mask(row)]))[0];
   }
 
   /**
@@ -380,7 +453,7 @@ export class TenantMemberApplicationsService {
       }),
       this.prisma.tenantMemberApplication.count({ where }),
     ]);
-    return listResponse(items.map(mask), total, page, limit);
+    return listResponse(await this.withReviewer(items.map(mask)), total, page, limit);
   }
 
   async assertOwned(tenantUserId: string, id: string): Promise<void> {

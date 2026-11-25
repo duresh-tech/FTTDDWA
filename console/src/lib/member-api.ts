@@ -139,6 +139,41 @@ export async function tryMemberRefresh(): Promise<boolean> {
 }
 
 /**
+ * Posts multipart form data to a PUBLIC member route - the registration
+ * photo, today.
+ *
+ * Deliberately NOT routed through memberApi(): that sets
+ * `Content-Type: application/json`, and a multipart body needs the browser to
+ * set the header itself so it can add the boundary. Setting it by hand is the
+ * classic way an upload arrives unparseable.
+ *
+ * No Authorization header: this runs before the applicant has any account.
+ */
+export async function memberUpload<T = unknown>(
+  path: string,
+  body: FormData,
+): Promise<T> {
+  const headers: Record<string, string> = { "x-device-type": "website" };
+  await withConsoleKey(headers);
+
+  const response = await fetch(`${getApiUrl()}${path}`, {
+    method: "POST",
+    headers,
+    credentials: "include",
+    body,
+  });
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message =
+      (data && (Array.isArray(data.message) ? data.message[0] : data.message)) ||
+      `Upload failed (${response.status})`;
+    throw new MemberApiError(response.status, message, data);
+  }
+  return data as T;
+}
+
+/**
  * Fetches a binary response (the member's card PDF) as a Blob.
  *
  * A plain `<a href>` cannot reach it: the file is in private storage behind a

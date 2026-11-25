@@ -22,7 +22,7 @@ the same browser, and neither can ever pass for the other.
 The duplication is the point. The two permission decorators use **distinct
 metadata keys**, so the global system `PermissionsGuard` never evaluates a
 tenant route's requirements and vice versa. If they shared a key, a tenant
-token carrying `tenant-places:create` could satisfy a system route that
+token carrying `tenant-members:create` could satisfy a system route that
 happened to require the same string.
 
 ## Tokens

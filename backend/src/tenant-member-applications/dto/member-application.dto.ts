@@ -35,7 +35,10 @@ export const SubmitMemberApplicationSchema = z
     associationPositionId: z.string().uuid(),
     industryId: z.string().uuid(),
 
-    aadhaarNumber: aadhaar,
+    // Optional - see the member schema. An applicant without one is simply
+    // not duplicate-checked, which is the honest consequence of making the
+    // blind index's only input optional.
+    aadhaarNumber: aadhaar.or(z.literal('')).optional(),
 
     phoneNumber: z.string().min(5).max(20),
     whatsappNumber: z.string().min(5).max(20).optional(),

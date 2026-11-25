@@ -10,7 +10,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MemberApiError, memberApi } from "@/lib/member-api";
+import { uploadUrl } from "@/lib/api";
+import { MemberApiError, memberApi, memberUpload } from "@/lib/member-api";
 
 interface PublicSite {
   association: Record<string, string>;
@@ -44,6 +45,7 @@ const EMPTY = {
   associationPositionId: "",
   industryId: "",
   aadhaarNumber: "",
+  passportPhotoPath: "",
   phoneNumber: "",
   whatsappNumber: "",
   email: "",
@@ -65,6 +67,32 @@ export default function MemberRegisterPage() {
   const [options, setOptions] = React.useState<Options | null>(null);
   const [form, setForm] = React.useState(EMPTY);
   const [saving, setSaving] = React.useState(false);
+  const [photoBusy, setPhotoBusy] = React.useState(false);
+
+  /**
+   * Uploads the applicant's photo and keeps only the path it returns.
+   *
+   * Its own request rather than part of the submission: the image is far
+   * larger than the rest of the form, and a failed submit should not mean
+   * taking the photo again. The server re-checks the size and reads the type
+   * from the file's own bytes, so the accept attribute here is a convenience,
+   * not the control.
+   */
+  async function uploadPhoto(file: File) {
+    setPhotoBusy(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const result = await memberUpload<{ path: string }>("/public/member/photo", body);
+      set({ passportPhotoPath: result.path });
+    } catch (error) {
+      toast.error(
+        error instanceof MemberApiError ? error.message : "Could not upload the photo",
+      );
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
   const [submitted, setSubmitted] = React.useState<string | null>(null);
   const [loadFailed, setLoadFailed] = React.useState(false);
 
@@ -122,6 +150,9 @@ export default function MemberRegisterPage() {
             whatsappNumber: form.whatsappNumber || undefined,
             addressLine2: form.addressLine2 || undefined,
             weddingDate: form.isMarried && form.weddingDate ? form.weddingDate : undefined,
+            // Optional now - the server duplicate-checks only when given.
+            aadhaarNumber: form.aadhaarNumber || undefined,
+            passportPhotoPath: form.passportPhotoPath || undefined,
           },
         },
       );
@@ -212,10 +243,39 @@ export default function MemberRegisterPage() {
             <Input type="date" required value={form.dateOfBirth}
               onChange={(e) => set({ dateOfBirth: e.target.value })} />
           </Field>
-          <Field label="Aadhaar number" required>
-            <Input required inputMode="numeric" placeholder="12 digits"
+          <Field label="Aadhaar number">
+            <Input inputMode="numeric" placeholder="12 digits (optional)"
               value={form.aadhaarNumber}
               onChange={(e) => set({ aadhaarNumber: e.target.value })} />
+          </Field>
+          <Field label="Your photo">
+            {/* `capture` asks a phone for the camera and is ignored on a
+                desktop, which falls back to the file picker - so one input
+                serves both without sniffing the device. */}
+            <Input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              capture="user"
+              disabled={photoBusy}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void uploadPhoto(file);
+              }}
+            />
+            {photoBusy && (
+              <p className="mt-1 text-xs text-muted-foreground">Uploading…</p>
+            )}
+            {form.passportPhotoPath && !photoBusy && (
+              <div className="mt-2 flex items-center gap-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={uploadUrl(form.passportPhotoPath)}
+                  alt=""
+                  className="size-14 rounded-md border object-cover"
+                />
+                <span className="text-xs text-muted-foreground">Photo attached</span>
+              </div>
+            )}
           </Field>
           <div className="sm:col-span-2">
             <label className="flex items-center gap-2 text-sm font-normal">

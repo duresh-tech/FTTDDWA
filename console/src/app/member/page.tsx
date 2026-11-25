@@ -73,7 +73,9 @@ export default function MemberPortalPage() {
     ["WhatsApp", member.whatsappNumber, null],
     ["Email", member.email, null],
     ["Date of birth", member.dateOfBirth, null],
-    ["Aadhaar", `•••• •••• ${member.aadhaarLast4}`, null],
+    // Rows with no value render nothing, so a member without an Aadhaar
+    // simply has no Aadhaar line rather than a masked empty one.
+    ["Aadhaar", member.aadhaarLast4 ? `•••• •••• ${member.aadhaarLast4}` : null, null],
     ["Address", [member.addressLine1, member.addressLine2].filter(Boolean).join(", "), null],
     ["Taluk", member.taluk?.talukName, member.taluk?.talukNameTamil],
     ["District", member.district?.districtName, member.district?.districtNameTamil],

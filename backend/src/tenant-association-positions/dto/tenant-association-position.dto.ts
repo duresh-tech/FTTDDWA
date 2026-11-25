@@ -10,6 +10,15 @@ const CreateTenantAssociationPositionSchema = z.object({
   /** A position may be recorded in English only. */
   positionNameTamil: z.string().max(100).optional(),
   remark: z.string().max(255).optional(),
+  /**
+   * Whether a public APPLICANT may claim this position.
+   *
+   * Defaults true, matching the column: a position is offered unless somebody
+   * decides otherwise. It governs the public registration form only - staff
+   * enrolling a member directly always see every position, because an
+   * association has to be able to record a Treasurer.
+   */
+  showOnApplicationForm: z.coerce.boolean().optional(),
 });
 
 /**

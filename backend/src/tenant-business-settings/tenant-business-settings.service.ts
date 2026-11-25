@@ -485,47 +485,6 @@ export class TenantBusinessSettingsService {
           labelTamil: row.talukNameTamil,
         }));
       }
-      case 'places': {
-        // No parent: a place is not filed under a taluk, so this is every
-        // place the business has.
-        const rows = await this.prisma.tenantPlace.findMany({
-          where: owned,
-          select: { id: true, placeName: true, placeNameTamil: true },
-          orderBy: { placeName: 'asc' },
-        });
-        return rows.map((row) => ({
-          id: row.id,
-          label: row.placeName,
-          labelTamil: row.placeNameTamil,
-        }));
-      }
-      case 'associationPositions': {
-        // No parent, like `places`: a position hangs off the business, not off
-        // the geography chain.
-        const rows = await this.prisma.tenantAssociationPosition.findMany({
-          where: owned,
-          select: { id: true, positionName: true, positionNameTamil: true },
-          orderBy: { positionName: 'asc' },
-        });
-        return rows.map((row) => ({
-          id: row.id,
-          label: row.positionName,
-          labelTamil: row.positionNameTamil,
-        }));
-      }
-      case 'streets': {
-        if (!parentId) return [];
-        const rows = await this.prisma.tenantStreet.findMany({
-          where: { ...owned, tenantPlaceId: parentId },
-          select: { id: true, streetName: true, streetNameTamil: true },
-          orderBy: { streetName: 'asc' },
-        });
-        return rows.map((row) => ({
-          id: row.id,
-          label: row.streetName,
-          labelTamil: row.streetNameTamil,
-        }));
-      }
       default:
         return [];
     }

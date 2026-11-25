@@ -1,9 +1,32 @@
-import { Body, Controller, Get, Post, Req } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Post,
+  Req,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBody,
+  ApiConsumes,
+  ApiOkResponse,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { Public } from '../common/decorators/public.decorator';
 import { SkipApiKey } from '../common/decorators/skip-api-key.decorator';
+import { StorageService } from '../storage/storage.service';
+import {
+  APPLICANT_PHOTO_FOLDER,
+  MAX_PHOTO_BYTES,
+  sniffImageType,
+} from './member-photo.util';
 import { MemberSiteService } from './member-site.service';
 import { TenantMemberApplicationsService } from '../tenant-member-applications/tenant-member-applications.service';
 import { SubmitMemberApplicationDto } from '../tenant-member-applications/dto/member-application.dto';
@@ -34,6 +57,7 @@ export class MemberSiteController {
   constructor(
     private readonly site: MemberSiteService,
     private readonly applications: TenantMemberApplicationsService,
+    private readonly storage: StorageService,
   ) {}
 
   @Get('site')
@@ -76,6 +100,63 @@ export class MemberSiteController {
   @ApiResponse({ status: 404, description: 'This hostname serves no member portal.' })
   publicOptions(@Req() req: Request) {
     return this.site.publicOptions(req);
+  }
+
+  @Post('photo')
+  // The ONLY unauthenticated write that stores a file, so it is bounded on
+  // every axis a file upload has: five a minute, 2 MB, three image types
+  // verified by their CONTENT, and a name the server chooses.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: MAX_PHOTO_BYTES, files: 1 } }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+      required: ['file'],
+    },
+  })
+  @ApiOperation({
+    summary: "An applicant's own photo, before they have an account",
+    description:
+      'Returns the storage PATH to send back as `passportPhotoPath`. JPEG, ' +
+      "PNG or WebP, at most 2 MB, and the type is read from the file's own " +
+      'bytes rather than the declared one - a header the uploader writes is ' +
+      'worth nothing. Lands in the same public uploads tree staff-uploaded ' +
+      'member photos already use, so an approved application needs no file ' +
+      'moved.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Photo stored; path returned.',
+    schema: { example: { path: 'member-photos/019f357c-d489-74a9-8490-1f82e745b199.jpg' } },
+  })
+  @ApiResponse({ status: 400, description: 'Missing, oversized, or not an image.' })
+  async photo(@Req() req: Request, @UploadedFile() file?: Express.Multer.File) {
+    // Resolved first, so a caller on a hostname that serves no portal cannot
+    // use this as storage at all.
+    await this.site.businessIdForRequest(req);
+
+    if (!file) throw new BadRequestException('No file provided');
+    if (file.size > MAX_PHOTO_BYTES) {
+      throw new BadRequestException('The photo must be 2 MB or smaller');
+    }
+
+    const sniffed = sniffImageType(file.buffer);
+    if (!sniffed) {
+      throw new BadRequestException(
+        'That file is not a JPEG, PNG or WebP image',
+      );
+    }
+
+    // The SNIFFED type, not the declared one, decides the stored extension.
+    const path = await this.storage.upload(
+      { ...file, mimetype: sniffed },
+      APPLICANT_PHOTO_FOLDER,
+    );
+    return { path };
   }
 
   @Post('apply')

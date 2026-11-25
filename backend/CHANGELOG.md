@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`POST public/member/photo`** - an applicant's own photo, before they have
+  an account. The only unauthenticated route that stores a file, so it is
+  bounded on every axis: 5/minute, 2 MB, and JPEG/PNG/WebP decided by the
+  file's own LEADING BYTES rather than the declared `Content-Type`, which is a
+  header the uploader writes. A `.jpg` that is really HTML is the classic route
+  to stored XSS. The hostname is resolved first, so it cannot be used as
+  storage from a host serving no portal, and the stored name is the server's.
+  - `passportPhotoPath` is then **confined to paths this endpoint issued**.
+    Without that an applicant could submit any storage path they could guess -
+    another member's photo, or a card PDF - and have it copied onto their own
+    record at approval.
+- **`tenant_association_positions.showOnApplicationForm`** - whether a public
+  applicant may claim a position. Defaults true, so nothing changed for an
+  existing business. Staff always see every position; this is only about what
+  a stranger may say about themselves. Where `memberRegister.positionId` is
+  also set, that wins outright.
+- **Applications report who reviewed them.** `reviewedBy` holds a bare actor id
+  and the actor may be a SYSTEM or a TENANT user, so it is not a relation -
+  the name is resolved at read time from both tables. Resolved rather than
+  stored: a copied name would go stale the moment an account is renamed. An id
+  resolving to neither reads as null.
+
 - **A card that is no longer valid is WATERMARKED on download** - `SUSPENDED`,
   `REVOKED`, or `EXPIRED` stamped across every page.
   - **The stored file is never rewritten.** It is the evidence of what was
@@ -62,6 +84,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The Aadhaar is now OPTIONAL** on both the member register and the public
+  application, and the six columns are nullable.
+
+  The consequence is stated rather than hidden: the blind index is the only
+  thing that catches a duplicate, and it has nothing to work with when there is
+  no number. Supplied, it is still encrypted, still indexed and still checked
+  against both tables; absent, there is no check at all, so two records for one
+  person become possible. `@@unique([tenantBusinessId, aadhaarHash])` survives
+  untouched - Postgres treats NULLs as distinct.
+
 - **Only ACTIVE members may be issued a card.** The gate was "not deleted",
   which let `PENDING` and `INACTIVE` through - a card asserts that somebody IS
   a member. A single issue is refused with the status named; a **bulk** run
@@ -87,7 +119,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   written before this change is a true record of what staff chose. A legacy row
   still lists, reads and renders; it just cannot be set again. No migration.
 
+### Removed
+
+- **Places and streets are gone entirely** (migration 0017): two tables, two
+  enums, two modules, 12 permission keys, the `association.placeId` /
+  `association.streetId` settings, and both `ref` targets. Catalogue 152 ->
+  **140 keys across 29 modules**.
+
+  Verified safe before writing the migration: both tables were EMPTY, both
+  settings unset, and the only foreign key into either was
+  `tenant_streets -> tenant_places`. The migration says to re-check those
+  counts before it runs anywhere else, because unlike every other delete in
+  this schema it is not soft and there is no recovering from a `DROP TABLE`.
+
 ### Fixed
+
+- **~52 permissions could not be granted through the roles screen.** It asked
+  for `limit=100&page=1`, the API caps `limit` at 100, and the catalogue passed
+  100 long ago - so everything after the hundredth row was simply absent, with
+  nothing on screen to say so. `tenant-member-id-cards:history` was only the
+  one somebody went looking for. The console now pages through: a bigger fixed
+  number is the same bug with a later trigger.
 
 - **Three places still described the pre-0014 model** and were actively
   misleading: `generateForMember`'s docstring claimed regeneration "updates the

@@ -9,7 +9,7 @@ mirror of the same resources, scoped to one business.
 tenant_users ──► tenant_mapped_business ──► tenant_business
                                                  │
                         ┌────────────────────────┴────────────────────┐
-                        │  members, mail config, places, streets,     │
+                        │  members, mail config, ID cards,           │
                         │  countries, states, districts, taluks,      │
                         │  association positions, industries, domains, │
                         │  api keys                                   │
@@ -33,7 +33,7 @@ exposed through two controllers:
 | Guard | `@RequirePermissions()` | `@RequireTenantPermissions()` |
 | Business id | from the request | from the caller's mapping |
 
-Both share one permission-key namespace, so `tenant-places:create` means the
+Both share one permission-key namespace, so `tenant-members:create` means the
 same thing on either surface.
 
 The benefit is that business rules are written once. The risk is that the
@@ -43,7 +43,7 @@ the scoping lives in the tenant controller's service methods
 first.
 
 Resources on this pattern: business, mapped business, countries, states,
-districts, taluks, mail config, places, streets, and tenant users themselves.
+districts, taluks, RTOs, mail config, and tenant users themselves.
 
 ## Tenant users manage their own team
 
@@ -57,28 +57,6 @@ within their own business. Two constraints hold it together:
 
 So a tenant cannot escalate by assigning a system role, nor reach outside
 their own business.
-
-## Places and streets
-
-`tenant_streets` reference `tenant_places`, and a street must belong to the
-place chosen for it. The console enforces this with a cascading picker; the
-service validates it regardless.
-
-Both carry coordinates and a radius, picked on an OpenStreetMap/Leaflet map
-(`src/components/location-picker-panel.tsx`, loaded with `next/dynamic` and
-`ssr: false` because Leaflet touches `window` at import time). The tile server
-is configurable via `APP_OSM_TILE_URL`.
-
-Nothing references a place or a street today — the customers feature that did
-was removed. They remain first-class resources with their own CRUD, and a
-street still belongs to a place.
-
-Both also carry an optional Tamil name — `placeNameTamil` and
-`streetNameTamil` — alongside the English one, and the list search matches
-either. See [Tamil names](#tamil-names).
-
-The register itself is [Members](./members.md), which references the
-position, industry and geography lookups below.
 
 ## The geography chain
 

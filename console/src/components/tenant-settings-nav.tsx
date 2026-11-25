@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { BadgeCheck, Building2, Car, ClipboardList, CreditCard, Factory, Globe2, KeyRound, Landmark, Mail, Map, MapPin, Milestone, Route, Settings2, User } from "lucide-react";
+import { BadgeCheck, Building2, Car, ClipboardList, CreditCard, Factory, Globe2, KeyRound, Landmark, Mail, Map, Milestone, Settings2, User } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -37,8 +37,6 @@ const SETTINGS_NAV_ITEMS = [
   { href: "/tenant/settings/districts", label: "Districts", icon: Landmark, permission: "tenant-districts:list", section: "Locations" },
   { href: "/tenant/settings/taluks", label: "Taluks", icon: Milestone, permission: "tenant-taluks:list", section: "Locations" },
   { href: "/tenant/settings/rtos", label: "RTOs", icon: Car, permission: "tenant-rtos:list", section: "Locations" },
-  { href: "/tenant/settings/places", label: "Places", icon: MapPin, permission: "tenant-places:list", section: "Locations" },
-  { href: "/tenant/settings/streets", label: "Streets", icon: Route, permission: "tenant-streets:list", section: "Locations" },
 
   { href: "/tenant/settings/api-keys", label: "API Keys", icon: KeyRound, permission: "api-keys:list", section: "Developer" },
 ];

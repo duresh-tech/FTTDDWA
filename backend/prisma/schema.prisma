@@ -167,8 +167,6 @@ model TenantBusiness {
 
   mappedTenantUsers    TenantMappedBusiness[]
   mailConfigs          TenantMailConfig[]
-  places               TenantPlace[]
-  streets              TenantStreet[]
   associationPositions TenantAssociationPosition[]
   countries            TenantCountry[]
   states               TenantState[]
@@ -353,68 +351,6 @@ model AppSetting {
   @@map("app_settings")
 }
 
-enum TenantPlaceStatus {
-  ACTIVE
-  INACTIVE
-  BLOCKED
-  DELETED
-}
-
-model TenantPlace {
-  id               String            @id @db.Char(36) // UUIDv7
-  systemCode       String            @unique @db.VarChar(30)
-  tenantBusinessId String            @db.Char(36)
-  placeName        String            @db.VarChar(100)
-  placeNameTamil   String?           @db.VarChar(100)
-  remark           String?           @db.VarChar(255)
-  latitude         Decimal?          @db.Decimal(10, 8)
-  longitude        Decimal?          @db.Decimal(11, 8)
-  radiusMeters     Int               @default(100)
-  status           TenantPlaceStatus @default(ACTIVE)
-  createdAt        BigInt
-  updatedAt        BigInt
-  deletedAt        BigInt?
-
-  tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
-  streets        TenantStreet[]
-
-  @@index([status])
-  @@index([tenantBusinessId])
-  @@map("tenant_places")
-}
-
-enum TenantStreetStatus {
-  ACTIVE
-  INACTIVE
-  BLOCKED
-  DELETED
-}
-
-model TenantStreet {
-  id               String             @id @db.Char(36) // UUIDv7
-  systemCode       String             @unique @db.VarChar(30)
-  tenantBusinessId String             @db.Char(36)
-  tenantPlaceId    String             @db.Char(36)
-  streetCode       String             @db.Char(3) // 3 uppercase letters (A-Z), unique per business
-  streetName       String             @db.VarChar(100)
-  streetNameTamil  String?            @db.VarChar(100)
-  latitude         Decimal?           @db.Decimal(10, 8)
-  longitude        Decimal?           @db.Decimal(11, 8)
-  remark           String?            @db.VarChar(255)
-  status           TenantStreetStatus @default(ACTIVE)
-  createdAt        BigInt
-  updatedAt        BigInt
-  deletedAt        BigInt?
-
-  tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
-  tenantPlace    TenantPlace    @relation(fields: [tenantPlaceId], references: [id])
-
-  @@unique([tenantBusinessId, streetCode])
-  @@index([status])
-  @@index([tenantBusinessId])
-  @@index([tenantPlaceId])
-  @@map("tenant_streets")
-}
 
 // ------------------------------------------------------------------
 // API keys: machine credentials for external apps.
@@ -777,6 +713,17 @@ model TenantAssociationPosition {
   positionNameTamil String? @db.VarChar(100)
 
   remark String?                         @db.VarChar(255)
+
+  /// Whether a public APPLICANT may claim this position.
+  ///
+  /// Staff enrolling a member directly always see every position - an
+  /// association has to be able to record a Treasurer. This decides only what
+  /// a stranger may say about themselves on the registration form, which is
+  /// usually "Member" and nothing else.
+  ///
+  /// Defaults true so adding it changes nothing for an existing business.
+  showOnApplicationForm Boolean @default(true)
+
   status TenantAssociationPositionStatus @default(ACTIVE)
 
   createdAt BigInt
@@ -1023,20 +970,20 @@ model TenantMember {
   /// base64(iv):base64(tag):base64(ciphertext), so the column is sized for
   /// that. A VarChar(12) here would truncate on write and fail to decrypt on
   /// read, surfacing only when someone opens the record again.
-  aadhaarNumber String @db.VarChar(255)
+  aadhaarNumber String? @db.VarChar(255)
 
   /// Deterministic HMAC-SHA256 of the digits, because GCM uses a random IV and
   /// the same number encrypts differently every time - so the ciphertext
   /// cannot be unique-constrained or searched. This is what catches the same
   /// person enrolled twice. It is a blind index: it proves equality and
   /// reveals nothing else.
-  aadhaarHash String @db.Char(64)
+  aadhaarHash String? @db.Char(64)
 
   /// The last four digits, in the clear and on purpose. A list needs to show
   /// them to confirm the right person, and decrypting every row to render a
   /// page would be both slow and a reason to hold plaintext in memory. Four
   /// digits identify nobody on their own.
-  aadhaarLast4 String @db.VarChar(4)
+  aadhaarLast4 String? @db.VarChar(4)
 
   phoneNumber    String  @db.VarChar(20)
   whatsappNumber String? @db.VarChar(20)
@@ -1193,9 +1140,9 @@ model TenantMemberApplication {
   /// ciphertext, a keyed blind index so duplicates are still caught, and the
   /// last four in the clear for display. A pending application holds the same
   /// number as a member and gets the same protection.
-  aadhaarNumber String @db.VarChar(255)
-  aadhaarHash   String @db.Char(64)
-  aadhaarLast4  String @db.VarChar(4)
+  aadhaarNumber String? @db.VarChar(255)
+  aadhaarHash   String? @db.Char(64)
+  aadhaarLast4  String? @db.VarChar(4)
 
   phoneNumber    String  @db.VarChar(20)
   whatsappNumber String? @db.VarChar(20)

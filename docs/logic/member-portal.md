@@ -67,6 +67,54 @@ Reference data — it already prints on every membership card. Districts, taluks
 and RTOs come back **with their parent id**, so the form cascades in the
 browser instead of asking again on every change.
 
+### Who reviewed it
+
+`reviewedBy` holds a bare actor id, and the actor may be a **system** user or a
+**tenant** user depending on which surface approved — so it is not a relation
+and cannot be an `include`. The name is resolved at read time by looking in
+both tables.
+
+Resolved on read rather than copied into the row at review time: a stored name
+would be a second place to maintain and would go stale the moment an account is
+renamed. An id that resolves to neither reads as null — a reviewer whose
+account was since removed must not break the screen showing what they did.
+
+### Photos, from somebody with no account
+
+`POST public/member/photo` is the only unauthenticated route in the system that
+stores a file, so it is bounded on every axis a file upload has:
+
+- **five a minute**, like the other public credential routes
+- **2 MB**, a third of the staff uploader's limit
+- **JPEG, PNG or WebP, decided by the file's own leading bytes.** The declared
+  `Content-Type` is a header the uploader writes and is ignored — a `.jpg` that
+  is really an HTML document is the classic way a lenient image upload becomes
+  stored XSS
+- the **hostname is resolved first**, so it cannot be used as storage from a
+  host that serves no portal
+- the stored **name is the server's**, never the uploader's
+
+It lands in the same public uploads tree staff-uploaded member photos already
+use, so an approved application needs no file moved.
+
+`passportPhotoPath` then arrives back from the form as a plain string, and is
+**confined to paths this endpoint issued**. Without that check an applicant
+could submit any storage path they could guess — another member's photo, or a
+card PDF — and have it copied onto their own record at approval.
+
+### Which positions an applicant may claim
+
+`tenant_association_positions.showOnApplicationForm` decides whether a position
+appears on the **public** registration form. It defaults true, so adding it
+changed nothing for an existing business.
+
+Staff always see every position, because an association has to be able to
+record a Treasurer. This flag is only about what a stranger may say about
+themselves — which is usually "Member" and nothing else.
+
+Where `memberRegister.positionId` is also set, that wins outright: the business
+named exactly one position, and that answer does not depend on a flag.
+
 ## Applications
 
 `tenant_member_applications` mirrors every field of `tenant_members`, so the

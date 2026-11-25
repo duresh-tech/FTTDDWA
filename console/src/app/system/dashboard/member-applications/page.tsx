@@ -37,7 +37,7 @@ interface ApplicationRow {
   memberNameTamil: string | null;
   businessName: string;
   businessNameTamil: string | null;
-  aadhaarLast4: string;
+  aadhaarLast4: string | null;
   phoneNumber: string;
   email: string;
   addressLine1: string;
@@ -45,6 +45,11 @@ interface ApplicationRow {
   dateOfBirth: string;
   status: "PENDING" | "APPROVED" | "REJECTED" | "DELETED";
   rejectionReason: string | null;
+  /** Resolved by the server from reviewedBy, which may be a system
+   *  user or a tenant one. Null when nobody has reviewed it yet, or
+   *  when the reviewer's account has since been removed. */
+  reviewedByName: string | null;
+  reviewedAt: number | null;
   convertedMemberId: string | null;
   createdAt: number;
   tenantBusiness?: { id: string; name: string };
@@ -147,6 +152,22 @@ export default function MemberApplicationsSystemPage() {
     { header: "Business", cell: (row) => row.businessName },
     { header: "Phone", cell: (row) => row.phoneNumber },
     { header: "Status", cell: (row) => <StatusBadgeText status={row.status} /> },
+    {
+      header: "Reviewed by",
+      cell: (row) =>
+        row.reviewedByName ? (
+          <span className="text-xs">
+            {row.reviewedByName}
+            {row.reviewedAt && (
+              <span className="block text-muted-foreground">
+                {new Date(row.reviewedAt * 1000).toLocaleDateString()}
+              </span>
+            )}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        ),
+    },
   ];
 
   if (!canView) {

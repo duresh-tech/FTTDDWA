@@ -45,7 +45,11 @@ const CreateTenantMemberSchema = z
     associationPositionId: z.string().uuid(),
     industryId: z.string().uuid(),
 
-    aadhaarNumber: aadhaar,
+    // Optional. Supplying one still means twelve digits, and still gets it
+    // encrypted and duplicate-checked; leaving it out simply means there is
+    // nothing to check against. An empty string reads as absent, because
+    // that is how a cleared form field arrives.
+    aadhaarNumber: aadhaar.or(z.literal('')).optional(),
 
     phoneNumber: z.string().min(5).max(20),
     whatsappNumber: z.string().min(5).max(20).optional(),

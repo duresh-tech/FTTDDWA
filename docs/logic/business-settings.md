@@ -228,8 +228,7 @@ address settings fill top-down:
 | `association.stateId` | `states` | — |
 | `association.districtId` | `districts` | `association.stateId` |
 | `association.talukId` | `taluks` | `association.districtId` |
-| `association.placeId` | `places` | — |
-| `association.streetId` | `streets` | `association.placeId` |
+| `memberRegister.positionId` | `associationPositions` | — |
 
 **A ref that needs a parent and is given none returns `[]`, never the
 unfiltered list.** Falling back to everything is precisely the failure this

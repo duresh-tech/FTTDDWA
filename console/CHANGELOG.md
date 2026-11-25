@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A photo field on the public registration form**, with `capture` so a phone
+  offers the camera and a desktop falls back to the file picker - one input,
+  no device sniffing. Uploaded on selection rather than with the form, because
+  the image dwarfs the rest of it and a failed submit should not mean taking
+  the photo again.
+- **A "Show on application form" flag** on both association-positions screens,
+  deciding whether a public applicant may claim that position.
+- **A "Reviewed by" column** on both member-application screens, showing who
+  approved or rejected it and when.
+
 - **A card history dialog** on the member row: every issue, newest first, with
   its status, issue number, issued date and expiry. Gated on the new
   `tenant-member-id-cards:history`.
@@ -41,13 +51,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Aadhaar is optional** on the member form and the public application. The
+  member table and the member portal now render a dash, or omit the row,
+  where there is no number.
+
 - **`SUSPENDED` and `EXPIRED` are no longer offered** in the status filter or
   the status field, on either member screen. The `MemberStatus` union keeps
   them: the database can still return them for a row written earlier, and the
   status badge renders any string. The list is what may be CHOSEN, not what
   may arrive.
 
+### Removed
+
+- **The Places and Streets screens**, from both surfaces, with their nav
+  entries. The Locations section was checked to stay one contiguous run, since
+  its headers derive from runs rather than being declared.
+
 ### Fixed
+
+- **The roles screen could not grant ~52 permissions.** It kept only the first
+  page of a capped list, so the tail of the catalogue was invisible. It now
+  pages through until it has them all.
 
 - **The member create/edit dialog showed six empty dropdowns.** Position,
   trade, state, district, taluk and RTO all 400'd because the form asks for

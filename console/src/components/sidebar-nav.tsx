@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
-import { BadgeCheck, Building2, Car, ClipboardList, Contact, Factory, Globe, Globe2, KeyRound, Landmark, LayoutDashboard, LayoutList, Mail, Map, MapPin, Milestone, Network, Route, Settings2, ShieldCheck, SlidersHorizontal, UserCog, Users } from "lucide-react";
+import { BadgeCheck, Building2, Car, ClipboardList, Contact, Factory, Globe, Globe2, KeyRound, Landmark, LayoutDashboard, LayoutList, Mail, Map, Milestone, Network, Settings2, ShieldCheck, SlidersHorizontal, UserCog, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -48,8 +48,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/system/dashboard/tenant-districts", label: "Districts", icon: Landmark, permission: "tenant-districts:list", section: "Locations" },
   { href: "/system/dashboard/tenant-taluks", label: "Taluks", icon: Milestone, permission: "tenant-taluks:list", section: "Locations" },
   { href: "/system/dashboard/tenant-rtos", label: "RTOs", icon: Car, permission: "tenant-rtos:list", section: "Locations" },
-  { href: "/system/dashboard/tenant-places", label: "Places", icon: MapPin, permission: "tenant-places:list", section: "Locations" },
-  { href: "/system/dashboard/tenant-streets", label: "Streets", icon: Route, permission: "tenant-streets:list", section: "Locations" },
 
   // Machine-facing surfaces: credentials and outbound mail.
   { href: "/system/dashboard/api-keys", label: "API Keys", icon: KeyRound, permission: "api-keys:list", section: "Integrations" },

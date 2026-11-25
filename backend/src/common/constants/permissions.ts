@@ -35,7 +35,6 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   { module: 'tenant-users', label: 'Tenant Users', actions: ['create', 'read', 'view', 'update', 'delete', 'login-as'] },
   { module: 'tenant-business', label: 'Tenant Business', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   { module: 'tenant-mapped-business', label: 'Tenant Mapped Business', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
-  { module: 'tenant-places', label: 'Tenant Places', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   { module: 'tenant-association-positions', label: 'Tenant Association Positions', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   // Geography chain: a state belongs to a country, a district to a state,
   // a taluk to both the state and the district.
@@ -50,7 +49,6 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   // a different act from correcting their phone number, and you would
   // plausibly grant one without the other.
   { module: 'tenant-members', label: 'Tenant Members', actions: ['create', 'view', 'update', 'delete', 'list', 'restore', 'change_status'] },
-  { module: 'tenant-streets', label: 'Tenant Streets', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   // The card DESIGN. A template holds tokens, not member data, so editing one
   // is a configuration act.
   { module: 'tenant-id-card-templates', label: 'Tenant ID Card Templates', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
@@ -141,8 +139,6 @@ export const TENANT_ROLE_PERMISSION_KEYS: string[] = [
   'tenant-users:update',
   'tenant-users:delete',
   ...[
-    'places',
-    'streets',
     'association-positions',
     'countries',
     'states',
