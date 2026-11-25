@@ -17,6 +17,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "seed": "ts-node prisma/seed.ts",
+    "seed:geography": "ts-node prisma/seed-geography.ts",
     "console-key": "ts-node prisma/console-key.ts",
     "migrate:deploy": "prisma migrate deploy"
   },

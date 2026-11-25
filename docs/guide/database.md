@@ -62,6 +62,25 @@ Remember that `up -d --build` does not rebuild a profile service — after
 changing the backend image, run
 `docker compose --profile setup build migrate` first.
 
+## Reference geography
+
+Country, State, District, Taluk and RTO rows are tenant-scoped. To load the
+bundled Tamil Nadu catalogue into an existing business:
+
+```bash
+cd backend
+npm run seed:geography
+# or, for a different business:
+npm run seed:geography -- <tenant-business-uuid>
+```
+
+The script is idempotent: existing rows are matched by their business-scoped
+codes (and taluk name within a district), so rerunning refreshes names without
+duplicating anything. It never creates a business and never clears a row's
+status or `deletedAt`. Only Tamil Nadu is bundled; an all-India load needs a
+source dataset. Provenance and caveats are documented at the top of
+`backend/prisma/data/tamil-nadu-geography.ts`.
+
 ## Case sensitivity
 
 This is the one behavioural difference from MySQL that is easy to miss.
