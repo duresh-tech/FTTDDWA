@@ -42,6 +42,7 @@ export default defineConfig({
             { text: 'Docker', link: '/guide/docker' },
             { text: 'Tenant domains', link: '/guide/domains' },
             { text: 'API keys', link: '/guide/api-keys' },
+            { text: 'Mobile clients', link: '/guide/mobile-clients' },
             { text: 'Database & migrations', link: '/guide/database' },
             { text: 'Architecture', link: '/guide/architecture' },
             { text: 'Security', link: '/guide/security' },

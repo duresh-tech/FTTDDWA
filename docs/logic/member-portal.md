@@ -166,3 +166,38 @@ about confusing.
 
 **No `create`**, because the only way an application exists is the public form,
 so there is no staff route to grant.
+
+## The native app
+
+The portal now has **two clients**: the web pages under `console/src/app/member/`
+and a Flutter app in [`member-app/`](https://github.com/duresh-tech/FTTDDWA/tree/main/member-app).
+Both speak the same endpoints, and the backend has no idea which is calling
+beyond the `x-device-type` header it already required.
+
+The app covers the same three things: sign in, apply, and see your own record
+and card. What it does **not** cover is a passport photo on registration —
+there is no public upload route, so staff attach one at approval.
+
+The one thing that had to be solved differently is **which association an app
+belongs to**. The web portal gets that for free: the browser is already on the
+association's domain, so the `Host` header answers it. An app has no hostname.
+
+It works because `SiteService.hostOf` reads **`Origin` first**, then
+`X-Forwarded-Host`, then `Host` — so the app sends
+`Origin: https://<association-domain>` and resolution is unchanged. The
+business still comes from a hostname and still never from a request body, which
+is the property that matters.
+
+That also means **one build serves one association**: the domain is a
+build-time value in `member-app/.env`, not something a member picks. A picker
+would need a public endpoint listing every association and its domain, and
+there deliberately is none — claiming a hostname is a trust boundary.
+
+::: warning A browser cannot do this
+`Origin` is set by the browser and cannot be overridden, so a Flutter **web**
+build could only ever address the association it is served from. The app
+targets Android and iOS only.
+:::
+
+The full client contract — headers, the key, the wire format, and the two field
+names that bite — is in [Mobile clients](../guide/mobile-clients).

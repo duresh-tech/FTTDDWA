@@ -1,0 +1,58 @@
+name: member_app
+description: "The FTTDDWA member app: sign in, apply for membership, and hold your ID card."
+# Never published. Distributed through the stores, or as an APK.
+publish_to: "none"
+
+# Its own version stream. The backend and console do not move in lockstep with
+# each other and this app moves with neither -- see CHANGELOG.md.
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Deliberately short. There is no state-management package and no form
+  # library: the console's house style is a plain form, one state object and a
+  # saving flag, and three screens give a bigger solution nothing to do.
+  cupertino_icons: ^1.0.8
+  http: ^1.6.0
+  flutter_dotenv: ^6.0.2
+  # The refresh token belongs in the keystore/keychain, not SharedPreferences.
+  flutter_secure_storage: ^11.2.0
+  path_provider: ^2.1.6
+  open_filex: ^5.0.0
+  intl: ^0.20.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    # Bundled as an asset, which is why its values are BUILD-time -- see
+    # .env.example. Committed as .env.example only; .env is gitignored.
+    - .env
+
+  fonts:
+    # The same two families the backend uses to render a card, so a name looks
+    # the same in the app as it does on the printed ID.
+    #
+    # NotoSansTamil carries NO Latin glyphs, so it cannot be the family on its
+    # own -- a membership number like TN72001 would render as boxes. NotoSans
+    # is the family and Tamil is the fallback, set in core/theme/app_theme.dart.
+    - family: NotoSans
+      fonts:
+        - asset: assets/fonts/NotoSans-Regular.ttf
+        - asset: assets/fonts/NotoSans-Bold.ttf
+          weight: 700
+    - family: NotoSansTamil
+      fonts:
+        - asset: assets/fonts/NotoSansTamil-Regular.ttf
+        - asset: assets/fonts/NotoSansTamil-Bold.ttf
+          weight: 700

@@ -2,8 +2,9 @@
 
 **Federation of Tamilnadu Tent Dealers & Decorators Welfare Association.**
 
-[![Backend](https://img.shields.io/badge/backend-v3.2.0-blue)](./backend/CHANGELOG.md)
-[![Console](https://img.shields.io/badge/console-v3.2.0-blue)](./console/CHANGELOG.md)
+[![Backend](https://img.shields.io/badge/backend-v3.9.0-blue)](./backend/CHANGELOG.md)
+[![Console](https://img.shields.io/badge/console-v3.9.0-blue)](./console/CHANGELOG.md)
+[![Member app](https://img.shields.io/badge/member%20app-v1.0.0-blue)](./member-app/CHANGELOG.md)
 
 `FTTDDWA` is the short form used everywhere it has to fit: the `APP_NAME`
 default, the browser tab title, the Swagger title and the console sidebar.
@@ -34,6 +35,8 @@ fttddwa/
 ├── console/              Next.js app      → http://localhost:3000
 │   ├── docker-compose.yml  console stack
 │   └── README.md · CHANGELOG.md · Dockerfile
+├── member-app/           Flutter member app (Android, iOS)
+│   └── README.md · CHANGELOG.md · .env.example
 ├── docs/                 VitePress documentation site
 └── docker-compose.yml    thin aggregator: `include:` of the three stacks
 ```
