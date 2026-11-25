@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CreditCard, LoaderCircle, Pencil, Printer, ShieldCheck, Trash2, Upload, UserPlus } from "lucide-react";
+import { CreditCard, Download, History, LoaderCircle, Pencil, Printer, ShieldCheck, Trash2, Upload, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,23 @@ const SETTABLE_STATUSES: Exclude<MemberStatus, "DELETED">[] = [
   "ACTIVE",
   "INACTIVE",
 ];
+
+/**
+ * One issue of a member's card, as the history route returns it.
+ *
+ * `expired` is DERIVED by the server from expiryAt and the clock - there is no
+ * stored EXPIRED status, so a card past its date still reads ACTIVE here and
+ * the two have to be shown together.
+ */
+interface CardRow {
+  id: string;
+  issueNumber: number;
+  status: string;
+  issuedAt: number;
+  expiryAt: number | null;
+  expired: boolean;
+  fileSizeBytes: number;
+}
 
 interface MemberRow {
   id: string;
@@ -166,8 +183,21 @@ export default function TenantMembersPage() {
   const canDelete = hasPermission("tenant-members:delete");
   const canChangeStatus = hasPermission("tenant-members:change_status");
   const canGenerateCard = hasPermission("tenant-member-id-cards:generate");
+  // `print` is the PDF, `view` is the record - see the permission catalogue.
+  const canPrintCard = hasPermission("tenant-member-id-cards:print");
+  const canCardHistory = hasPermission("tenant-member-id-cards:history");
+  const canRevokeCard = hasPermission("tenant-member-id-cards:revoke");
   const [cardBusyId, setCardBusyId] = React.useState<string | null>(null);
   const [bulkPrinting, setBulkPrinting] = React.useState(false);
+
+  /** The member whose card history is open, and the issues themselves. */
+  const [historyTarget, setHistoryTarget] = React.useState<MemberRow | null>(null);
+  const [history, setHistory] = React.useState<CardRow[] | null>(null);
+  /** Set when Generate is pressed on a member who already holds a card. */
+  const [regenTarget, setRegenTarget] = React.useState<
+    { row: MemberRow; current: CardRow } | null
+  >(null);
+  const [cardActionId, setCardActionId] = React.useState<string | null>(null);
 
   const [statusFilter, setStatusFilter] = React.useState<string>("");
   const list = useResourceList<MemberRow>("/tenant/members", { status: statusFilter || undefined }, tenantApi);
@@ -442,6 +472,35 @@ export default function TenantMembersPage() {
    * second streams it. The card stays downloadable afterwards, so this is not
    * a one-shot export.
    */
+  /**
+   * Opens the confirm step when the member already holds a card.
+   *
+   * Issuing silently supersedes whatever is in their wallet, so the operator
+   * is told which issue they are about to invalidate before it happens. A
+   * member with no card generates straight away - there is nothing to warn
+   * about.
+   */
+  async function startGenerate(row: MemberRow) {
+    setCardBusyId(row.id);
+    try {
+      const issues = await tenantApi<CardRow[]>(
+        `/tenant/member-id-cards/members/${row.id}/history`,
+      );
+      const current = issues.find((card) => card.status === "ACTIVE");
+      if (current) {
+        setRegenTarget({ row, current });
+        return;
+      }
+    } catch {
+      // Reading the history needs its own permission. Somebody who may issue
+      // a card but not read history should still be able to issue one - they
+      // simply do not get the warning.
+    } finally {
+      setCardBusyId(null);
+    }
+    await generateCard(row);
+  }
+
   async function generateCard(row: MemberRow) {
     setCardBusyId(row.id);
     try {
@@ -452,6 +511,7 @@ export default function TenantMembersPage() {
       const blob = await tenantDownload(`/tenant/member-id-cards/${card.id}/download`);
       saveBlob(blob, `${row.systemCode}.pdf`);
       toast.success(`ID card generated for ${row.memberName}`);
+      if (historyTarget?.id === row.id) await loadHistory(row);
     } catch (error) {
       toast.error(
         error instanceof TenantApiError ? error.message : "Could not generate the card",
@@ -486,6 +546,64 @@ export default function TenantMembersPage() {
       );
     } finally {
       setBulkPrinting(false);
+    }
+  }
+
+  async function loadHistory(row: MemberRow) {
+    setHistory(null);
+    try {
+      setHistory(
+        await tenantApi<CardRow[]>(`/tenant/member-id-cards/members/${row.id}/history`),
+      );
+    } catch (error) {
+      setHistory([]);
+      toast.error(
+        error instanceof TenantApiError ? error.message : "Could not load the card history",
+      );
+    }
+  }
+
+  function openHistory(row: MemberRow) {
+    setHistoryTarget(row);
+    void loadHistory(row);
+  }
+
+  /**
+   * Downloads one issue, current or not.
+   *
+   * A card that is no longer valid comes back STAMPED with why - the server
+   * applies the watermark on the way out and never rewrites the stored file.
+   */
+  async function downloadCard(card: CardRow, row: MemberRow) {
+    setCardActionId(card.id);
+    try {
+      const blob = await tenantDownload(`/tenant/member-id-cards/${card.id}/download`);
+      saveBlob(blob, `${row.systemCode}-issue-${card.issueNumber}.pdf`);
+    } catch (error) {
+      toast.error(
+        error instanceof TenantApiError ? error.message : "Could not download the card",
+      );
+    } finally {
+      setCardActionId(null);
+    }
+  }
+
+  /** Voids a card that is still in circulation. The row and its PDF stay. */
+  async function revokeCard(card: CardRow, row: MemberRow) {
+    setCardActionId(card.id);
+    try {
+      await tenantApi(`/tenant/member-id-cards/${card.id}/revoke`, {
+        method: "PATCH",
+        body: {},
+      });
+      toast.success(`Issue ${card.issueNumber} revoked`);
+      await loadHistory(row);
+    } catch (error) {
+      toast.error(
+        error instanceof TenantApiError ? error.message : "Could not revoke the card",
+      );
+    } finally {
+      setCardActionId(null);
     }
   }
 
@@ -646,10 +764,19 @@ export default function TenantMembersPage() {
                                 {
                                   label:
                                     cardBusyId === row.id
-                                      ? "Generating…"
+                                      ? "Checking…"
                                       : "Generate ID card",
                                   icon: CreditCard,
-                                  onClick: () => generateCard(row),
+                                  onClick: () => startGenerate(row),
+                                },
+                              ]
+                            : []),
+                          ...(canCardHistory
+                            ? [
+                                {
+                                  label: "Card history",
+                                  icon: History,
+                                  onClick: () => openHistory(row),
                                 },
                               ]
                             : []),
@@ -1029,6 +1156,113 @@ export default function TenantMembersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Every issue of one member's card. */}
+      <Dialog
+        open={!!historyTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setHistoryTarget(null);
+            setHistory(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Card history</DialogTitle>
+            <DialogDescription>
+              Every card issued to {historyTarget?.memberName}, newest first.
+              Only one is ever current.
+            </DialogDescription>
+          </DialogHeader>
+
+          {history === null ? (
+            <div className="flex justify-center py-8">
+              <LoaderCircle className="size-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : history.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              No card has been issued yet.
+            </p>
+          ) : (
+            <div className="divide-y rounded-md border">
+              {history.map((card) => (
+                <div key={card.id} className="flex flex-wrap items-center gap-3 p-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">Issue {card.issueNumber}</span>
+                      <StatusBadgeText status={card.status} />
+                      {/* Derived, so it is shown BESIDE the status rather than
+                          instead of it: an expired card is still ACTIVE. */}
+                      {card.expired && (
+                        <span className="rounded-md bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-600 dark:bg-red-500/15 dark:text-red-400">
+                          EXPIRED
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Issued {new Date(card.issuedAt * 1000).toLocaleDateString()}
+                      {card.expiryAt
+                        ? ` · ${card.expired ? "expired" : "valid until"} ${new Date(
+                            card.expiryAt * 1000,
+                          ).toLocaleDateString()}`
+                        : " · no expiry"}
+                    </p>
+                  </div>
+
+                  {canPrintCard && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={cardActionId === card.id}
+                      onClick={() => historyTarget && downloadCard(card, historyTarget)}
+                    >
+                      <Download className="size-4" /> Download
+                    </Button>
+                  )}
+                  {canRevokeCard && card.status === "ACTIVE" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={cardActionId === card.id}
+                      onClick={() => historyTarget && revokeCard(card, historyTarget)}
+                    >
+                      Revoke
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Issuing supersedes whatever is already in the member's wallet. */}
+      <ConfirmDialog
+        open={!!regenTarget}
+        onOpenChange={(open) => !open && setRegenTarget(null)}
+        title="Replace this member's ID card?"
+        description={
+          regenTarget
+            ? `${regenTarget.row.memberName} already holds issue ${regenTarget.current.issueNumber}` +
+              (regenTarget.current.expiryAt
+                ? `, valid until ${new Date(
+                    regenTarget.current.expiryAt * 1000,
+                  ).toLocaleDateString()}`
+                : "") +
+              `. Issuing a new one marks it SUSPENDED and it stops being valid, ` +
+              `even though it is still in their hands. Its PDF is kept in the history.`
+            : ""
+        }
+        loading={cardBusyId === regenTarget?.row.id}
+        onConfirm={async () => {
+          const target = regenTarget;
+          setRegenTarget(null);
+          if (target) await generateCard(target.row);
+        }}
+      />
 
       <ConfirmDialog
         open={!!deleteTarget}

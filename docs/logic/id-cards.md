@@ -214,8 +214,9 @@ Because it sits outside the shell, the editor provides its own
 
 ## Cards are a history
 
-A card is one row per ISSUE, not one mutable row per member. Reissuing
-supersedes the previous card and inserts a new one; **the old PDF is kept**,
+A card is one row per ISSUE, not one mutable row per member. Reissuing marks
+the previous card **`SUSPENDED`** and inserts a new one; **the old PDF is
+kept**,
 because a reissued card's predecessor is evidence of what was in circulation.
 Private storage therefore grows with every reissue rather than holding one
 file per member.
@@ -224,7 +225,7 @@ file per member.
 | --- | --- |
 | `issueNumber` | 1-based per member — "issue 3 of this member's card" |
 | `expiryAt` | Null when the business issues cards that never expire |
-| `supersededAt` | When a newer issue replaced this one |
+| `suspendedAt` | When a newer issue replaced this one |
 | `revoked*` | Voiding a card that is still in somebody's wallet |
 
 **Exactly one current card, enforced by the database.** Prisma cannot express
@@ -238,6 +239,51 @@ CREATE UNIQUE INDEX "tenant_member_id_cards_one_active_per_member"
 That is what makes "the current card is the ACTIVE one" a fact rather than a
 convention, and the backstop for the issuing transaction. It will not appear in
 `schema.prisma`.
+
+### `SUSPENDED` was called `SUPERSEDED`
+
+Migration `0016_card_status_suspended` renames the enum value and the column,
+and nothing else — the state always meant "replaced by a newer issue", and the
+business calls that suspended. Both statements are metadata-only, so unlike
+0014 (which renamed `generatedAt`/`generatedBy` by drop-and-add, and could only
+do that because the table was empty) this is safe against a populated table.
+
+The partial unique index is predicated on `status = 'ACTIVE'`, which the
+rename does not touch, so it survives untouched rather than being dropped and
+recreated — there is no window in which two cards could both be current.
+
+### Only ACTIVE members are issued cards
+
+A card asserts that somebody **is** a member, so issuing one to a `PENDING` or
+`INACTIVE` membership prints a claim the register does not support. The gate
+used to be "not deleted", which let every other state through.
+
+A single issue is refused with the status named, because the operator's next
+question is always *why not*. A **bulk** run **skips** them instead and reports
+them in `X-Cards-Skipped` — a 250-row print run must not die because one row is
+inactive, and the console's "Print ID cards" button sends every member on the
+page, inactive ones included.
+
+### A card that is not valid is watermarked
+
+Downloading a `SUSPENDED` or `REVOKED` card — or one whose `expiryAt` has
+passed — returns the PDF **stamped** with that word across every page.
+
+**The stored file is never rewritten.** It is the evidence of what was actually
+in circulation; re-rendering it from today's template and today's member record
+would quietly change history. The stamp is applied on the way out, in
+`readCardFile()`, which is the one method every surface reaches a PDF through —
+system, tenant and the member portal — so there is one place to get it right
+rather than three.
+
+`EXPIRED` is the case most worth stamping precisely *because* it is derived: a
+card past its date still reads `ACTIVE`, so without the stamp it looks exactly
+like a valid one in somebody's hand.
+
+This is the only thing in the codebase that uses `pdf-lib`. The renderer stays
+pdfkit-only — pdfkit writes PDFs and cannot open one, which is the whole reason
+a second library is here. The three words are ASCII, so the stamp uses a
+standard PDF font and needs none of the Tamil shaping a card does.
 
 ### There is no EXPIRED status
 
@@ -301,14 +347,24 @@ producing a blank card.
 | Module | Actions |
 | --- | --- |
 | `tenant-id-card-templates` | `create view update delete list restore` |
-| `tenant-member-id-cards` | `generate view list delete` |
+| `tenant-member-id-cards` | `generate view list history print delete revoke` |
 
 `generate` is its own action for the reason `tenant-members:change_status` is:
 issuing somebody's card is a different act from editing a layout, and you would
-plausibly grant one and not the other. `view` is what downloads a PDF.
+plausibly grant one and not the other.
 
-`TENANT_ADMIN` holds nine of the ten — `restore` is system-admin only, as for
-every other resource.
+Three of these split hairs on purpose:
+
+- **`view` is the record, `print` is the PDF.** Someone auditing which cards
+  were issued and when does not need the cards themselves, and the PDF carries
+  a photo, an address and the last four digits of an Aadhaar.
+- **`history` is one member's issues; `list` is every card in the business.**
+  Front-desk staff need the first and not the second.
+- **`revoke` is not `delete`.** Revoking voids a card still in somebody's
+  wallet and keeps the record; deleting removes the record and its PDF.
+
+`TENANT_ADMIN` holds every card action — `restore` exists only for templates,
+and is system-admin only as for every other resource.
 
 Deleting a card removes the **file** as well as soft-deleting the row. That is
 unlike most soft deletes here, and deliberate: the row is the only index into

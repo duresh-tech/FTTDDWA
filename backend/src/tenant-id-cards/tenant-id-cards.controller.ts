@@ -34,8 +34,15 @@ export const CARD_EXAMPLE = {
   // out buys nothing - the download endpoint below is the only way out.
   filePath: 'member-id-cards/019f357c-d489-74a9-8490-1f82e745b199.pdf',
   fileSizeBytes: 24177,
-  generatedBy: '019f357b-1111-71a0-9062-adc0f927a584',
-  generatedAt: 1783308735,
+  issueNumber: 2,
+  issuedBy: '019f357b-1111-71a0-9062-adc0f927a584',
+  issuedAt: 1783308735,
+  expiryAt: 1941075135,
+  // Derived from expiryAt and the clock, never stored - see the note on
+  // TenantMemberIdCardStatus for why there is no EXPIRED member.
+  expired: false,
+  suspendedAt: null,
+  revokedAt: null,
   status: 'ACTIVE',
   createdAt: 1783308735,
   updatedAt: 1783308735,
@@ -84,8 +91,25 @@ export class MemberIdCardsController {
     return this.service.findOne(id);
   }
 
+  @Get('members/:memberId/history')
+  // See the tenant controller: one member's issues, not the whole register's.
+  @RequirePermissions('tenant-member-id-cards:history')
+  @ApiOperation({
+    summary: "Every issue of one member's card",
+    description:
+      'Newest first, unpaginated. DELETED issues are left out, and each row ' +
+      'carries a DERIVED `expired` because there is no stored EXPIRED status.',
+  })
+  @ApiParam({ name: 'memberId', description: 'Member UUIDv7' })
+  @ApiResponse({ status: 200, description: "The member's card history." })
+  history(@Param('memberId') memberId: string) {
+    return this.service.historyForMember(memberId);
+  }
+
   @Get(':id/download')
-  @RequirePermissions('tenant-member-id-cards:view')
+  // `print`, not `view`: `view` is the record, `print` is the PDF, and the PDF
+  // carries a photo, an address and the last four digits of an Aadhaar.
+  @RequirePermissions('tenant-member-id-cards:print')
   @ApiProduces('application/pdf')
   @ApiOperation({
     summary: 'Download the stored PDF',
@@ -109,7 +133,10 @@ export class MemberIdCardsController {
     summary: "Generate a member's ID card",
     description:
       'Renders with the given template, or the business default. ' +
-      'Regenerating replaces the stored PDF in place and deletes the old ' +
+      'Regenerating INSERTS a new issue and marks the previous one ' +
+      'SUSPENDED; the old PDF is kept. Refused unless the member is ' +
+      'ACTIVE. Previously this replaced the stored PDF in place and deleted ' +
+      'the old ' +
       'one, so a member has exactly one current card.',
   })
   @ApiParam({ name: 'memberId', description: 'Member UUIDv7' })

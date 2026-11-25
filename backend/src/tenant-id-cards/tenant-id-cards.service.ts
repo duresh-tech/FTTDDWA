@@ -11,6 +11,7 @@ import { TenantBusinessSettingsService } from '../tenant-business-settings/tenan
 import { newId, newSystemCode, now } from '../common/utils/id.util';
 import { listResponse, paginate } from '../common/dto/query.dto';
 import { IdCardRendererService } from './id-card-renderer.service';
+import { applyWatermark, watermarkFor } from './id-card-watermark';
 import { IdCardContext, IdCardMember } from './id-card-fields';
 import { parseLayout } from './id-card-layout.schema';
 import { IdCardListQueryDto } from './dto/id-card-query.dto';
@@ -42,6 +43,36 @@ export function expiryFrom(issuedAtSeconds: number, validityYears: number): numb
 export function isExpired(expiryAt: bigint | number | null, nowSeconds: number): boolean {
   if (expiryAt === null || expiryAt === undefined) return false;
   return Number(expiryAt) <= nowSeconds;
+}
+
+/**
+ * Attaches the derived `expired` flag to a card row.
+ *
+ * Staff reads need it for the same reason the member portal does: with no
+ * stored EXPIRED status, a card past its date is indistinguishable from a
+ * valid one unless somebody computes it. Doing it here rather than in each
+ * caller keeps the one definition of expiry in `isExpired`.
+ */
+function withExpiry<T extends { expiryAt: bigint | null }>(card: T): T & { expired: boolean } {
+  return { ...card, expired: isExpired(card.expiryAt, now()) };
+}
+
+/**
+ * Refuses to issue a card to a membership that is not current.
+ *
+ * A card is an assertion that someone IS a member, so issuing one to a PENDING
+ * or INACTIVE membership prints a claim the register does not support. The
+ * previous gate was only "not deleted", which let every other state through.
+ *
+ * The message names the status, because the operator's next question is always
+ * "why not" and the answer is on the member's own row.
+ */
+export function assertMemberIssuable(member: { status: string; memberName: string }): void {
+  if (member.status === 'ACTIVE') return;
+  throw new BadRequestException(
+    `${member.memberName} is ${member.status.toLowerCase()}. ` +
+      'Only active members can be issued an ID card.',
+  );
 }
 
 /** Where cards land inside the PRIVATE storage area. */
@@ -94,10 +125,14 @@ export class TenantIdCardsService {
   /**
    * Renders one member's card, stores it privately, and records it.
    *
-   * Regeneration updates the existing row in place and removes the superseded
-   * file. Keeping one row per member is what `@@unique([tenantMemberId])`
-   * enforces, and updating rather than delete-and-insert is what stops a
-   * soft-deleted row from blocking a reissue.
+   * Regeneration INSERTS a new issue and marks the previous one SUSPENDED, in
+   * one transaction. The superseded PDF is KEPT - that is what history means,
+   * and it does mean private storage grows with every reissue rather than
+   * holding one file per member.
+   *
+   * (This used to update one row in place and delete the old file, which is
+   * what `@@unique([tenantMemberId])` enforced. Migration 0014 replaced that
+   * constraint with a partial unique index on the ACTIVE row.)
    */
   async generateForMember(
     memberId: string,
@@ -105,6 +140,7 @@ export class TenantIdCardsService {
     actorId?: string,
   ) {
     const member = await this.loadMember(memberId);
+    assertMemberIssuable(member);
     await this.assertRegisterOpen(member.tenantBusinessId);
 
     const template = await this.resolveTemplate(member.tenantBusinessId, dto.templateId);
@@ -148,7 +184,7 @@ export class TenantIdCardsService {
       if (previous) {
         await tx.tenantMemberIdCard.update({
           where: { id: previous.id },
-          data: { status: 'SUPERSEDED', supersededAt: timestamp, updatedAt: timestamp },
+          data: { status: 'SUSPENDED', suspendedAt: timestamp, updatedAt: timestamp },
         });
       }
 
@@ -216,6 +252,20 @@ export class TenantIdCardsService {
     });
     if (members.length === 0) throw new NotFoundException('No members matched');
 
+    // Skip, do not fail. A 250-row print run must not die because one row is
+    // inactive, and the console's "Print ID cards" button sends every member
+    // on the page - inactive ones included. They land in `skipped`, which the
+    // response reports in X-Cards-Skipped.
+    const issuable = members.filter((m) => m.status === 'ACTIVE');
+    const notIssuable = members
+      .filter((m) => m.status !== 'ACTIVE')
+      .map((m) => `${m.memberName} (${m.status.toLowerCase()})`);
+    if (issuable.length === 0) {
+      throw new BadRequestException(
+        'None of those members are active, so no card can be issued.',
+      );
+    }
+
     // One business per run: a card is rendered from that business's template
     // and settings, so mixing them would silently use one business's branding
     // for another's members.
@@ -236,7 +286,9 @@ export class TenantIdCardsService {
 
     const settings = await this.settings.getSettingsMapForBusiness(businessId);
     const generatedOn = this.today();
-    const contexts: IdCardContext[] = members.map((member) => ({
+    // ISSUABLE only. The combined sheet must not print a card for somebody
+    // the register does not currently call a member.
+    const contexts: IdCardContext[] = issuable.map((member) => ({
       member: member as unknown as IdCardMember,
       settings,
       generatedOn,
@@ -246,8 +298,8 @@ export class TenantIdCardsService {
 
     // Each member also gets their own stored card, so the batch is a print
     // convenience rather than the only copy.
-    const skipped: string[] = [];
-    for (const member of members) {
+    const skipped: string[] = [...notIssuable];
+    for (const member of issuable) {
       try {
         await this.generateForMember(member.id, { templateId: template.id }, actorId);
       } catch (error) {
@@ -260,7 +312,14 @@ export class TenantIdCardsService {
       }
     }
 
-    return { pdf: combined, generated: members.length - skipped.length, skipped };
+    // Counted from the issuable set: a member skipped for being inactive was
+    // never going to be generated, so folding them into `generated` would
+    // report cards that are not in the PDF.
+    return {
+      pdf: combined,
+      generated: issuable.length - (skipped.length - notIssuable.length),
+      skipped,
+    };
   }
 
   /** The stored PDF, for the guarded download endpoint. */
@@ -277,7 +336,19 @@ export class TenantIdCardsService {
         'The stored PDF is missing. Generate the card again.',
       );
     }
-    return { buffer, filename: `${card.member.systemCode}.pdf` };
+
+    // A card that is no longer valid is stamped on the way OUT. The stored
+    // bytes are never touched: that file is the evidence of what was actually
+    // in circulation, and re-rendering it from today's template and today's
+    // member record would quietly change history.
+    //
+    // Stamped here because every surface reaches a PDF through this method -
+    // system, tenant and the member portal (via readOwnCardFile) - so there is
+    // one place to get it right rather than three.
+    const reason = watermarkFor(card.status, isExpired(card.expiryAt, now()));
+    const served = reason ? await applyWatermark(buffer, reason) : buffer;
+
+    return { buffer: served, filename: `${card.member.systemCode}.pdf` };
   }
 
   // ---------- Reading ----------
@@ -298,7 +369,7 @@ export class TenantIdCardsService {
       }),
       this.prisma.tenantMemberIdCard.count({ where }),
     ]);
-    return listResponse(items, total, page, limit);
+    return listResponse(items.map(withExpiry), total, page, limit);
   }
 
   async findOne(id: string) {
@@ -307,7 +378,27 @@ export class TenantIdCardsService {
       include: CARD_LIST_INCLUDE,
     });
     if (!row) throw new NotFoundException('ID card not found');
-    return row;
+    return withExpiry(row);
+  }
+
+  /**
+   * Every issue of ONE member's card, newest first.
+   *
+   * Its own method rather than `findAll` with a filter because it answers a
+   * different question - "what has this person been issued" - and is read by
+   * the dialog on their row. Unpaginated on purpose: a member has a handful of
+   * issues over a lifetime, and a page control over four rows is noise.
+   *
+   * DELETED issues are left out. Deleting a card removes its PDF, so the row
+   * would be a history entry pointing at nothing.
+   */
+  async historyForMember(tenantMemberId: string) {
+    const rows = await this.prisma.tenantMemberIdCard.findMany({
+      where: { tenantMemberId, status: { not: 'DELETED' } },
+      include: CARD_LIST_INCLUDE,
+      orderBy: { issueNumber: 'desc' },
+    });
+    return rows.map(withExpiry);
   }
 
   /**

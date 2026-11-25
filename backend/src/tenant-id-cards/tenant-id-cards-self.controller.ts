@@ -50,7 +50,11 @@ export class TenantIdCardsSelfController {
   // Declared BEFORE @Get(':id') / @Post(':id'), or the param routes swallow
   // "bulk" and "members".
   @Post('bulk')
-  @RequireTenantPermissions('tenant-member-id-cards:generate')
+  // BOTH: this issues cards and hands back the print run.
+  @RequireTenantPermissions(
+    'tenant-member-id-cards:generate',
+    'tenant-member-id-cards:print',
+  )
   @ApiProduces('application/pdf')
   @ApiOperation({
     summary: 'Generate many cards as one printable PDF',
@@ -87,7 +91,8 @@ export class TenantIdCardsSelfController {
     summary: "Generate one of the caller's own members' ID card",
     description:
       'Renders with the given template, or the business default. ' +
-      'Regenerating replaces the stored PDF in place.',
+      'Regenerating INSERTS a new issue and marks the previous one ' +
+      'SUSPENDED; the old PDF is kept. Refused unless the member is ACTIVE.',
   })
   @ApiParam({ name: 'memberId', description: 'Member UUIDv7' })
   @ApiResponse({ status: 201, description: 'Card generated.', schema: { example: CARD_EXAMPLE } })
@@ -99,6 +104,29 @@ export class TenantIdCardsSelfController {
   ) {
     await this.service.assertMemberOwned(user.id, memberId);
     return this.service.generateForMember(memberId, dto, user.id);
+  }
+
+  @Get('members/:memberId/history')
+  // `history` is ONE member's issues, for the dialog on their row; `list` is
+  // every card in the business. Front-desk staff need the first and not the
+  // second, which is why this is not simply `list` with a filter.
+  @RequireTenantPermissions('tenant-member-id-cards:history')
+  @ApiOperation({
+    summary: "Every issue of one of the caller's own members' cards",
+    description:
+      'Newest first, unpaginated - a member has a handful of issues over a ' +
+      'lifetime. DELETED issues are left out: deleting a card removes its ' +
+      'PDF, so the row would point at nothing. Each row carries a DERIVED ' +
+      '`expired`, because there is no stored EXPIRED status.',
+  })
+  @ApiParam({ name: 'memberId', description: 'Member UUIDv7' })
+  @ApiResponse({ status: 200, description: "The member's card history." })
+  async history(
+    @CurrentTenantUser() user: TenantAuthUser,
+    @Param('memberId') memberId: string,
+  ) {
+    await this.service.assertMemberOwned(user.id, memberId);
+    return this.service.historyForMember(memberId);
   }
 
   @Get()
@@ -113,7 +141,8 @@ export class TenantIdCardsSelfController {
   }
 
   @Get(':id/download')
-  @RequireTenantPermissions('tenant-member-id-cards:view')
+  // `print`, not `view` - see the system controller.
+  @RequireTenantPermissions('tenant-member-id-cards:print')
   @ApiProduces('application/pdf')
   @ApiOperation({
     summary: 'Download the stored PDF',

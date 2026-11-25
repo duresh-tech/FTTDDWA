@@ -66,7 +66,15 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   // No `create`: the only way an application exists is the public
   // registration form, so there is no staff route to grant.
   { module: 'tenant-member-applications', label: 'Tenant Member Applications', actions: ['list', 'view', 'approve', 'reject', 'delete'] },
-  { module: 'tenant-member-id-cards', label: 'Tenant Member ID Cards', actions: ['generate', 'view', 'list', 'delete', 'revoke'] },
+  // `print` is separate from `view` because `view` is the record and
+  // `print` is the PDF. Someone auditing which cards were issued and when
+  // does not need the cards themselves, and the PDF carries a photo, an
+  // address and the last four digits of an Aadhaar.
+  // `history` is separate from `list` for the same shape of reason: it is
+  // ONE member's issues, for the dialog on their row, where `list` is every
+  // card in the business. Front-desk staff need the first and not the
+  // second.
+  { module: 'tenant-member-id-cards', label: 'Tenant Member ID Cards', actions: ['generate', 'view', 'list', 'history', 'print', 'delete', 'revoke'] },
   { module: 'tenant-mail-config', label: 'Tenant Mail Config', actions: ['create', 'view', 'update', 'delete', 'list', 'test'] },
   { module: 'app-settings', label: 'App Settings', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
   // System-admin only, with no tenant self-service twin: claiming a hostname
@@ -168,6 +176,8 @@ export const TENANT_ROLE_PERMISSION_KEYS: string[] = [
   'tenant-member-id-cards:generate',
   'tenant-member-id-cards:view',
   'tenant-member-id-cards:list',
+  'tenant-member-id-cards:history',
+  'tenant-member-id-cards:print',
   'tenant-member-id-cards:delete',
   'tenant-member-id-cards:revoke',
   'tenant-mail-config:list',

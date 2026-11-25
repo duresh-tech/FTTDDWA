@@ -1271,7 +1271,11 @@ enum TenantMemberIdCardStatus {
   ACTIVE
   /// Replaced by a newer issue. The row and its PDF are kept: a reissued
   /// card's predecessor is evidence of what was in circulation.
-  SUPERSEDED
+  ///
+  /// Named for what the business calls it. The behaviour is unchanged from
+  /// when this was SUPERSEDED - see migration 0016, which renames the value
+  /// and nothing else.
+  SUSPENDED
   /// Voided while still out there - lost, stolen, or issued in error.
   REVOKED
   DELETED
@@ -1358,7 +1362,7 @@ model TenantMemberIdCard {
   expiryAt BigInt?
 
   /// When a newer issue replaced this one.
-  supersededAt BigInt?
+  suspendedAt BigInt?
 
   /// Voiding a card that is still in circulation. Separate from deleting,
   /// which removes the record and the file.

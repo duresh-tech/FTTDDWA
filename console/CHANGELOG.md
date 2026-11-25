@@ -7,15 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- **The member create/edit dialog showed six empty dropdowns.** Position,
-  trade, state, district, taluk and RTO all 400'd because the form asks for
-  `limit=200` and the API capped it at 100. Fixed in the backend; the console
-  keeps asking for the whole list, since truncating at 100 would hide options
-  with nothing to indicate it.
-
 ### Added
+
+- **A card history dialog** on the member row: every issue, newest first, with
+  its status, issue number, issued date and expiry. Gated on the new
+  `tenant-member-id-cards:history`.
+  - **Download** appears only with `print`, **Revoke** only with `revoke`.
+    Both endpoints and both permissions have existed since the cards shipped
+    with no console UI at all - this is the first way to revoke a card without
+    calling the API by hand.
+  - An expired card shows **EXPIRED beside its status, not instead of it**:
+    expiry is derived, so a card past its date is still `ACTIVE`.
+- **A confirm step before regenerating.** Generating silently superseded
+  whatever was already in the member's wallet - the action was labelled
+  "Generate ID card" whether or not one existed, and fired the POST straight
+  from the menu. It now looks first and, when a card exists, names the issue
+  and its expiry and says plainly that it becomes SUSPENDED and stops being
+  valid while its PDF is kept.
+  - If reading the history is refused, it generates anyway rather than
+    blocking: somebody who may issue a card but not read history should still
+    be able to issue one, they simply do not get the warning.
 
 - **The position is settled, not chosen, on the public registration form** when
   the association sets `memberRegister.positionId`. It renders read-only with
@@ -35,6 +46,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   them: the database can still return them for a row written earlier, and the
   status badge renders any string. The list is what may be CHOSEN, not what
   may arrive.
+
+### Fixed
+
+- **The member create/edit dialog showed six empty dropdowns.** Position,
+  trade, state, district, taluk and RTO all 400'd because the form asks for
+  `limit=200` and the API capped it at 100. Fixed in the backend; the console
+  keeps asking for the whole list, since truncating at 100 would hide options
+  with nothing to indicate it.
 
 ## [3.9.0] - 2026-11-24
 

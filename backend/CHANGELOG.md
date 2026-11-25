@@ -7,20 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- **The member form's six lookup pickers came back empty.** Every one of them
-  requests its whole ACTIVE list in a single call with `limit=200`, and the six
-  query schemas capped `limit` at **100** - so each returned
-  `400 Number must be less than or equal to 100` and the form showed six
-  silently blank dropdowns rather than an error.
-
-  The cap is now 200 on all six, finishing a bump that `tenant-business-settings`,
-  `setting-definitions`, `site` and `api-key-scope-templates` already had. The
-  console was not lowered to 100 instead: a business with more than a hundred
-  districts or taluks would then get a truncated list with nothing to say so.
-
 ### Added
+
+- **A card that is no longer valid is WATERMARKED on download** - `SUSPENDED`,
+  `REVOKED`, or `EXPIRED` stamped across every page.
+  - **The stored file is never rewritten.** It is the evidence of what was
+    actually in circulation; re-rendering it from today's template and today's
+    member record would quietly change history. The stamp is applied on the way
+    out.
+  - Applied in `readCardFile()`, the one method every surface reaches a PDF
+    through - system, tenant and the member portal - so there is one place to
+    get it right rather than three.
+  - `EXPIRED` is the case most worth stamping precisely BECAUSE it is derived:
+    a card past its date still reads `ACTIVE`, so without the stamp it looks
+    exactly like a valid one.
+  - Adds `pdf-lib`, the only thing here that uses it. The renderer stays
+    pdfkit-only, because pdfkit writes PDFs and cannot open one. The three
+    words are ASCII, so the stamp needs none of the Tamil shaping a card does.
+- **`GET {system,tenant}/member-id-cards/members/:memberId/history`** - every
+  issue of one member's card, newest first and unpaginated. `DELETED` issues
+  are left out: deleting a card removes its PDF, so the row would point at
+  nothing.
+- **Two permissions**, 150 -> **152 across 31 modules**:
+  - `tenant-member-id-cards:print` - the PDF, where `view` is the record.
+    Someone auditing which cards were issued does not need the cards
+    themselves, and the PDF carries a photo, an address and an Aadhaar's last
+    four digits. Bulk requires **both** `generate` and `print`, because it
+    issues cards and hands back the print run.
+  - `tenant-member-id-cards:history` - one member's issues, where `list` is
+    every card in the business.
+- `expired` is now attached to the staff list and detail responses too, not
+  only the member portal's. With no stored `EXPIRED` status it is invisible
+  unless somebody computes it.
 
 - **`memberRegister.positionId`**, a business setting naming the position every
   public applicant is filed under. Empty means applicants choose, as before.
@@ -44,6 +62,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Only ACTIVE members may be issued a card.** The gate was "not deleted",
+  which let `PENDING` and `INACTIVE` through - a card asserts that somebody IS
+  a member. A single issue is refused with the status named; a **bulk** run
+  **skips** them and reports them in `X-Cards-Skipped`, because a 250-row print
+  run must not die on one inactive row.
+- **`SUPERSEDED` is now `SUSPENDED`** (migration 0016). The state always meant
+  "replaced by a newer issue"; the business calls that suspended. The column
+  `supersededAt` is renamed with it rather than left as a half-rename.
+
+  Both statements are **metadata-only**, so this is safe against a populated
+  table - unlike 0014, which renamed `generatedAt`/`generatedBy` by
+  drop-and-add and could only do that because the table was empty. The partial
+  unique index is predicated on `status = 'ACTIVE'`, which the rename does not
+  touch, so it survives rather than being dropped and recreated.
+
 - **Member statuses `SUSPENDED` and `EXPIRED` are retired.** They duplicated
   `INACTIVE` and nothing acted on the difference: no job expired a membership
   on a date, no guard treated a suspension differently, and the portal's login
@@ -53,6 +86,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in the Prisma enum** - Postgres cannot drop an enum value in place, and a row
   written before this change is a true record of what staff chose. A legacy row
   still lists, reads and renders; it just cannot be set again. No migration.
+
+### Fixed
+
+- **Three places still described the pre-0014 model** and were actively
+  misleading: `generateForMember`'s docstring claimed regeneration "updates the
+  existing row in place and removes the superseded file" and cited a
+  `@@unique([tenantMemberId])` that no longer exists; both controllers' Swagger
+  said the same; and `CARD_EXAMPLE` still showed the dropped
+  `generatedBy`/`generatedAt`. It inserts a new row and KEEPS the old PDF.
+
+- **The member form's six lookup pickers came back empty.** Every one of them
+  requests its whole ACTIVE list in a single call with `limit=200`, and the six
+  query schemas capped `limit` at **100** - so each returned
+  `400 Number must be less than or equal to 100` and the form showed six
+  silently blank dropdowns rather than an error.
+
+  The cap is now 200 on all six, finishing a bump that `tenant-business-settings`,
+  `setting-definitions`, `site` and `api-key-scope-templates` already had. The
+  console was not lowered to 100 instead: a business with more than a hundred
+  districts or taluks would then get a truncated list with nothing to say so.
 
 ## [3.9.0] - 2026-11-24
 
