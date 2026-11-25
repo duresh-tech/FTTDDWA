@@ -92,6 +92,19 @@ export class TenantMemberApplicationsService {
       throw new ForbiddenException('This association is not accepting registrations');
     }
 
+    // A business may fix the position applicants are filed under. Enforced
+    // here rather than trusted from the form, because this route is public:
+    // the picker having one option stops an honest applicant choosing wrongly,
+    // and says nothing about what a crafted request can send.
+    //
+    // It OVERRIDES rather than rejects. The applicant was never offered the
+    // choice, so a mismatch is not a mistake they can act on, and failing
+    // their application over a field they could not see would be the worse
+    // answer.
+    const fixedPositionId =
+      await this.settings.resolveApplicantPositionId(tenantBusinessId);
+    if (fixedPositionId) dto.associationPositionId = fixedPositionId;
+
     await this.assertChain(tenantBusinessId, dto);
 
     const digits = normaliseAadhaar(dto.aadhaarNumber);

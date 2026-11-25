@@ -1,14 +1,19 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
-const MemberStatusEnum = z.enum([
-  'ACTIVE',
-  'INACTIVE',
-  'PENDING',
-  'SUSPENDED',
-  'EXPIRED',
-  'DELETED',
-]);
+/**
+ * The states a caller may WRITE.
+ *
+ * SUSPENDED and EXPIRED were retired: they duplicated INACTIVE without
+ * anything acting on the difference - nothing expired a membership on a date,
+ * and nothing treated a suspension differently from being inactive.
+ *
+ * They remain in the Prisma enum on purpose. Postgres cannot drop an enum
+ * value in place, and a row written before this change is still a true record
+ * of what staff chose; narrowing the WRITE path stops new ones without
+ * rewriting history.
+ */
+const MemberStatusEnum = z.enum(['ACTIVE', 'INACTIVE', 'PENDING', 'DELETED']);
 
 /** Same shape the settings store validates its DATE type with. */
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;

@@ -132,9 +132,9 @@ export class TenantMembersController {
   @ApiOperation({
     summary: 'Move a member through the membership lifecycle',
     description:
-      'PENDING, ACTIVE, INACTIVE, SUSPENDED, EXPIRED. Separate from update ' +
-      'and separately permissioned, because suspending someone is a different ' +
-      'act from correcting their phone number. DELETED is not reachable here.',
+      'PENDING, ACTIVE, INACTIVE. Separate from update and separately ' +
+      'permissioned, because ending someone’s membership is a different act ' +
+      'from correcting their phone number. DELETED is not reachable here.',
   })
   @ApiParam({ name: 'id', description: 'Member UUIDv7' })
   @ApiResponse({ status: 200, description: 'Status changed.', schema: { example: MEMBER_EXAMPLE } })

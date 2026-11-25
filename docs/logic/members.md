@@ -136,21 +136,37 @@ fields at once.
 
 ## Status is a lifecycle, not a delete flag
 
-`PENDING`, `ACTIVE`, `INACTIVE`, `SUSPENDED`, `EXPIRED` — plus `DELETED`, which
-only `DELETE` can reach.
+`PENDING`, `ACTIVE`, `INACTIVE` — plus `DELETED`, which only `DELETE` can
+reach.
 
 A new member starts `PENDING`, and a restored one comes back `PENDING` rather
 than `ACTIVE`: a membership that was deleted deserves another look, not a
 silent resumption.
 
 Moving between states has its **own endpoint and its own permission**,
-`tenant-members:change_status`, separate from `update`. Suspending someone is a
-different act from correcting their phone number, and you would plausibly grant
-one without the other.
+`tenant-members:change_status`, separate from `update`. Ending someone's
+membership is a different act from correcting their phone number, and you would
+plausibly grant one without the other.
 
-> Note `ApiKeyStatus` deliberately has no `EXPIRED` member, because expiry
+### `SUSPENDED` and `EXPIRED` were retired
+
+They duplicated `INACTIVE` and nothing acted on the difference: no job expired
+a membership on a date, no guard treated a suspension differently, and the
+portal's login check only ever asked whether the status was `ACTIVE`. Three
+words for one state is three chances to pick the wrong one.
+
+They are gone from the **write** path — the create, update, status-change and
+list-filter schemas — and from both console screens.
+
+They remain in the **Prisma enum**, deliberately. Postgres cannot drop an enum
+value in place; it needs a new type, a column migration and a drop. More to the
+point, a row written before this change is a true record of what staff chose at
+the time, and narrowing what may be written is not a reason to rewrite history.
+So a legacy row still lists, still reads, and still renders — it just cannot be
+set again, and has no filter chip of its own.
+
+> `ApiKeyStatus` deliberately has no `EXPIRED` member either, because expiry
 > there is derived from `expiresAt` and the clock, and storing it too would
-> give two sources of truth that drift. That reasoning does not apply here only
-> because there is no membership-expiry column: `EXPIRED` is a state a human
-> sets. If such a column is ever added, this member should go and be derived
-> instead.
+> give two sources of truth that drift. Memberships now agree with it, for a
+> simpler reason: there is no membership-expiry column, so nothing was deriving
+> it and nothing was setting it on time.

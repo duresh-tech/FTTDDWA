@@ -15,6 +15,12 @@ import { MemberApiError, memberApi } from "@/lib/member-api";
 interface PublicSite {
   association: Record<string, string>;
   registrationOpen: boolean;
+  /**
+   * Set when the association files every applicant under one position. The
+   * server also narrows `options.positions` to it and overrides the submitted
+   * value, so this only decides how the field is PRESENTED.
+   */
+  fixedPositionId?: string | null;
 }
 
 /**
@@ -70,6 +76,12 @@ export default function MemberRegisterPage() {
       .then(([s, o]) => {
         setSite(s);
         setOptions(o);
+        // Nothing to choose, so choose it for them. Without this the applicant
+        // has to open a one-item dropdown to satisfy a field they were never
+        // given a decision about.
+        if (s.fixedPositionId) {
+          setForm((f) => ({ ...f, associationPositionId: s.fixedPositionId! }));
+        }
       })
       .catch(() => setLoadFailed(true));
   }, []);
@@ -230,11 +242,27 @@ export default function MemberRegisterPage() {
               onChange={(e) => set({ businessNameTamil: e.target.value })} />
           </Field>
           <Field label="Position" required>
-            <Combobox
-              options={options.positions.map((o) => ({ value: o.id, label: o.positionName }))}
-              value={form.associationPositionId}
-              onValueChange={(v) => set({ associationPositionId: v })}
-              placeholder="Select a position" />
+            {site?.fixedPositionId ? (
+              // Fixed by the association. Shown read-only rather than hidden:
+              // the applicant should see what they are applying AS, and the
+              // server sets this field regardless of what is sent.
+              <Input
+                readOnly
+                // No invented fallback: the server narrows the list to this
+                // one row, so a miss here means something is wrong and a
+                // plausible-looking name would hide it.
+                value={
+                  options.positions.find((o) => o.id === site.fixedPositionId)
+                    ?.positionName ?? ""
+                }
+              />
+            ) : (
+              <Combobox
+                options={options.positions.map((o) => ({ value: o.id, label: o.positionName }))}
+                value={form.associationPositionId}
+                onValueChange={(v) => set({ associationPositionId: v })}
+                placeholder="Select a position" />
+            )}
           </Field>
           <Field label="Trade" required>
             <Combobox

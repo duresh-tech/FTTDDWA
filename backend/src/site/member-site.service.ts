@@ -74,6 +74,16 @@ export class MemberSiteService {
       // Unset means enabled, matching how the register reads it everywhere
       // else - a business whose settings backfill has not run is not closed.
       registrationOpen: map[MEMBER_REGISTER_SETTING_KEY] !== 'false',
+      /**
+       * The position applicants are filed under, or null when they choose.
+       *
+       * A named, already-resolved field rather than a PUBLIC_SETTING_KEYS
+       * entry, for the same reason registrationOpen is: the clients should
+       * read an answer, not a raw setting they each have to interpret. It is
+       * re-validated against the positions table, so a stale id reads as null.
+       */
+      fixedPositionId:
+        await this.settings.resolveApplicantPositionId(tenantBusinessId),
     };
   }
 
@@ -88,9 +98,15 @@ export class MemberSiteService {
     const tenantBusinessId = await this.businessIdForRequest(req);
     const owned = { tenantBusinessId, status: 'ACTIVE' as const };
 
+    // When the business fixes applicants to one position, that is the only one
+    // the public form may offer. Narrowed HERE rather than in each client, so
+    // a client that forgets cannot put the other positions back.
+    const fixedPositionId =
+      await this.settings.resolveApplicantPositionId(tenantBusinessId);
+
     const [positions, industries, states, districts, taluks, rtos] = await Promise.all([
       this.prisma.tenantAssociationPosition.findMany({
-        where: owned,
+        where: fixedPositionId ? { ...owned, id: fixedPositionId } : owned,
         select: { id: true, positionName: true, positionNameTamil: true },
         orderBy: { positionName: 'asc' },
       }),

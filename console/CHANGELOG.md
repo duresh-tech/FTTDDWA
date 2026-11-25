@@ -5,6 +5,37 @@ All notable changes to the console (formerly `frontend/`) are documented in this
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **The member create/edit dialog showed six empty dropdowns.** Position,
+  trade, state, district, taluk and RTO all 400'd because the form asks for
+  `limit=200` and the API capped it at 100. Fixed in the backend; the console
+  keeps asking for the whole list, since truncating at 100 would hide options
+  with nothing to indicate it.
+
+### Added
+
+- **The position is settled, not chosen, on the public registration form** when
+  the association sets `memberRegister.positionId`. It renders read-only with
+  the fixed position's name, rather than a one-item dropdown the applicant has
+  to open to satisfy a required field they were never given a decision about.
+- **Both staff member forms pre-fill the position** from the same setting. A
+  default, not a lock: it fills an empty field and never overrides a chosen
+  one, because an association still has to be able to enrol a Secretary
+  directly. Reading settings carries its own permission, so the lookup fails
+  silently - somebody who may create members but not read settings still gets a
+  working form.
+
+### Changed
+
+- **`SUSPENDED` and `EXPIRED` are no longer offered** in the status filter or
+  the status field, on either member screen. The `MemberStatus` union keeps
+  them: the database can still return them for a row written earlier, and the
+  status badge renders any string. The list is what may be CHOSEN, not what
+  may arrive.
+
 ## [3.9.0] - 2026-11-24
 
 ### Added

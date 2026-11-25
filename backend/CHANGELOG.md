@@ -5,6 +5,55 @@ All notable changes to the backend are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **The member form's six lookup pickers came back empty.** Every one of them
+  requests its whole ACTIVE list in a single call with `limit=200`, and the six
+  query schemas capped `limit` at **100** - so each returned
+  `400 Number must be less than or equal to 100` and the form showed six
+  silently blank dropdowns rather than an error.
+
+  The cap is now 200 on all six, finishing a bump that `tenant-business-settings`,
+  `setting-definitions`, `site` and `api-key-scope-templates` already had. The
+  console was not lowered to 100 instead: a business with more than a hundred
+  districts or taluks would then get a truncated list with nothing to say so.
+
+### Added
+
+- **`memberRegister.positionId`**, a business setting naming the position every
+  public applicant is filed under. Empty means applicants choose, as before.
+  - `publicOptions()` narrows the position list to it and `submit()`
+    **overrides** the posted value. The narrowing is for the honest applicant;
+    the override is because a public route cannot trust its own form. It
+    overrides rather than rejects, since the applicant was never shown the
+    choice.
+  - **Absent means "applicants choose"** - the opposite polarity to
+    `memberRegister.enabled`, because an absent key is what every business has
+    until the backfill runs, and the other way round would pin every
+    association's applicants to nothing on upgrade. It ships with no default.
+  - `ref` is a rendering hint and enforces nothing on write, so
+    `resolveApplicantPositionId()` re-reads the row scoped to the business: a
+    stale or foreign id degrades to "applicants choose", never to a leak.
+  - `GET public/member/site` gains `fixedPositionId`, a named resolved field
+    rather than a raw `PUBLIC_SETTING_KEYS` entry - clients should read an
+    answer, not a setting each has to interpret.
+- `associationPositions` joins the `ref` targets the settings screen can render
+  a picker for, so the setting is chosen from a list rather than a pasted UUID.
+
+### Changed
+
+- **Member statuses `SUSPENDED` and `EXPIRED` are retired.** They duplicated
+  `INACTIVE` and nothing acted on the difference: no job expired a membership
+  on a date, no guard treated a suspension differently, and the portal's login
+  check only ever asked whether the status was `ACTIVE`.
+
+  Gone from the create, update, status-change and list-filter schemas. **Kept
+  in the Prisma enum** - Postgres cannot drop an enum value in place, and a row
+  written before this change is a true record of what staff chose. A legacy row
+  still lists, reads and renders; it just cannot be set again. No migration.
+
 ## [3.9.0] - 2026-11-24
 
 ### Added

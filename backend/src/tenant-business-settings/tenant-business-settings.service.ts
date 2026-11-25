@@ -22,6 +22,15 @@ type SettingRow = {
 };
 
 /**
+ * The position applicants are filed under, when a business fixes one.
+ *
+ * Exported rather than re-declared: `memberRegister.enabled` is spelled out in
+ * three separate files already, and a key that only one of them gets wrong is
+ * a setting that silently stops working.
+ */
+export const APPLICANT_POSITION_SETTING_KEY = 'memberRegister.positionId';
+
+/**
  * One choice offered by a `ref` setting's picker.
  *
  * `labelTamil` rides along rather than being resolved later: every lookup in
@@ -168,6 +177,34 @@ export class TenantBusinessSettingsService {
   async isSettingEnabled(tenantBusinessId: string, settingKey: string): Promise<boolean> {
     const map = await this.getSettingsMapForBusiness(tenantBusinessId, [settingKey]);
     return map[settingKey] !== 'false';
+  }
+
+  /**
+   * The position every APPLICANT is filed under, or null when they choose.
+   *
+   * Note the polarity, which is the opposite of isSettingEnabled(): absent
+   * means NOT fixed. An absent key is what every business has until the
+   * settings backfill runs, so the absent case has to be the one that changes
+   * nothing.
+   *
+   * It re-reads the row rather than trusting the stored id. `ref` renders a
+   * picker but enforces nothing on write, so this value can name a position
+   * that was since deleted, or - if someone set it through the API rather than
+   * the screen - one belonging to another business entirely. A stale id
+   * degrades to "applicants choose", never to a cross-tenant leak.
+   */
+  async resolveApplicantPositionId(tenantBusinessId: string): Promise<string | null> {
+    const map = await this.getSettingsMapForBusiness(tenantBusinessId, [
+      APPLICANT_POSITION_SETTING_KEY,
+    ]);
+    const positionId = map[APPLICANT_POSITION_SETTING_KEY]?.trim();
+    if (!positionId) return null;
+
+    const position = await this.prisma.tenantAssociationPosition.findFirst({
+      where: { id: positionId, tenantBusinessId, status: { not: 'DELETED' } },
+      select: { id: true },
+    });
+    return position?.id ?? null;
   }
 
   // ---------- System-admin cross-tenant surface ----------
@@ -460,6 +497,20 @@ export class TenantBusinessSettingsService {
           id: row.id,
           label: row.placeName,
           labelTamil: row.placeNameTamil,
+        }));
+      }
+      case 'associationPositions': {
+        // No parent, like `places`: a position hangs off the business, not off
+        // the geography chain.
+        const rows = await this.prisma.tenantAssociationPosition.findMany({
+          where: owned,
+          select: { id: true, positionName: true, positionNameTamil: true },
+          orderBy: { positionName: 'asc' },
+        });
+        return rows.map((row) => ({
+          id: row.id,
+          label: row.positionName,
+          labelTamil: row.positionNameTamil,
         }));
       }
       case 'streets': {

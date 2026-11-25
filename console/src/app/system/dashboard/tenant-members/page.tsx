@@ -40,13 +40,21 @@ type MemberStatus =
   | "EXPIRED"
   | "DELETED";
 
-/** The lifecycle states a human may set. DELETED is reached only by DELETE. */
+/** The business setting naming the position new members default to. */
+const DEFAULT_POSITION_KEY = "memberRegister.positionId";
+
+/**
+ * The lifecycle states a human may set. DELETED is reached only by DELETE.
+ *
+ * SUSPENDED and EXPIRED were retired - they duplicated INACTIVE and nothing
+ * acted on the difference. They stay in `MemberStatus` above because the
+ * database can still return them for a row written before the change, and the
+ * status badge renders any string; this list is only what may be CHOSEN.
+ */
 const SETTABLE_STATUSES: Exclude<MemberStatus, "DELETED">[] = [
   "PENDING",
   "ACTIVE",
   "INACTIVE",
-  "SUSPENDED",
-  "EXPIRED",
 ];
 
 interface MemberRow {
@@ -201,6 +209,30 @@ export default function SystemMembersPage() {
     api<{ items: { id: string; stateName: string }[] }>(`/system/tenant-states${q}`)
       .then((d) => setStateOptions(d.items.map((x) => ({ id: x.id, name: x.stateName }))))
       .catch(() => toast.error("Failed to load states"));
+    loadDefaultPosition(tenantBusinessId);
+  }
+
+  /**
+   * Pre-fills the position from the business's `memberRegister.positionId`.
+   *
+   * The same setting FIXES the position on public applications; here it is
+   * only a default. Staff must still be able to enrol a Secretary directly, so
+   * this fills an empty field and never overrides a chosen one.
+   *
+   * Failure is silent on purpose: reading settings carries its own permission,
+   * and somebody who may create members but not read settings should still get
+   * a working form rather than an error they cannot act on.
+   */
+  function loadDefaultPosition(tenantBusinessId: string) {
+    api<ListResponse<{ settingKey: string; settingValue: string | null }>>(
+      `/system/tenant-business-settings?tenantBusinessId=${tenantBusinessId}&limit=200`,
+    )
+      .then((d) => {
+        const fixed = d.items.find((r) => r.settingKey === DEFAULT_POSITION_KEY)?.settingValue;
+        if (!fixed) return;
+        setForm((f) => (f.associationPositionId ? f : { ...f, associationPositionId: fixed }));
+      })
+      .catch(() => {});
   }
 
   function loadDistricts(tenantBusinessId: string, stateId: string) {

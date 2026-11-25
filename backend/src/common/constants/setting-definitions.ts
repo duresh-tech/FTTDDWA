@@ -455,6 +455,29 @@ export const SETTING_DEFINITIONS: SettingDefinitionSeed[] = [
     defaultValue: 'true',
     sortOrder: 400,
   },
+  {
+    category: 'Member Register',
+    settingKey: 'memberRegister.positionId',
+    settingLabel: 'Position for applicants',
+    // Kept short on purpose: setting_definitions.description is VARCHAR(255),
+    // and createMany fails the whole seed with a P2000 naming no column.
+    description:
+      'Public applications are filed under this position and the form stops ' +
+      'offering a choice. Empty lets applicants pick. Staff enrolling a ' +
+      'member directly always choose freely.',
+    // STRING holding a tenant_association_positions UUID, like
+    // association.stateId. `ref` renders it as a picker of this business's
+    // positions; it is a rendering hint and NOT a write rule, so whatever
+    // reads this must re-check the row still exists and belongs to the
+    // business - see resolveApplicantPositionId().
+    valueType: 'STRING',
+    validationRules: JSON.stringify({ ref: 'associationPositions' }),
+    // No default ON PURPOSE. Absent must mean "applicants choose", because an
+    // absent key is exactly what every existing business has until `npm run
+    // seed` backfills - and the opposite polarity would silently pin every
+    // association's applicants to nothing at all.
+    sortOrder: 401,
+  },
 ];
 
 /**

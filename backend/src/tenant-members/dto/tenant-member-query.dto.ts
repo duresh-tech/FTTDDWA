@@ -10,9 +10,9 @@ const TenantMemberListQuerySchema = z.object({
    * a blind index answers equality only, never `contains`.
    */
   search: z.string().max(100).optional(),
-  status: z
-    .enum(['ACTIVE', 'INACTIVE', 'PENDING', 'SUSPENDED', 'EXPIRED', 'DELETED'])
-    .optional(),
+  // Matches the write enum - see tenant-member.dto.ts. A legacy SUSPENDED or
+  // EXPIRED row still LISTS, it just has no filter chip of its own.
+  status: z.enum(['ACTIVE', 'INACTIVE', 'PENDING', 'DELETED']).optional(),
   tenantBusinessId: z.string().uuid().optional(),
   associationPositionId: z.string().uuid().optional(),
   industryId: z.string().uuid().optional(),

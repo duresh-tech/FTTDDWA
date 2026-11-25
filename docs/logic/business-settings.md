@@ -86,6 +86,7 @@ status to `INACTIVE`.
 | `association.signature.jointSecretaryPath` | — | Signatures |
 | `association.signature.treasurerPath` | — | Signatures |
 | `memberRegister.enabled` | `true` | Member Register |
+| `memberRegister.positionId` | — | Member Register |
 
 `category` is free text, not an enum: the settings screen groups by whatever
 comes back, so a new category needs no code change.
@@ -294,6 +295,40 @@ Two things follow:
   applies neither `showIf` nor `isVisible`: an operator looking into a tenant's
   configuration needs to see a value stored while its condition is false,
   because that contradiction is the kind of thing they are there to find.
+
+### `memberRegister.positionId` fixes what an applicant may claim
+
+A `ref` setting pointing at one of the business's own association positions.
+Set it and every **public application** is filed under that position; leave it
+empty and applicants choose for themselves.
+
+The distinction that matters is who is asking:
+
+- **The public form is held to it.** `publicOptions()` narrows the position
+  list to that one row, and `submit()` **overrides** whatever was posted.
+  Narrowing the list stops an honest applicant choosing wrongly; overriding is
+  what stops a crafted request, because a public route cannot trust its own
+  form. It overrides rather than rejects — the applicant was never shown the
+  choice, so failing their application over a field they could not see would be
+  the worse answer.
+- **Staff are only defaulted.** Both member screens pre-fill an empty position
+  with it and leave it editable. An association still has to be able to enrol a
+  Secretary directly, so a hard lock here would break the register to protect
+  a form that is already protected.
+
+Two traps this had to design around:
+
+- **Absent means "applicants choose".** The opposite polarity to
+  `memberRegister.enabled`, and deliberately so: an absent key is exactly what
+  every existing business has until `npm run seed` backfills, and the other way
+  round would pin every association's applicants to nothing at the moment of
+  upgrade. For the same reason it ships with **no default value**.
+- **`ref` is a rendering hint, not a write rule.** Nothing stops the stored
+  UUID naming a position that was since deleted, or one belonging to another
+  business if it was set through the API rather than the screen. So
+  `resolveApplicantPositionId()` re-reads the row scoped to the business and
+  returns `null` when it does not resolve — a stale id degrades to "applicants
+  choose", never to a cross-tenant leak.
 
 ### `memberRegister.enabled` closes the register
 

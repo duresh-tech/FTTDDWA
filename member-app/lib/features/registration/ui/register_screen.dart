@@ -62,7 +62,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       final options = await _api.options();
       if (!mounted) return;
-      setState(() => _options = options);
+      setState(() {
+        _options = options;
+        // The association may file every applicant under one position, in
+        // which case the server has already narrowed this list to it. Choose
+        // it for them rather than making them open a one-item picker to
+        // satisfy a field they were never given a decision about.
+        final fixed = widget.site.fixedPositionId;
+        if (fixed != null && fixed.isNotEmpty) {
+          _draft.associationPositionId = fixed;
+        } else if (options.positions.length == 1) {
+          _draft.associationPositionId = options.positions.single.id;
+        }
+      });
     } on ApiException catch (error) {
       if (!mounted) return;
       setState(() => _loadError = error.message);

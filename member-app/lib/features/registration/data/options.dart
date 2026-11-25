@@ -118,7 +118,11 @@ class MemberOptions {
 
 /// The association's public details, for the splash and the login screen.
 class PublicSite {
-  const PublicSite({required this.association, required this.registrationOpen});
+  const PublicSite({
+    required this.association,
+    required this.registrationOpen,
+    this.fixedPositionId,
+  });
 
   /// An allow-listed subset of the Association settings, keyed
   /// `association.name`, `association.logo1Path` and so on. Keys with no value
@@ -127,6 +131,12 @@ class PublicSite {
 
   /// Whether this association accepts applications.
   final bool registrationOpen;
+
+  /// Set when the association files every applicant under one position.
+  ///
+  /// The server also narrows `options.positions` to it and overrides whatever
+  /// is submitted, so this only decides how the field is PRESENTED.
+  final String? fixedPositionId;
 
   static const empty = PublicSite(association: {}, registrationOpen: false);
 
@@ -143,6 +153,7 @@ class PublicSite {
     return PublicSite(
       association: map,
       registrationOpen: json['registrationOpen'] as bool? ?? false,
+      fixedPositionId: json['fixedPositionId'] as String?,
     );
   }
 

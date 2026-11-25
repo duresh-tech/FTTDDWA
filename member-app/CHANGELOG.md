@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Its own version stream: the backend and the console do not move in lockstep
 with each other, and this app moves with neither.
 
+## [Unreleased]
+
+### Added
+
+- **The position is chosen for the applicant** when the association sets
+  `memberRegister.positionId`. The server already narrows the list to that one
+  row, so step 3 would otherwise make someone open a one-item picker to satisfy
+  a field they were never given a decision about. Falls back to auto-selecting
+  whenever exactly one position is offered, so it behaves the same way for an
+  association that simply has one.
+- `PublicSite.fixedPositionId`, matching the new field on
+  `GET public/member/site`.
+
 ## [1.0.0] - 2026-11-25
 
 First release. A native client for the member portal, covering the same three
