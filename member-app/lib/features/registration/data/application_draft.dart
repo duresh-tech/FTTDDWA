@@ -14,6 +14,13 @@ class ApplicationDraft {
   String weddingDate = '';
   String aadhaarNumber = '';
 
+  /// The storage PATH returned by `POST public/member/photo`, never the image.
+  ///
+  /// The upload is its own request, so by submit time this is a short string
+  /// like `member-photos/<uuid>.jpg`. The server confines it to paths that
+  /// endpoint issued.
+  String passportPhotoPath = '';
+
   // Step 2 -- contact
   String phoneNumber = '';
   String whatsappNumber = '';
@@ -38,10 +45,40 @@ class ApplicationDraft {
 
   /// Aadhaar with spacing and dashes removed.
   ///
-  /// The server does the same (`.transform(v => v.replace(/\D/g, ''))`) and
-  /// then requires exactly 12 digits, so validating the stripped form here
-  /// matches what it will actually check.
+  /// The server does the same (`.transform(v => v.replace(/\D/g, ''))`) and,
+  /// WHEN ONE IS GIVEN, requires exactly 12 digits. It is OPTIONAL: an
+  /// applicant without one is simply not duplicate-checked, because the blind
+  /// index has nothing to match on.
   String get aadhaarDigits => aadhaarNumber.replaceAll(RegExp(r'\D'), '');
+
+  /// True when the applicant has entered nothing of their own.
+  ///
+  /// Only what somebody TYPED OR CHOSE counts. `associationPositionId` is
+  /// deliberately excluded: the screen pre-fills it when the association
+  /// fixes a position or offers only one, so counting it would make a
+  /// never-touched form look half-filled and put a discard prompt in front of
+  /// a mis-tap.
+  bool get isEmpty =>
+      memberName.trim().isEmpty &&
+      memberNameTamil.trim().isEmpty &&
+      businessName.trim().isEmpty &&
+      businessNameTamil.trim().isEmpty &&
+      dateOfBirth.isEmpty &&
+      !isMarried &&
+      weddingDate.isEmpty &&
+      aadhaarNumber.trim().isEmpty &&
+      passportPhotoPath.isEmpty &&
+      phoneNumber.trim().isEmpty &&
+      whatsappNumber.trim().isEmpty &&
+      email.trim().isEmpty &&
+      addressLine1.trim().isEmpty &&
+      addressLine2.trim().isEmpty &&
+      password.isEmpty &&
+      industryId == null &&
+      stateId == null &&
+      districtId == null &&
+      talukId == null &&
+      rtoId == null;
 
   /// Clears the dependent pickers when a parent changes.
   ///
@@ -71,15 +108,15 @@ class ApplicationDraft {
   /// There is no `tenantBusinessId` -- the server takes the association from
   /// the hostname, and no body field could override it.
   ///
-  /// There is no `passportPhotoPath` either: no public upload route exists, so
-  /// staff attach the photo at approval.
+  /// `passportPhotoPath` IS sent when the applicant added a photo - the
+  /// public upload route exists now. It carries the path that route
+  /// returned, not the image.
   Map<String, Object?> toJson() {
     final body = <String, Object?>{
       'memberName': memberName.trim(),
       'businessName': businessName.trim(),
       'associationPositionId': associationPositionId,
       'industryId': industryId,
-      'aadhaarNumber': aadhaarDigits,
       'phoneNumber': phoneNumber.trim(),
       'email': email.trim(),
       'stateId': stateId,
@@ -99,6 +136,12 @@ class ApplicationDraft {
       final trimmed = value.trim();
       if (trimmed.isNotEmpty) body[key] = trimmed;
     }
+
+    // Both optional, and OMITTED rather than sent empty. An empty Aadhaar
+    // survives today only because the schema carries `.or(z.literal(''))`;
+    // omitting it is what optional actually means.
+    optional('aadhaarNumber', aadhaarDigits);
+    optional('passportPhotoPath', passportPhotoPath);
 
     optional('memberNameTamil', memberNameTamil);
     optional('businessNameTamil', businessNameTamil);

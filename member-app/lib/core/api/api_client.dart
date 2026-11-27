@@ -107,6 +107,42 @@ class ApiClient {
     return decoded;
   }
 
+  /// Posts a file as multipart form data.
+  ///
+  /// The headers deliberately OMIT Content-Type. A multipart body needs the
+  /// boundary in that header, and only the request itself knows it - setting
+  /// it by hand is the classic way an upload arrives unparseable. `_headers`
+  /// always sets it, so this builds its own set instead of calling it.
+  Future<dynamic> postFile(
+    String path, {
+    required String field,
+    required List<int> bytes,
+    required String filename,
+    bool origin = false,
+  }) async {
+    final uri = Uri.parse('${Env.apiUrl}$path');
+    final request = http.MultipartRequest('POST', uri)
+      ..headers['x-device-type'] = deviceType
+      ..headers['x-api-key'] = Env.apiKey
+      ..files.add(
+        http.MultipartFile.fromBytes(field, bytes, filename: filename),
+      );
+    if (origin) request.headers['Origin'] = Env.origin;
+
+    http.Response response;
+    try {
+      response = await http.Response.fromStream(await _http.send(request));
+    } catch (error) {
+      throw ApiException.network(error);
+    }
+
+    final decoded = _decode(response);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException.fromBody(response.statusCode, decoded);
+    }
+    return decoded;
+  }
+
   /// Fetches a binary body -- the member's card PDF.
   ///
   /// A plain download cannot reach it: the file lives in private storage

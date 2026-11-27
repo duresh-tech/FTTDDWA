@@ -36,6 +36,30 @@ class RegistrationApi {
     return MemberOptions.fromJson(json as Map<String, dynamic>);
   }
 
+  /// Uploads the applicant's photo and returns its storage PATH.
+  ///
+  /// Its own request, before the form is submitted: the image dwarfs the rest
+  /// of the application, and a failed submit should not mean taking the photo
+  /// again. The path comes back short enough to carry in the draft.
+  ///
+  /// The server caps the size at 2 MB, reads the type from the file's own
+  /// leading bytes rather than anything the client declares, and throttles
+  /// this at 5/minute - so the checks on the app side are a courtesy that
+  /// saves a round trip, never the control.
+  Future<String> uploadPhoto({
+    required List<int> bytes,
+    required String filename,
+  }) async {
+    final json = await _client.postFile(
+      '/public/member/photo',
+      field: 'file',
+      bytes: bytes,
+      filename: filename,
+      origin: true,
+    );
+    return (json as Map<String, dynamic>)['path'] as String;
+  }
+
   /// Files an application.
   ///
   /// Writes to `tenant_member_applications`, never to the member register:

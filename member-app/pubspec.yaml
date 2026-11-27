@@ -25,6 +25,10 @@ dependencies:
   path_provider: ^2.1.6
   open_filex: ^5.0.0
   intl: ^0.20.3
+  # Camera and gallery for the applicant's photo. Its camera goes through
+  # the system intent, so the app still declares only INTERNET - no CAMERA
+  # permission to justify on a store listing.
+  image_picker: ^1.2.4
 
 dev_dependencies:
   flutter_test:

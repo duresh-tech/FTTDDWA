@@ -52,6 +52,15 @@ void main() {
       expect(filled().toJson()['aadhaarNumber'], '123456789012');
     });
 
+    test('is OMITTED when blank, not sent as an empty string', () {
+      // The server types it `aadhaar.or(z.literal('')).optional()`, so an
+      // empty string survives today - but only by that literal's grace.
+      // Omitting it is what "optional" actually means, and it keeps the app
+      // working if that branch is ever tightened.
+      final draft = filled()..aadhaarNumber = '';
+      expect(draft.toJson().keys, isNot(contains('aadhaarNumber')));
+    });
+
     test('strips dashes too', () {
       final draft = filled()..aadhaarNumber = '1234-5678-9012';
       expect(draft.aadhaarDigits, '123456789012');
@@ -83,9 +92,54 @@ void main() {
     expect(filled().toJson().keys, isNot(contains('tenantBusinessId')));
   });
 
-  test('no passport photo is sent', () {
-    // There is no public upload route, so staff attach one at approval.
-    expect(filled().toJson().keys, isNot(contains('passportPhotoPath')));
+  group('the passport photo', () {
+    test('is omitted when the applicant did not add one', () {
+      expect(filled().toJson().keys, isNot(contains('passportPhotoPath')));
+    });
+
+    test('is sent when they did', () {
+      // The value is a storage PATH the photo endpoint returned, never the
+      // image itself - the upload is its own request.
+      final draft = filled()
+        ..passportPhotoPath =
+            'member-photos/019f357c-d489-74a9-8490-1f82e745b199.jpg';
+      expect(
+        draft.toJson()['passportPhotoPath'],
+        'member-photos/019f357c-d489-74a9-8490-1f82e745b199.jpg',
+      );
+    });
+  });
+
+  group('isEmpty, which decides whether leaving asks first', () {
+    test('a fresh draft is empty', () {
+      expect(ApplicationDraft().isEmpty, isTrue);
+    });
+
+    test('one typed character is not empty', () {
+      expect((ApplicationDraft()..memberName = 'A').isEmpty, isFalse);
+    });
+
+    test('whitespace alone is still empty', () {
+      expect((ApplicationDraft()..memberName = '   ').isEmpty, isTrue);
+    });
+
+    test('a pre-filled position does NOT count as input', () {
+      // The screen sets this itself when the association fixes a position, so
+      // counting it would put a discard prompt in front of a mis-tap on a
+      // form nobody has touched.
+      final draft = ApplicationDraft()..associationPositionId = 'pos-1';
+      expect(draft.isEmpty, isTrue);
+    });
+
+    test('a chosen trade does count - the applicant chose it', () {
+      expect((ApplicationDraft()..industryId = 'ind-1').isEmpty, isFalse);
+    });
+
+    test('an attached photo counts, since it is already uploaded', () {
+      final draft = ApplicationDraft()
+        ..passportPhotoPath = 'member-photos/a.jpg';
+      expect(draft.isEmpty, isFalse);
+    });
   });
 
   group('cascades clear their children', () {

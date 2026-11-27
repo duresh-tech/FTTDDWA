@@ -14,7 +14,7 @@ just how to run it.
 | --- | --- |
 | **Splash** | Brand, restores a stored session, routes. Asks for nothing |
 | **Login** | Membership number + password |
-| **Register** | The full application, over four steps |
+| **Register** | The full application, over four steps, photo included |
 | **Profile** | Your record, and your card with a PDF download |
 
 ## Running it
@@ -93,15 +93,24 @@ where this app can go wrong silently: a stringified `isMarried` (the server's
 
 ## Not here, on purpose
 
-- **No passport photo on registration.** There is no public upload route, so
-  staff attach one at approval.
 - **No profile editing.** No endpoint exists for a member to change their own
   record.
 - **No web build.** A browser sets `Origin` itself and will not let the app
   override it, so a web build could only address the association serving it.
 
-## Known toolchain issue
+## Known toolchain issues
 
 `flutter doctor` warns that the Android SDK path contains a space, which breaks
 NDK tooling. This app has no native code, so Gradle builds fine — but that is
 the cause if an NDK step ever fails, and the fix is relocating the SDK.
+
+**Kotlin incremental compilation is off**, in
+[`android/gradle.properties`](android/gradle.properties). Its cache stores
+source paths relative to the project root, so a plugin compiled out of a pub
+cache on `C:` has no relative path to a project on `D:`. Gradle then fails
+with `Could not close incremental caches`, which names the drive problem
+nowhere — the cause is three levels down in a suppressed
+`this and base files have different roots`. Turning it off costs a Kotlin
+recompile of the plugins per clean build and nothing on a Dart change; the
+alternative is moving `PUB_CACHE` onto the project's drive, a machine-wide
+change for one project.

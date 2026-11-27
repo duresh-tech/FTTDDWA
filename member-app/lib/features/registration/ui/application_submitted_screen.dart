@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../data/application_draft.dart';
 import '../data/options.dart';
 
@@ -22,6 +23,7 @@ class ApplicationSubmittedScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final status = AppStatusColors.of(context);
 
     return Scaffold(
       body: SafeArea(
@@ -33,10 +35,24 @@ class ApplicationSubmittedScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.mark_email_read_outlined,
-                    size: 56,
-                    color: theme.colorScheme.primary,
+                  // Success-tinted, not primary: this screen reports an
+                  // outcome. It is still deliberately not a tick - nothing has
+                  // been granted yet, only received.
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: status.success.withValues(alpha: 0.12),
+                      border: Border.all(
+                        color: status.success.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.mark_email_read_outlined,
+                      size: 34,
+                      color: status.success,
+                    ),
                   ),
                   const SizedBox(height: 20),
                   Text(
@@ -54,8 +70,11 @@ class ApplicationSubmittedScreen extends StatelessWidget {
                       vertical: 16,
                     ),
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(12),
+                      color: theme.colorScheme.surfaceContainerLowest,
+                      borderRadius: AppTheme.borderRadius,
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant,
+                      ),
                     ),
                     child: Column(
                       children: [

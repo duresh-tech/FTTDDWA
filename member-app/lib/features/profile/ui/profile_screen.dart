@@ -3,6 +3,7 @@ import 'package:open_filex/open_filex.dart';
 
 import '../../../core/api/api_exception.dart';
 import '../../../core/config/env.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/bilingual_row.dart';
 import '../../auth/data/member.dart';
 import '../../auth/member_session.dart';
@@ -302,66 +303,92 @@ class _Header extends StatelessWidget {
     final theme = Theme.of(context);
     final photo = member.passportPhotoPath;
 
-    return Row(
-      children: [
-        if (photo != null)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.network(
-              Env.uploadUrl(photo),
-              width: 60,
-              height: 60,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => _placeholder(theme),
-            ),
-          )
-        else
-          _placeholder(theme),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                member.memberName,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+    // The console's own header gradient. This is the one band on the screen
+    // that is about identity rather than data, so it is the only thing that
+    // gets the brand treatment - everything below stays a plain card.
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: const BoxDecoration(
+        gradient: AppColors.headerGradient,
+        borderRadius: AppTheme.borderRadius,
+      ),
+      child: Row(
+        children: [
+          if (photo != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.network(
+                Env.uploadUrl(photo),
+                width: 64,
+                height: 64,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => _placeholder(),
               ),
-              if (member.memberNameTamil != null)
+            )
+          else
+            _placeholder(),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  member.memberNameTamil!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                  member.memberName,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
                 ),
-              const SizedBox(height: 2),
-              Text(
-                member.memberIdNumber,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  letterSpacing: 1.2,
-                  fontWeight: FontWeight.w700,
+                if (member.memberNameTamil != null)
+                  Text(
+                    member.memberNameTamil!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.82),
+                    ),
+                  ),
+                const SizedBox(height: 4),
+                Text(
+                  member.memberIdNumber,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        Chip(label: Text(member.status), visualDensity: VisualDensity.compact),
-      ],
+          const SizedBox(width: 8),
+          // Not a Chip: on the gradient, the theme's chip surface would be a
+          // grey block. The status word is readable in a translucent pill.
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.32)),
+            ),
+            child: Text(
+              member.status,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _placeholder(ThemeData theme) => Container(
-    width: 60,
-    height: 60,
+  Widget _placeholder() => Container(
+    width: 64,
+    height: 64,
     decoration: BoxDecoration(
-      color: theme.colorScheme.primary,
+      color: Colors.white.withValues(alpha: 0.18),
       borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.32)),
     ),
-    child: Icon(
-      Icons.person_outline,
-      size: 30,
-      color: theme.colorScheme.onPrimary,
-    ),
+    child: const Icon(Icons.person_outline, size: 30, color: Colors.white),
   );
 }

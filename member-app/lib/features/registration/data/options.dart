@@ -122,6 +122,7 @@ class PublicSite {
     required this.association,
     required this.registrationOpen,
     this.fixedPositionId,
+    this.loaded = true,
   });
 
   /// An allow-listed subset of the Association settings, keyed
@@ -138,7 +139,20 @@ class PublicSite {
   /// is submitted, so this only decides how the field is PRESENTED.
   final String? fixedPositionId;
 
-  static const empty = PublicSite(association: {}, registrationOpen: false);
+  /// What the app holds when the association could NOT be reached.
+  ///
+  /// `loaded` is the whole point. Without it this is indistinguishable from a
+  /// business that has closed its register, and the login screen silently
+  /// drops the Apply button on a slow network - telling the applicant nothing
+  /// and leaving them to conclude the association does not take applications.
+  static const empty = PublicSite(
+    association: {},
+    registrationOpen: false,
+    loaded: false,
+  );
+
+  /// Whether these details actually came back from the server.
+  final bool loaded;
 
   factory PublicSite.fromJson(Map<String, dynamic> json) {
     final raw = json['association'];

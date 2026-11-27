@@ -12,6 +12,66 @@ with each other, and this app moves with neither.
 
 ### Added
 
+- **The applicant's photo**, from the camera or the gallery, on step 1 of the
+  application — where the console puts it. It uploads to
+  `POST public/member/photo` on selection rather than on submit: the image
+  dwarfs the rest of the form, and a failed submit should not mean taking the
+  photo again. Downscaled to 1280px before sending, because a phone camera
+  produces 4-8 MB and the server refuses anything over 2 MB. This supersedes
+  the 1.0.0 omission below, which was accurate when there was no public upload
+  route.
+- A **Cancel** button on the application, and a confirmation before it discards
+  anything typed. The form previously had no way out but the system back
+  gesture.
+- **`AppStatusColors`**, a `ThemeExtension` carrying the console's `--success`,
+  `--warning` and `--info`. They have no slot in a Material `ColorScheme`, and
+  as a theme extension dark mode resolves them without any widget asking which
+  mode it is in.
+
+### Changed
+
+- **The Aadhaar number is optional**, matching the server and the console. It
+  was hard-required at exactly 12 digits, so an applicant without one could
+  complete the web form and was stopped dead at step 1 here. A part-entered
+  number is still rejected. A blank field is now **omitted** from the request
+  rather than sent as `''`.
+- **The theme is the console's**, not a seeded one: an explicit `ColorScheme`
+  built from `console/src/app/globals.css` (indigo `#4F46E5`, sky `#0EA5E9`,
+  slate neutrals, an 8px radius), flat bordered cards and filled inputs. The
+  splash and the profile header carry the console's own header gradient. Fonts
+  are untouched — `NotoSans` with `NotoSansTamil` as the **fallback**, which is
+  the only arrangement that renders both scripts.
+- The application's steps are **named and numbered** on a rail, with each
+  step's fields in a card under a heading and a line of explanation, replacing
+  a 4px progress bar that never said what was still to come. Moving between
+  steps now scrolls back to the top — one scroll view serves all four, so
+  somebody who filled step 1 to the bottom used to arrive at step 2 already
+  past its heading.
+- Helper and error text under a field **wrap** instead of ellipsizing. Both
+  default to one line, which cut the Aadhaar field's explanation in half on a
+  phone.
+- **A fixed position is shown read-only** rather than as a one-item dropdown.
+- **Registration closed and the association being unreachable now read
+  differently.** `PublicSite.empty` has `registrationOpen: false`, so a timed
+  out branding fetch silently hid Apply with nothing said; the login screen
+  now distinguishes the two and offers a retry for the second.
+
+### Fixed
+
+- **The Android build works again on a machine whose pub cache is on another
+  drive.** Kotlin's incremental cache stores paths relative to the project, so
+  a plugin compiled out of `C:\…\Pub\Cache` cannot be expressed against a
+  project on `D:` — Gradle fails with `Could not close incremental caches`,
+  naming no drive. `kotlin.incremental=false` in
+  `android/gradle.properties`, with the reasoning, is cheaper than relocating
+  the whole cache. It first bit when `image_picker` became the app's only
+  plugin with Kotlin sources.
+
+### Removed
+
+- `BilingualRow.monospace`. It set `fontFeatures: const []`, which selects no
+  features and changed nothing, and nothing ever passed it.
+
 - **The position is chosen for the applicant** when the association sets
   `memberRegister.positionId`. The server already narrows the list to that one
   row, so step 3 would otherwise make someone open a one-item picker to satisfy
@@ -83,6 +143,7 @@ Consequences worth stating:
   are both behind staff guards and there is no public upload route, so
   `passportPhotoPath` is left unset and staff attach one at approval. Adding a
   public upload endpoint is a backend decision and a new attack surface.
+  *(That decision was since taken: see Unreleased.)*
 - **No password change**, though `POST member/auth/password` exists.
 - **No state-management package and no form library**, matching the console's
   house style: one `ChangeNotifier` for the session, and plain `setState` with

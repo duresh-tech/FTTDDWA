@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../shared/widgets/date_field.dart';
 import '../../../../shared/widgets/labelled_field.dart';
+import '../../../../shared/widgets/photo_field.dart';
 import '../../data/application_draft.dart';
 
 /// Step 1: who the applicant is.
@@ -11,12 +12,22 @@ import '../../data/application_draft.dart';
 /// spelling from someone who does not use one would be worse than leaving the
 /// column null.
 class IdentityStep extends StatelessWidget {
-  const IdentityStep({super.key, required this.draft, required this.onChanged});
+  const IdentityStep({
+    super.key,
+    required this.draft,
+    required this.onChanged,
+    required this.onPhotoPicked,
+    this.photoUploading = false,
+  });
 
   final ApplicationDraft draft;
 
   /// Rebuilds the parent, which is what makes the wedding-date field appear.
   final VoidCallback onChanged;
+
+  /// The screen owns the upload - see PhotoField.
+  final Future<void> Function(List<int> bytes, String filename) onPhotoPicked;
+  final bool photoUploading;
 
   @override
   Widget build(BuildContext context) {
@@ -87,23 +98,31 @@ class IdentityStep extends StatelessWidget {
 
         const SizedBox(height: 8),
         LabelledField(
-          label: 'Aadhaar number',
-          required: true,
+          label: 'Aadhaar number (optional)',
           hint: '1234 5678 9012',
           helper: 'Stored encrypted. Only the last four digits are ever shown.',
           keyboardType: TextInputType.number,
           initialValue: draft.aadhaarNumber,
           onChanged: (v) => draft.aadhaarNumber = v,
           validator: (value) {
-            // Spacing is fine -- the server strips non-digits too -- but the
-            // result has to be exactly 12.
+            // OPTIONAL, matching the server and the website. Blank is fine;
+            // a half-entered number is not, so the length is still checked
+            // once somebody has started typing.
             final digits = (value ?? '').replaceAll(RegExp(r'\D'), '');
-            if (digits.isEmpty) return 'Enter your Aadhaar number';
+            if (digits.isEmpty) return null;
             if (digits.length != 12) {
               return 'An Aadhaar number has 12 digits (you entered ${digits.length})';
             }
             return null;
           },
+        ),
+
+        PhotoField(
+          label: 'Your photo',
+          storedPath: draft.passportPhotoPath,
+          uploading: photoUploading,
+          onPicked: onPhotoPicked,
+          helper: 'Optional. Printed on your membership card.',
         ),
       ],
     );

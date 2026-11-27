@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/api/api_exception.dart';
 import '../../../core/config/env.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/labelled_field.dart';
 import '../../profile/ui/profile_screen.dart';
 import '../../registration/data/options.dart';
@@ -113,48 +114,61 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 28),
 
-                    LabelledField(
-                      label: 'Membership number',
-                      required: true,
-                      hint: 'TN72001',
-                      helper: 'Printed on your membership card',
-                      textCapitalization: TextCapitalization.characters,
-                      onChanged: (value) => _memberIdNumber = value,
-                      validator: (value) =>
-                          (value == null || value.trim().isEmpty)
-                          ? 'Enter your membership number'
-                          : null,
-                    ),
-                    LabelledField(
-                      label: 'Password',
-                      required: true,
-                      obscureText: true,
-                      onChanged: (value) => _password = value,
-                      validator: (value) => (value == null || value.isEmpty)
-                          ? 'Enter your password'
-                          : null,
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            LabelledField(
+                              label: 'Membership number',
+                              required: true,
+                              hint: 'TN72001',
+                              helper: 'Printed on your membership card',
+                              textCapitalization: TextCapitalization.characters,
+                              onChanged: (value) => _memberIdNumber = value,
+                              validator: (value) =>
+                                  (value == null || value.trim().isEmpty)
+                                  ? 'Enter your membership number'
+                                  : null,
+                            ),
+                            LabelledField(
+                              label: 'Password',
+                              required: true,
+                              obscureText: true,
+                              onChanged: (value) => _password = value,
+                              validator: (value) =>
+                                  (value == null || value.isEmpty)
+                                  ? 'Enter your password'
+                                  : null,
+                            ),
+
+                            const SizedBox(height: 8),
+                            FilledButton(
+                              onPressed: _saving ? null : _submit,
+                              child: _saving
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                      ),
+                                    )
+                                  : const Text('Sign in'),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
 
-                    const SizedBox(height: 8),
-                    FilledButton(
-                      onPressed: _saving ? null : _submit,
-                      child: _saving
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                              ),
-                            )
-                          : const Text('Sign in'),
-                    ),
-
-                    // Offered only when this association is accepting
-                    // applications. The server refuses with 403 either way, so
-                    // this is about not inviting a dead end.
-                    if (site.registrationOpen) ...[
+                    // THREE states, not two. Hiding the button is right when
+                    // the register is closed and wrong when the association
+                    // simply could not be reached - and without `loaded` those
+                    // look identical, so a slow network used to read as "this
+                    // association does not accept applications".
+                    if (site.loaded && site.registrationOpen) ...[
                       const SizedBox(height: 12),
                       OutlinedButton.icon(
                         onPressed: _saving
@@ -169,6 +183,22 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                         icon: const Icon(Icons.person_add_alt),
                         label: const Text('Apply for membership'),
+                      ),
+                    ] else if (site.loaded) ...[
+                      const SizedBox(height: 12),
+                      _Note(
+                        icon: Icons.info_outline,
+                        text:
+                            'This association is not accepting new '
+                            'applications at the moment.',
+                      ),
+                    ] else ...[
+                      const SizedBox(height: 12),
+                      _Note(
+                        icon: Icons.cloud_off,
+                        text:
+                            'Could not reach the association, so applying is '
+                            'unavailable. Signing in may still work.',
                       ),
                     ],
 
@@ -205,4 +235,40 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     ),
   );
+}
+
+/// A quiet, bordered line of explanation beneath the sign-in form.
+class _Note extends StatelessWidget {
+  const _Note({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainer,
+        borderRadius: AppTheme.borderRadius,
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

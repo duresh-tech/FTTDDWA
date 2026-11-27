@@ -11,13 +11,11 @@ class BilingualRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.tamil,
-    this.monospace = false,
   });
 
   final String label;
   final String? value;
   final String? tamil;
-  final bool monospace;
 
   bool get hasValue => value != null && value!.trim().isNotEmpty;
 
@@ -44,14 +42,7 @@ class BilingualRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  value!,
-                  style: monospace
-                      ? theme.textTheme.bodyMedium?.copyWith(
-                          fontFeatures: const [],
-                        )
-                      : theme.textTheme.bodyMedium,
-                ),
+                Text(value!, style: theme.textTheme.bodyMedium),
                 if (tamil != null && tamil!.trim().isNotEmpty)
                   Text(
                     tamil!,

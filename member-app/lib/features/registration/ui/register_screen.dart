@@ -17,8 +17,9 @@ import 'steps/location_step.dart';
 /// the point of the table: the applicant supplies their details once and
 /// approval is a copy rather than a second interview.
 ///
-/// What it does NOT collect is a passport photo -- there is no public upload
-/// route, so staff attach one at approval.
+/// The photo IS collected now: it uploads on selection to
+/// `POST public/member/photo`, and only the returned path travels with the
+/// form.
 ///
 /// Submitting creates an APPLICATION, never a member. No membership number, no
 /// session, nothing to sign in with until staff approve it.
@@ -40,7 +41,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
     'Location',
   ];
 
+  /// One line per step. The console's form carries the same explanatory text
+  /// under each section heading, and on a phone - where only one step is ever
+  /// on screen - it matters more, not less.
+  static const _blurbs = [
+    'Your name, date of birth and photo.',
+    'How the association reaches you, and the password you will sign in with.',
+    'What you do, and the position you are applying for.',
+    'Where your business is, for your district association.',
+  ];
+
   final _draft = ApplicationDraft();
+  final _scroll = ScrollController();
   // One form per step, so Next validates only what is on screen.
   final _formKeys = List.generate(4, (_) => GlobalKey<FormState>());
 
@@ -50,11 +62,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _loadError;
   int _step = 0;
   bool _saving = false;
+  bool _photoUploading = false;
+
+  /// Uploads the picked photo and keeps only the path.
+  ///
+  /// Its own request, before submit: the image dwarfs the rest of the
+  /// application and a failed submit should not mean taking it again. A
+  /// failure is reported and leaves the field empty - the photo is optional,
+  /// so it must never block the application.
+  Future<void> _uploadPhoto(List<int> bytes, String filename) async {
+    setState(() => _photoUploading = true);
+    try {
+      final path = await _api.uploadPhoto(bytes: bytes, filename: filename);
+      if (!mounted) return;
+      setState(() => _draft.passportPhotoPath = path);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) setState(() => _photoUploading = false);
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _loadOptions();
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
   }
 
   Future<void> _loadOptions() async {
@@ -131,9 +172,53 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_validateStep()) return;
     if (_step < _titles.length - 1) {
       setState(() => _step++);
+      _toTop();
     } else {
       _submit();
     }
+  }
+
+  /// Puts the next step's first field on screen.
+  ///
+  /// One scroll view serves all four steps, so without this somebody who
+  /// filled step 1 to the bottom arrives at step 2 already scrolled past its
+  /// heading and first fields.
+  void _toTop() {
+    if (!_scroll.hasClients) return;
+    _scroll.animateTo(
+      0,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+    );
+  }
+
+  /// Leaves the form, confirming first if anything was typed.
+  ///
+  /// `_draft` is held by this State, so popping discards it - worth one
+  /// question when somebody is three steps in.
+  Future<void> _cancel() async {
+    if (_draft.isEmpty) {
+      Navigator.of(context).pop();
+      return;
+    }
+    final leave = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Discard this application?'),
+        content: const Text('What you have filled in will not be kept.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep filling it in'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (leave == true && mounted) Navigator.of(context).pop();
   }
 
   Future<void> _submit() async {
@@ -165,6 +250,46 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  /// The four steps, all mounted, only the current one occupying space.
+  List<Widget> _steps(MemberOptions options) {
+    final forms = [
+      Form(
+        key: _formKeys[0],
+        child: IdentityStep(
+          draft: _draft,
+          onChanged: () => setState(() {}),
+          onPhotoPicked: _uploadPhoto,
+          photoUploading: _photoUploading,
+        ),
+      ),
+      Form(
+        key: _formKeys[1],
+        child: ContactStep(draft: _draft, onChanged: () => setState(() {})),
+      ),
+      Form(
+        key: _formKeys[2],
+        child: AssociationStep(
+          draft: _draft,
+          options: options,
+          onChanged: () => setState(() {}),
+          fixedPositionId: widget.site.fixedPositionId,
+        ),
+      ),
+      Form(
+        key: _formKeys[3],
+        child: LocationStep(
+          draft: _draft,
+          options: options,
+          onChanged: () => setState(() {}),
+        ),
+      ),
+    ];
+    return [
+      for (var i = 0; i < forms.length; i++)
+        Offstage(offstage: i != _step, child: forms[i]),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -172,16 +297,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final isLast = _step == _titles.length - 1;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Apply for membership'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(4),
-          child: LinearProgressIndicator(
-            value: (_step + 1) / _titles.length,
-            minHeight: 4,
-          ),
-        ),
-      ),
+      appBar: AppBar(title: const Text('Apply for membership')),
       body: SafeArea(
         child: _loadError != null
             ? _ErrorState(message: _loadError!, onRetry: _loadOptions)
@@ -191,64 +307,64 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 children: [
                   Expanded(
                     child: SingleChildScrollView(
+                      controller: _scroll,
                       padding: const EdgeInsets.all(20),
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 520),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Text(
-                              'Step ${_step + 1} of ${_titles.length}',
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: theme.colorScheme.primary,
+                            _StepRail(titles: _titles, current: _step),
+                            const SizedBox(height: 16),
+                            Card(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  16,
+                                  16,
+                                  4,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Text(
+                                      _titles[_step],
+                                      style: theme.textTheme.titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        top: 2,
+                                        bottom: 16,
+                                      ),
+                                      child: Text(
+                                        _blurbs[_step],
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: theme
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                            ),
+                                      ),
+                                    ),
+                                    // All four steps stay in the tree so their
+                                    // TextFormField state survives going back,
+                                    // but only the current one takes up room.
+                                    //
+                                    // This was an IndexedStack, which sizes to
+                                    // its TALLEST child - fine when the gap fell
+                                    // below unframed fields, wrong now the step
+                                    // sits in a card, where it showed as a tall
+                                    // empty block on the two picker steps.
+                                    // Offstage lays its child out but takes no
+                                    // space, which is the behaviour wanted.
+                                    ..._steps(options),
+                                  ],
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _titles[_step],
-                              style: theme.textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            // IndexedStack, not a rebuild per step: it
-                            // keeps each step's TextFormField state alive
-                            // so going back does not wipe what was typed.
-                            IndexedStack(
-                              index: _step,
-                              sizing: StackFit.loose,
-                              children: [
-                                Form(
-                                  key: _formKeys[0],
-                                  child: IdentityStep(
-                                    draft: _draft,
-                                    onChanged: () => setState(() {}),
-                                  ),
-                                ),
-                                Form(
-                                  key: _formKeys[1],
-                                  child: ContactStep(
-                                    draft: _draft,
-                                    onChanged: () => setState(() {}),
-                                  ),
-                                ),
-                                Form(
-                                  key: _formKeys[2],
-                                  child: AssociationStep(
-                                    draft: _draft,
-                                    options: options,
-                                    onChanged: () => setState(() {}),
-                                  ),
-                                ),
-                                Form(
-                                  key: _formKeys[3],
-                                  child: LocationStep(
-                                    draft: _draft,
-                                    options: options,
-                                    onChanged: () => setState(() {}),
-                                  ),
-                                ),
-                              ],
                             ),
                           ],
                         ),
@@ -259,8 +375,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     canGoBack: _step > 0 && !_saving,
                     saving: _saving,
                     isLast: isLast,
-                    onBack: () => setState(() => _step--),
+                    onBack: () {
+                      setState(() => _step--);
+                      _toTop();
+                    },
                     onNext: _saving ? null : _next,
+                    onCancel: _saving ? null : _cancel,
                   ),
                 ],
               ),
@@ -276,6 +396,7 @@ class _Controls extends StatelessWidget {
     required this.isLast,
     required this.onBack,
     required this.onNext,
+    required this.onCancel,
   });
 
   final bool canGoBack;
@@ -283,6 +404,9 @@ class _Controls extends StatelessWidget {
   final bool isLast;
   final VoidCallback onBack;
   final VoidCallback? onNext;
+
+  /// Null while submitting - leaving mid-request would orphan the response.
+  final VoidCallback? onCancel;
 
   @override
   Widget build(BuildContext context) {
@@ -293,14 +417,18 @@ class _Controls extends StatelessWidget {
       ),
       child: Row(
         children: [
-          if (canGoBack)
-            Expanded(
-              child: OutlinedButton(
-                onPressed: onBack,
-                child: const Text('Back'),
-              ),
-            ),
-          if (canGoBack) const SizedBox(width: 12),
+          // On step 1 there is nothing to go back to, so the same slot is the
+          // way out of the form - which the app previously did not offer at
+          // all beyond the system back gesture.
+          Expanded(
+            child: canGoBack
+                ? OutlinedButton(onPressed: onBack, child: const Text('Back'))
+                : OutlinedButton(
+                    onPressed: onCancel,
+                    child: const Text('Cancel'),
+                  ),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             flex: 2,
             child: FilledButton(
@@ -350,6 +478,133 @@ class _ErrorState extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The four steps, named and numbered.
+///
+/// Replaces a 4px progress bar, which showed how far along somebody was
+/// without ever saying what was still to come - on a form this long, knowing
+/// there are two short steps left is the difference between finishing and
+/// abandoning.
+///
+/// Each step owns an equal share of the width, and its connector is drawn as
+/// two halves either side of the dot. That keeps the dots evenly spaced, which
+/// is what lets a label sit centred under each one.
+class _StepRail extends StatelessWidget {
+  const _StepRail({required this.titles, required this.current});
+
+  /// Short names, not the step headings: "Contact & sign-in" does not fit a
+  /// quarter of a phone, and the card below already carries the full title.
+  static const _short = ['Identity', 'Contact', 'Association', 'Location'];
+
+  final List<String> titles;
+  final int current;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: List.generate(titles.length, (index) {
+        final done = index < current;
+        final active = index == current;
+        final reached = done || active;
+
+        return Expanded(
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _Connector(
+                      // The left half belongs to the step BEFORE this one, so
+                      // it fills as soon as this step is reached.
+                      filled: reached,
+                      visible: index > 0,
+                    ),
+                  ),
+                  Container(
+                    width: 26,
+                    height: 26,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: reached
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.surfaceContainer,
+                      border: Border.all(
+                        color: reached
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: done
+                        ? Icon(
+                            Icons.check,
+                            size: 15,
+                            color: theme.colorScheme.onPrimary,
+                          )
+                        : Text(
+                            '${index + 1}',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: active
+                                  ? theme.colorScheme.onPrimary
+                                  : theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                  ),
+                  Expanded(
+                    child: _Connector(
+                      filled: done,
+                      visible: index < titles.length - 1,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _short[index],
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: reached
+                      ? theme.colorScheme.onSurface
+                      : theme.colorScheme.onSurfaceVariant,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+}
+
+/// Half of the line between two dots. Invisible at the two ends, where it
+/// still occupies space so every dot stays on its own quarter's centre.
+class _Connector extends StatelessWidget {
+  const _Connector({required this.filled, required this.visible});
+
+  final bool filled;
+  final bool visible;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      height: 2,
+      margin: const EdgeInsets.symmetric(horizontal: 2),
+      color: !visible
+          ? Colors.transparent
+          : filled
+          ? theme.colorScheme.primary
+          : theme.colorScheme.outlineVariant,
     );
   }
 }
