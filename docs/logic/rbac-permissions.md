@@ -29,7 +29,7 @@ Neither `PermissionsGuard` nor `TenantPermissionsGuard` contains anything like
 
 This is the single most important thing to know about the system:
 
-- `SYSTEM_SUPER_ADMIN` works **only** because it physically holds all 144
+- `SYSTEM_SUPER_ADMIN` works **only** because it physically holds all 142
   `role_permissions` rows.
 - A role with 106 of them is short exactly one permission, and the UI will
   quietly hide the corresponding action.
@@ -44,11 +44,12 @@ be maintained.
 ## The catalogue
 
 `backend/src/common/constants/permissions.ts` is the single source of truth:
-30 modules, **144** keys of the form `${moduleName}:${action}`.
+29 modules, **142** keys of the form `${moduleName}:${action}`.
 
 ```ts
 { module: 'tenant-members', label: 'Tenant Members',
-  actions: ['create','view','update','delete','list','restore'] }
+  actions: ['create','view','update','delete','list','restore',
+            'change_status','position_update','password_reset'] }
 ```
 
 It used to live inside `prisma/seed.ts`, which meant the seed was the only
@@ -90,8 +91,8 @@ Exactly one:
 
 | Role | `isSystem` | `visibleToTenants` | Permissions |
 | --- | --- | --- | --- |
-| `SYSTEM_SUPER_ADMIN` | `true` | `false` | all 144 |
-| `TENANT_ADMIN` *(optional)* | `true` | `true` | 60 tenant-portal keys |
+| `SYSTEM_SUPER_ADMIN` | `true` | `false` | all 142 |
+| `TENANT_ADMIN` *(optional)* | `true` | `true` | 84 tenant-portal keys |
 
 This replaced an earlier trio — `SUPER_ADMIN`, `SYSTEM_USER` and
 `TENANT_ADMIN`. Everything beyond the super-admin role is now created
@@ -110,7 +111,7 @@ unreachable. The wizard offers to create `TENANT_ADMIN` for exactly this
 reason.
 
 ::: danger Never set visibleToTenants on SYSTEM_SUPER_ADMIN
-A tenant user assigned it would sign into the tenant portal holding all 144
+A tenant user assigned it would sign into the tenant portal holding all 142
 system-level permissions. Create a separate tenant-scoped role instead.
 :::
 
@@ -168,9 +169,9 @@ guarded.
 1. Re-check `systemUser.count() === 0`.
 2. Delete permissions for removed modules (and their grants explicitly — a
    legacy of `prisma db push` not reliably re-applying `ON DELETE CASCADE`).
-3. `createMany` all 144 permissions with `skipDuplicates`, then read back the
-   id map. One statement, not 144 round trips.
-4. Create `SYSTEM_SUPER_ADMIN` and `createMany` all 144 grants.
+3. `createMany` all 142 permissions with `skipDuplicates`, then read back the
+   id map. One statement, not 142 round trips.
+4. Create `SYSTEM_SUPER_ADMIN` and `createMany` all 142 grants.
 5. Optionally create `TENANT_ADMIN` with its 60.
 6. Create the administrator, username and email lowercased.
 7. Write `app.name`, `app.logo_path` (only if a logo was uploaded) and

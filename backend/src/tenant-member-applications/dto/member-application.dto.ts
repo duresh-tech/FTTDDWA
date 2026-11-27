@@ -1,19 +1,12 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
-const isoDate = (field: string) =>
-  z
-    .string()
-    .regex(DATE_PATTERN, `${field} must be a date in YYYY-MM-DD format`)
-    .refine((value) => !Number.isNaN(Date.parse(value)), `${field} must be a real date`);
-
-/** Twelve digits, however the applicant spaced them. */
-const aadhaar = z
-  .string()
-  .transform((value) => value.replace(/\D/g, ''))
-  .refine((digits) => digits.length === 12, 'Aadhaar number must be 12 digits');
+import {
+  aadhaar,
+  birthDate,
+  pastDate,
+  tamilText,
+} from '../../common/validation/field-rules';
 
 /**
  * The public registration form.
@@ -28,9 +21,9 @@ const aadhaar = z
 export const SubmitMemberApplicationSchema = z
   .object({
     memberName: z.string().min(1).max(100),
-    memberNameTamil: z.string().max(100).optional(),
+    memberNameTamil: tamilText('memberNameTamil').optional(),
     businessName: z.string().min(1).max(100),
-    businessNameTamil: z.string().max(100).optional(),
+    businessNameTamil: tamilText('businessNameTamil').optional(),
 
     associationPositionId: z.string().uuid(),
     industryId: z.string().uuid(),
@@ -51,9 +44,12 @@ export const SubmitMemberApplicationSchema = z
     addressLine1: z.string().min(1).max(255),
     addressLine2: z.string().max(255).optional(),
 
-    dateOfBirth: isoDate('dateOfBirth'),
+    // The same rules the register holds a member to, from the same module:
+    // approval COPIES an application into a member, so a date this accepts
+    // and the register would not is a row that can never be approved.
+    dateOfBirth: birthDate('dateOfBirth'),
     isMarried: z.coerce.boolean().default(false),
-    weddingDate: isoDate('weddingDate').optional(),
+    weddingDate: pastDate('weddingDate', { allowToday: true }).nullable().optional(),
 
     passportPhotoPath: z.string().max(255).optional(),
 
@@ -71,6 +67,20 @@ export const SubmitMemberApplicationSchema = z
         code: z.ZodIssueCode.custom,
         path: ['weddingDate'],
         message: 'A wedding date cannot be given unless isMarried is true',
+      });
+    }
+
+    // And married no earlier than born - the register's rule, restated here
+    // for the same reason the one above is.
+    if (
+      value.weddingDate &&
+      value.dateOfBirth &&
+      Date.parse(value.weddingDate) < Date.parse(value.dateOfBirth)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['weddingDate'],
+        message: 'A wedding date cannot be before the date of birth',
       });
     }
   });

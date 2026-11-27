@@ -12,6 +12,19 @@ with each other, and this app moves with neither.
 
 ### Added
 
+- **Tamil name fields refuse English letters**, and both dates are bounded: a
+  date of birth must be at least 18 years ago, and a wedding date must fall
+  between it and today. Both checks live in `shared/validation.dart`, mirroring
+  the server's own rules.
+  - The Tamil rule runs on **submit, never per keystroke**: Tamil is commonly
+    typed on a transliteration keyboard, where Latin letters are the
+    intermediate state before the Tamil is committed, so filtering input would
+    break exactly the people the field exists for.
+  - The wedding date is now **required once "Married" is ticked**. `DateField`
+    is an `InputDecorator` rather than a `FormField`, so `Form.validate()`
+    walks past it - the step checks both dates itself, as it already did for
+    the date of birth alone.
+
 - **The applicant's photo**, from the camera or the gallery, on step 1 of the
   application — where the console puts it. It uploads to
   `POST public/member/photo` on selection rather than on submit: the image

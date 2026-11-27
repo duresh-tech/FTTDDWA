@@ -1,6 +1,13 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
+import {
+  aadhaar,
+  birthDate,
+  pastDate,
+  tamilText,
+} from '../../common/validation/field-rules';
+
 /**
  * The states a caller may WRITE.
  *
@@ -16,31 +23,14 @@ import { z } from 'zod';
 const MemberStatusEnum = z.enum(['ACTIVE', 'INACTIVE', 'PENDING', 'DELETED']);
 
 /** Same shape the settings store validates its DATE type with. */
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
-const isoDate = (label: string) =>
-  z
-    .string()
-    .regex(DATE_PATTERN, `${label} must be a date in YYYY-MM-DD format`)
-    // The regex accepts 2026-02-31; Date.parse does not.
-    .refine((v) => !Number.isNaN(Date.parse(v)), `${label} is not a real date`);
-
-/** Twelve digits, however the user spaced them. */
-const aadhaar = z
-  .string()
-  .refine(
-    (v) => v.replace(/\D/g, '').length === 12,
-    'aadhaarNumber must be 12 digits',
-  );
-
 const CreateTenantMemberSchema = z
   .object({
     tenantBusinessId: z.string().uuid(),
 
     memberName: z.string().min(1).max(100),
-    memberNameTamil: z.string().max(100).optional(),
+    memberNameTamil: tamilText('memberNameTamil').optional(),
     businessName: z.string().min(1).max(100),
-    businessNameTamil: z.string().max(100).optional(),
+    businessNameTamil: tamilText('businessNameTamil').optional(),
 
     associationPositionId: z.string().uuid(),
     industryId: z.string().uuid(),
@@ -63,9 +53,14 @@ const CreateTenantMemberSchema = z
     addressLine1: z.string().min(1).max(255),
     addressLine2: z.string().max(255).optional(),
 
-    dateOfBirth: isoDate('dateOfBirth'),
+    dateOfBirth: birthDate('dateOfBirth'),
     isMarried: z.coerce.boolean().default(false),
-    weddingDate: isoDate('weddingDate').optional(),
+    // Nullable, not merely optional: both console forms send an explicit null
+    // to CLEAR a stored date when a member is no longer recorded as married,
+    // and on create they send the same null rather than branching. Without
+    // this, every enrolment of an unmarried member was rejected with
+    // "Expected string, received null".
+    weddingDate: pastDate('weddingDate', { allowToday: true }).nullable().optional(),
 
     passportPhotoPath: z.string().max(255).optional(),
     remark: z.string().max(255).optional(),
@@ -79,6 +74,21 @@ const CreateTenantMemberSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'weddingDate cannot be set unless isMarried is true',
+        path: ['weddingDate'],
+      });
+    }
+
+    // Married before being born is the other direction of the same typo the
+    // age floor catches - usually a year mistyped in one field or the other.
+    // Only checkable here, where both dates are in hand.
+    if (
+      data.weddingDate &&
+      data.dateOfBirth &&
+      Date.parse(data.weddingDate) < Date.parse(data.dateOfBirth)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'weddingDate cannot be before dateOfBirth',
         path: ['weddingDate'],
       });
     }
@@ -98,7 +108,7 @@ const UpdateTenantMemberSchema = CreateTenantMemberSchema.innerType()
   .partial()
   .extend({
     /** Explicit null clears it; omitted leaves it alone. */
-    weddingDate: isoDate('weddingDate').nullable().optional(),
+    weddingDate: pastDate('weddingDate', { allowToday: true }).nullable().optional(),
     /** Blank means "unchanged" - see the service. Never "clear it". */
     aadhaarNumber: aadhaar.or(z.literal('')).optional(),
   });
@@ -109,8 +119,24 @@ const ChangeTenantMemberStatusSchema = z.object({
   remark: z.string().max(255).optional(),
 });
 
+/**
+ * A password set FOR a member, by staff.
+ *
+ * There is deliberately no `currentPassword`: staff do not have it, which
+ * is the whole point of the route and the reason it carries its own
+ * permission rather than riding on `update`.
+ */
+const ResetTenantMemberPasswordSchema = z.object({
+  // The same rule the public registration form applies, so a password a
+  // member could have chosen for themselves is one staff can set for them.
+  newPassword: z.string().min(8).max(128),
+});
+
 export class CreateTenantMemberDto extends createZodDto(CreateTenantMemberSchema) {}
 export class UpdateTenantMemberDto extends createZodDto(UpdateTenantMemberSchema) {}
+export class ResetTenantMemberPasswordDto extends createZodDto(
+  ResetTenantMemberPasswordSchema,
+) {}
 export class ChangeTenantMemberStatusDto extends createZodDto(
   ChangeTenantMemberStatusSchema,
 ) {}

@@ -19,8 +19,10 @@ import { TenantMembersService } from './tenant-members.service';
 import {
   ChangeTenantMemberStatusDto,
   CreateTenantMemberDto,
+  ResetTenantMemberPasswordDto,
   UpdateTenantMemberDto,
 } from './dto/tenant-member.dto';
+import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
 import { TenantMemberListQueryDto } from './dto/tenant-member-query.dto';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
 
@@ -60,6 +62,17 @@ const MEMBER_EXAMPLE = {
 @Controller('system/tenant-members')
 export class TenantMembersController {
   constructor(private readonly service: TenantMembersService) {}
+
+  /**
+   * True when the caller may override this business's fixed position.
+   *
+   * Read off the token's permissions, never taken from the request body,
+   * and defaulted to false - an absent user or an absent array reads as
+   * "may not", never as "may".
+   */
+  private mayMovePosition(user?: { permissions?: string[] }): boolean {
+    return user?.permissions?.includes(TenantMembersService.POSITION_UPDATE_KEY) ?? false;
+  }
 
   @Get()
   @RequirePermissions('tenant-members:list')
@@ -106,8 +119,14 @@ export class TenantMembersController {
       'Duplicate Aadhaar, a broken geography chain, an unknown position or ' +
       'industry, or a wedding date on an unmarried member.',
   })
-  create(@Body() dto: CreateTenantMemberDto) {
-    return this.service.create(dto);
+  @ApiResponse({
+    status: 403,
+    description:
+      'This business fixes the position members are filed under and you ' +
+      'do not hold tenant-members:position_update.',
+  })
+  create(@CurrentUser() user: AuthUser, @Body() dto: CreateTenantMemberDto) {
+    return this.service.create(dto, this.mayMovePosition(user));
   }
 
   @Patch(':id')
@@ -123,8 +142,37 @@ export class TenantMembersController {
   @ApiParam({ name: 'id', description: 'Member UUIDv7' })
   @ApiResponse({ status: 200, description: 'Member updated.', schema: { example: MEMBER_EXAMPLE } })
   @ApiResponse({ status: 404, description: 'Member not found.' })
-  update(@Param('id') id: string, @Body() dto: UpdateTenantMemberDto) {
-    return this.service.update(id, dto);
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateTenantMemberDto,
+  ) {
+    return this.service.update(id, dto, this.mayMovePosition(user));
+  }
+
+  @Patch(':id/password')
+  @RequirePermissions('tenant-members:password_reset')
+  @ApiOperation({
+    summary: "Set a member's portal password",
+    description:
+      'Sets the password a member signs into the member portal with, ' +
+      'without knowing the old one - which is why it carries its own ' +
+      'permission rather than riding on update. It is equally how a ' +
+      'member enrolled by staff gets portal access for the FIRST time: ' +
+      'such a member has no password at all and cannot sign in until one ' +
+      'is set here. Every refresh token the member holds is revoked, so ' +
+      'open sessions end; an access token already issued survives until ' +
+      'it expires and then cannot refresh. Nothing is emailed or texted ' +
+      '- the password is handed over out of band.',
+  })
+  @ApiParam({ name: 'id', description: 'Member UUIDv7' })
+  @ApiResponse({ status: 200, description: 'Password set.' })
+  @ApiResponse({ status: 404, description: 'Member not found.' })
+  resetPassword(
+    @Param('id') id: string,
+    @Body() dto: ResetTenantMemberPasswordDto,
+  ) {
+    return this.service.resetPassword(id, dto);
   }
 
   @Patch(':id/status')

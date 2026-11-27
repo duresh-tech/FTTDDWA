@@ -20,6 +20,7 @@ import { TenantMembersService } from './tenant-members.service';
 import {
   ChangeTenantMemberStatusDto,
   CreateTenantMemberDto,
+  ResetTenantMemberPasswordDto,
   UpdateTenantMemberDto,
 } from './dto/tenant-member.dto';
 import { TenantMemberListQueryDto } from './dto/tenant-member-query.dto';
@@ -76,6 +77,17 @@ export class TenantMembersSelfController {
   constructor(private readonly service: TenantMembersService) {}
 
   // Declared BEFORE @Get(':id'), or the param route matches "businesses".
+  /**
+   * True when the caller may override this business's fixed position.
+   *
+   * Read off the token's permissions, never taken from the request body,
+   * and defaulted to false - an absent user or an absent array reads as
+   * "may not", never as "may".
+   */
+  private mayMovePosition(user?: { permissions?: string[] }): boolean {
+    return user?.permissions?.includes(TenantMembersService.POSITION_UPDATE_KEY) ?? false;
+  }
+
   @Get('businesses')
   @RequireTenantPermissions('tenant-members:list')
   @ApiOperation({
@@ -125,11 +137,18 @@ export class TenantMembersSelfController {
   })
   @ApiResponse({ status: 201, description: 'Member enrolled.', schema: { example: MEMBER_EXAMPLE } })
   @ApiResponse({ status: 403, description: 'You are not mapped to this business.' })
+  @ApiResponse({
+    status: 403,
+    description:
+      'Not mapped to this business, or this business fixes the position ' +
+      'members are filed under and you do not hold ' +
+      'tenant-members:position_update.',
+  })
   create(
     @CurrentTenantUser() user: TenantAuthUser,
     @Body() dto: CreateTenantMemberDto,
   ) {
-    return this.service.createForTenantUser(user.id, dto);
+    return this.service.createForTenantUser(user.id, dto, this.mayMovePosition(user));
   }
 
   @Patch(':id')
@@ -148,7 +167,29 @@ export class TenantMembersSelfController {
     @Param('id') id: string,
     @Body() dto: UpdateTenantMemberDto,
   ) {
-    return this.service.updateForTenantUser(user.id, id, dto);
+    return this.service.updateForTenantUser(user.id, id, dto, this.mayMovePosition(user));
+  }
+
+  @Patch(':id/password')
+  @RequireTenantPermissions('tenant-members:password_reset')
+  @ApiOperation({
+    summary: "Set one of the caller's own members' portal password",
+    description:
+      'Sets the password the member signs into the member portal with, ' +
+      'without knowing the old one. It is equally how a member enrolled ' +
+      'by staff gets portal access for the FIRST time - such a member has ' +
+      'no password at all until one is set here. Open sessions end: every ' +
+      'refresh token the member holds is revoked. Nothing is emailed.',
+  })
+  @ApiParam({ name: 'id', description: 'Member UUIDv7' })
+  @ApiResponse({ status: 200, description: 'Password set.' })
+  @ApiResponse({ status: 404, description: 'Member not found.' })
+  resetPassword(
+    @CurrentTenantUser() user: TenantAuthUser,
+    @Param('id') id: string,
+    @Body() dto: ResetTenantMemberPasswordDto,
+  ) {
+    return this.service.resetPasswordForTenantUser(user.id, id, dto);
   }
 
   @Patch(':id/status')

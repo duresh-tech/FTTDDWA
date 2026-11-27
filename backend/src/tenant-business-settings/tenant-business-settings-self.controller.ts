@@ -128,8 +128,8 @@ export class TenantBusinessSettingsSelfController {
       'names it with `refParent`. A ref that NEEDS a parent and is given none ' +
       'returns an empty array rather than the unfiltered list, because an ' +
       'unfiltered list is what lets a district from one state be chosen under ' +
-      'another. `districts` takes a state, `taluks` a district, `streets` a ' +
-      'PLACE (not a taluk), and `places` takes none.',
+      'another. `districts` takes a state and `taluks` a district. `states` ' +
+      'and `associationPositions` take no parent.',
   })
   @ApiResponse({
     status: 200,

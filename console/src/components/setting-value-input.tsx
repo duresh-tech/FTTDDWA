@@ -101,6 +101,18 @@ export interface RefOption {
  * rendering of the value rather than a translation of it. The Combobox
  * searches against this whole string, so either script finds the record.
  */
+/**
+ * A ref name as an operator would say it: `associationPositions` ->
+ * "association positions". The names are camelCase because they are catalogue
+ * keys, and printing one raw in an empty-state message shows the operator an
+ * identifier they have never seen anywhere else in the product.
+ */
+function humanizeRef(refName: string): string {
+  return refName
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .toLowerCase();
+}
+
 function refOptionLabel(option: RefOption): string {
   return option.labelTamil ? `${option.label} — ${option.labelTamil}` : option.label;
 }
@@ -505,7 +517,7 @@ function RefValueInput({
       }}
       placeholder="Select a record…"
       searchPlaceholder="Search…"
-      emptyText={`No ${refName} to choose from yet — add some first.`}
+      emptyText={`No ${humanizeRef(refName)} to choose from yet — add some first.`}
     />
   );
 }

@@ -83,6 +83,14 @@ export class TenantAssociationPositionsService {
         positionName: dto.positionName,
         positionNameTamil: dto.positionNameTamil,
         remark: dto.remark,
+        // Both of these were missing. This block enumerates its fields rather
+        // than spreading `dto`, so a new column is silently dropped on CREATE
+        // until somebody adds it here - `showOnApplicationForm` had been
+        // accepted by the DTO and discarded by this method since it shipped,
+        // which is why a position created with the box unticked came back
+        // ticked. `?? undefined` leaves the column default to decide.
+        showOnApplicationForm: dto.showOnApplicationForm ?? undefined,
+        maxMembers: dto.maxMembers ?? undefined,
         createdAt: timestamp,
         updatedAt: timestamp,
       },

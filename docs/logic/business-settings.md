@@ -236,23 +236,34 @@ prevents: it is what lets a Coimbatore district be filed under Kerala, and
 nothing downstream would reject the pair, because `ref` is a hint and not a
 write rule.
 
-##### The chain forks, and the screen cannot hide it
+##### `associationPositions` is a second root
 
 ```
 TenantState ──> TenantDistrict ──> TenantTaluk      a real FK chain
 
-TenantPlace ──> TenantStreet                        separate
+TenantAssociationPosition                           no parent
 ```
 
-`TenantPlace` has **no `talukId`** — it is a geofence (`latitude`,
-`longitude`, `radiusMeters`) hanging off the business — and `TenantStreet`
-belongs to a *place*. So **Place is a second root** whose picker lists every
-place the business has, and **Street narrows by place, not by the taluk sitting
-directly above it on screen.** Choosing a taluk leaves Street empty. That looks
-like a bug and is not.
+A position hangs off the business, so its picker takes no `parentId` and lists
+every position the business has.
 
-`TenantMember` is the same shape: it references state, district and taluk, and
-not place or street.
+**Every position — not only those flagged `showOnApplicationForm`.** The flag
+decides what a *stranger* may claim about themselves on the public form; this
+setting is what staff **pin** applicants to, and
+`MemberSiteService.options()` drops the flag entirely once the setting is set:
+
+```ts
+where: fixedPositionId
+  ? { ...owned, id: fixedPositionId }
+  : { ...owned, showOnApplicationForm: true },
+```
+
+So filtering the picker by the flag would hide exactly the position an
+association wants to pin *because* it is not on public offer.
+
+The picker's filter matches `resolveApplicantPositionId()` — any non-`DELETED`
+position of this business — so nothing offered here can be stored and then
+silently ignored at read time.
 
 ##### Changing a parent clears its descendants — on the tenant screen only
 
@@ -310,10 +321,19 @@ The distinction that matters is who is asking:
   form. It overrides rather than rejects — the applicant was never shown the
   choice, so failing their application over a field they could not see would be
   the worse answer.
-- **Staff are only defaulted.** Both member screens pre-fill an empty position
-  with it and leave it editable. An association still has to be able to enrol a
-  Secretary directly, so a hard lock here would break the register to protect
-  a form that is already protected.
+- **Staff are LOCKED to it, with one key out.** Both member screens render
+  the position read-only, and the server refuses a different one - a read-only
+  field alone would be advisory, since the route is reachable with a tenant
+  JWT and an API key. `tenant-members:position_update` is the way out, and the
+  reason that key exists: an association still has to be able to enrol a
+  Secretary directly.
+
+  Editing an existing member omits the position from the request entirely
+  rather than sending the fixed id, so somebody enrolled as Secretary before
+  the setting was fixed is not reclassified by an edit to their phone number.
+
+  *(This was a default until it was made a lock; the public form was always
+  held to it.)*
 
 Two traps this had to design around:
 

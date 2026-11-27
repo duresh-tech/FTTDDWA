@@ -9,6 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A seat limit per association position.**
+  `tenant_association_positions.maxMembers`, where **0 means unlimited** and 0
+  is the default, so nothing existing was capped. Only **ACTIVE** members
+  occupy a seat, which decides where the rule is enforced: a staff enrolment
+  starts PENDING and so never fills a position, and the check therefore lives
+  at **activation**, at a position **change**, and at **application
+  approval** - not at enrolment, which would have made the obvious handover
+  (enrol the incoming President, retire the outgoing one, activate) impossible.
+  A full position is also hidden from the public picker, and when the FIXED
+  position is full the register reports itself closed rather than showing an
+  empty one.
+  - Race-free by row lock, not by constraint: SQL has no "at most N rows" form,
+    so `assertPositionHasRoom()` takes `SELECT ... FOR UPDATE` on the position
+    before counting. The position is locked **before** the RTO in every path -
+    two paths taking the same locks in opposite orders would deadlock under
+    exactly the concurrency this exists for.
+  - Lowering a cap below the number seated is allowed and evicts nobody.
+- **`tenant-members:position_update`** - the only way to change a member's
+  position once a business has fixed one with `memberRegister.positionId`.
+  Split from `update` because anybody who may correct a phone number should
+  not thereby be able to promote a member to President.
+- **`tenant-members:password_reset`**, and the two routes behind it:
+  `PATCH system/tenant-members/:id/password` and `PATCH tenant/members/:id/password`.
+  Staff set the password without knowing the old one - an impersonation risk
+  by nature, hence its own key. It is equally how a **staff-enrolled member
+  gets portal access for the first time**: `passwordHash` is nullable and such
+  a member has none, so they could not sign in at all. Every refresh token is
+  revoked; the access token is a JWT and survives to expiry.
+- **Shared field rules** in `common/validation/field-rules.ts`, imported by
+  both the member and application schemas. They had each carried their own
+  copy of `isoDate` and `aadhaar`, which is how an applicant could be held to
+  a rule a member was not - and approval COPIES an application into a member.
+
 - **`POST public/member/photo`** - an applicant's own photo, before they have
   an account. The only unauthenticated route that stores a file, so it is
   bounded on every axis: 5/minute, 2 MB, and JPEG/PNG/WebP decided by the
@@ -84,6 +117,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`memberRegister.positionId` now LOCKS the staff path**, where it was only
+  a default. The server refuses a different position from a caller without
+  `tenant-members:position_update` - a read-only field in the console alone
+  would be advisory, since the route is reachable with a tenant JWT and an API
+  key. The public path still overrides silently, because the applicant was
+  never shown the field.
+- **Tamil name fields refuse Latin letters.** Narrower than "must be Tamil" on
+  purpose: it catches the English name typed into the Tamil box, which prints
+  one name twice on a card, while leaving a numeral in a business name legal.
+- **Dates of birth must be at least 18 years ago**, and a wedding date may not
+  precede one. The floor is a typo catcher - 2019 for 1979, or today's date
+  tabbed into the wrong box - not a membership rule.
+
 - **The Aadhaar is now OPTIONAL** on both the member register and the public
   application, and the six columns are nullable.
 
@@ -133,6 +179,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   this schema it is not soft and there is no recovering from a `DROP TABLE`.
 
 ### Fixed
+
+- **An unmarried member could not be enrolled from either console.** Both
+  screens send an explicit `weddingDate: null` so an edit can CLEAR a stored
+  date, but the create schema was `.optional()` without `.nullable()`, so
+  every such enrolment was rejected with "Expected string, received null".
+- **`showOnApplicationForm` was silently dropped on CREATE.** The positions
+  service enumerates its `data` fields rather than spreading the DTO, and that
+  column was never added - so a position created with the box unticked came
+  back ticked. `maxMembers` is in the same block now.
+
+- **"Position for applicants" offered nothing to choose.**
+  `memberRegister.positionId` has carried `{"ref":"associationPositions"}`
+  since it shipped, but `listRefOptions()` only answered `states`, `districts`
+  and `taluks` - every other ref fell through to `return []`, which the
+  settings screen renders as an empty dropdown rather than an error. The
+  setting could therefore never be given a value, which also meant the default
+  it supplies to staff member creation never fired. The ref now lists **every
+  non-`DELETED` position of the business**, matching
+  `resolveApplicantPositionId()` exactly, so nothing offered can be stored and
+  then silently ignored at read time. It deliberately ignores
+  `showOnApplicationForm`: that flag governs what a stranger may claim, while
+  this setting is what staff pin applicants to, and `MemberSiteService` drops
+  the flag once the setting is set - so filtering by it would hide exactly the
+  position an association wants to pin because it is NOT on public offer.
 
 - **~52 permissions could not be granted through the roles screen.** It asked
   for `limit=100&page=1`, the API caps `limit` at 100, and the catalogue passed

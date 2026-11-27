@@ -69,11 +69,27 @@ export class MemberSiteService {
       if (map[key]) association[key] = map[key];
     }
 
+    const fixedPositionId =
+      await this.settings.resolveApplicantPositionId(tenantBusinessId);
+
+    // A FIXED position with no seats left means this association cannot accept
+    // anybody at all - there is no other position an applicant could be filed
+    // under. Reported as "closed" rather than as an empty picker, because
+    // every client already renders a closed register and none of them has to
+    // learn a new state.
+    //
+    // Only the fixed case can close the register this way. When applicants
+    // choose, a full position is simply absent from the list below and the
+    // others still work.
+    const fixedPositionFull =
+      fixedPositionId !== null &&
+      !(await this.positionsWithRoom(tenantBusinessId)).has(fixedPositionId);
+
     return {
       association,
       // Unset means enabled, matching how the register reads it everywhere
       // else - a business whose settings backfill has not run is not closed.
-      registrationOpen: map[MEMBER_REGISTER_SETTING_KEY] !== 'false',
+      registrationOpen: map[MEMBER_REGISTER_SETTING_KEY] !== 'false' && !fixedPositionFull,
       /**
        * The position applicants are filed under, or null when they choose.
        *
@@ -82,9 +98,41 @@ export class MemberSiteService {
        * read an answer, not a raw setting they each have to interpret. It is
        * re-validated against the positions table, so a stale id reads as null.
        */
-      fixedPositionId:
-        await this.settings.resolveApplicantPositionId(tenantBusinessId),
+      fixedPositionId,
     };
+  }
+
+  /**
+   * The ids of this business's positions that can still take an ACTIVE member.
+   *
+   * One grouped count rather than a query per position: a business with forty
+   * positions would otherwise make forty round trips to render one picker.
+   * `groupBy` returns only positions that HAVE an active member, which is why
+   * the lookup below defaults to 0.
+   *
+   * Read without a lock, deliberately. This decides what to SHOW; the seat is
+   * claimed under `SELECT ... FOR UPDATE` in TenantMembersService, and a
+   * picker that is a moment out of date is not a correctness problem.
+   */
+  private async positionsWithRoom(tenantBusinessId: string): Promise<Set<string>> {
+    const [positions, counts] = await Promise.all([
+      this.prisma.tenantAssociationPosition.findMany({
+        where: { tenantBusinessId, status: 'ACTIVE' },
+        select: { id: true, maxMembers: true },
+      }),
+      this.prisma.tenantMember.groupBy({
+        by: ['associationPositionId'],
+        where: { tenantBusinessId, status: 'ACTIVE' },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const seated = new Map(counts.map((row) => [row.associationPositionId, row._count._all]));
+    return new Set(
+      positions
+        .filter((p) => p.maxMembers <= 0 || (seated.get(p.id) ?? 0) < p.maxMembers)
+        .map((p) => p.id),
+    );
   }
 
   /**
@@ -103,6 +151,12 @@ export class MemberSiteService {
     // a client that forgets cannot put the other positions back.
     const fixedPositionId =
       await this.settings.resolveApplicantPositionId(tenantBusinessId);
+
+    // Which positions still have a seat. Fetched alongside the lists below
+    // rather than inside the position query, because "fewer ACTIVE members
+    // than maxMembers" compares a count against a column and Prisma has no
+    // `where` that can say that.
+    const withRoom = await this.positionsWithRoom(tenantBusinessId);
 
     const [positions, industries, states, districts, taluks, rtos] = await Promise.all([
       this.prisma.tenantAssociationPosition.findMany({
@@ -146,6 +200,20 @@ export class MemberSiteService {
       }),
     ]);
 
-    return { positions, industries, states, districts, taluks, rtos };
+    return {
+      // A full position is not offered, including the fixed one. Offering a
+      // seat that submission would refuse is worse than offering nothing -
+      // and when the FIXED position is full, publicSite() has already told
+      // the client the register is closed, so the form is never reached.
+      //
+      // maxMembers itself is never returned: a stranger has no business
+      // reading an association's headcount or its limits.
+      positions: positions.filter((p) => withRoom.has(p.id)),
+      industries,
+      states,
+      districts,
+      taluks,
+      rtos,
+    };
   }
 }

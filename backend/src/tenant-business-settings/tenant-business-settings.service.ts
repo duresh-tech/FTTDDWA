@@ -434,9 +434,8 @@ export class TenantBusinessSettingsService {
    * one state be filed under another, which is the thing this narrowing
    * exists to prevent.
    *
-   * Note the chain forks. `districts` -> `taluks` follows the real FK chain,
-   * but `places` takes no parent (TenantPlace has no talukId; it hangs off the
-   * business) and `streets` narrows by PLACE, not by taluk.
+   * `states` -> `districts` -> `taluks` follows the real FK chain.
+   * `associationPositions` takes no parent: positions hang off the business.
    */
   async listRefOptions(
     ref: string,
@@ -483,6 +482,29 @@ export class TenantBusinessSettingsService {
           id: row.id,
           label: row.talukName,
           labelTamil: row.talukNameTamil,
+        }));
+      }
+      case 'associationPositions': {
+        const rows = await this.prisma.tenantAssociationPosition.findMany({
+          // EVERY position this business has, not only the ones flagged
+          // `showOnApplicationForm`. That flag decides what a stranger may
+          // claim about themselves; this setting is what staff PIN applicants
+          // to, and the public options endpoint drops the flag entirely once
+          // it is set (`fixedPositionId ? {id} : {showOnApplicationForm}`).
+          // Offering only flagged rows here would hide exactly the position an
+          // association wants to pin precisely because it is not on offer.
+          //
+          // The filter matches resolveApplicantPositionId(), which accepts any
+          // non-DELETED position of this business - so nothing offered here
+          // can be stored and then silently ignored at read time.
+          where: owned,
+          select: { id: true, positionName: true, positionNameTamil: true },
+          orderBy: { positionName: 'asc' },
+        });
+        return rows.map((row) => ({
+          id: row.id,
+          label: row.positionName,
+          labelTamil: row.positionNameTamil,
         }));
       }
       default:

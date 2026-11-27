@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A maximum-members field on both Association Positions screens**, with a
+  column reading "Unlimited" rather than "0" - which would otherwise read as
+  "nobody may hold this", the opposite of what it means.
+- **"Set portal password" on both member screens**, behind
+  `tenant-members:password_reset`. Its own dialog rather than a field on the
+  member form: a different act with its own permission, and nobody should set
+  a password by accident while correcting an address. The copy says plainly
+  that it ends the member's open sessions and that nothing is emailed.
+
 - **A photo field on the public registration form**, with `capture` so a phone
   offers the camera and a desktop falls back to the file picker - one input,
   no device sniffing. Uploaded on selection rather than with the form, because
@@ -51,6 +60,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The position is read-only when the business fixes one**, unless the user
+  holds `tenant-members:position_update`. Editing an existing member omits the
+  field from the request entirely, so somebody enrolled as Secretary before
+  the setting was fixed is not reclassified by an edit to their phone number.
+- **Member forms validate before they send**: Tamil fields refuse English
+  letters, a date of birth must be at least 18 years ago, and a wedding date
+  must fall between the birth date and today. Reported as one toast naming the
+  first problem, matching how these screens report everything else - they have
+  no inline field errors and this was not the place to introduce the first.
+
 - **Aadhaar is optional** on the member form and the public application. The
   member table and the member portal now render a dash, or omit the row,
   where there is no number.
@@ -68,6 +87,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its headers derive from runs rather than being declared.
 
 ### Fixed
+
+- **The system console could not enrol a member at all.** Its member form had
+  no RTO field - not hidden or mis-wired, simply absent from the row type, the
+  form type, the state, the loaders, the JSX and the submit body, since the
+  screen was skipped when RTOs were added. `rtoId` is required by the API and
+  the membership number is allocated from it, so every enrolment 400'd.
+- **The Aadhaar input was `required` on create** while its own label said
+  "(optional)" and the server agreed it was optional - so the browser blocked
+  an enrolment without one before anything could be sent.
+- **A stale RTO survived a change of business** on the tenant screen:
+  `resetCascade()` never cleared the options and `onBusinessChange` never
+  cleared the id, leaving a selection from the previous business to be
+  rejected later by the server's chain check.
+
+- **A `ref` picker's empty state named the catalogue key**, so an operator
+  with no positions set up read "No associationPositions to choose from yet".
+  Ref names are camelCase because they are catalogue keys; they are now
+  spelled out as words.
 
 - **The roles screen could not grant ~52 permissions.** It kept only the first
   page of a capped list, so the tail of the catalogue was invisible. It now

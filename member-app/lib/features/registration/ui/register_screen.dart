@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/api/api_exception.dart';
 import '../../auth/member_session.dart';
+import '../../../shared/validation.dart';
 import '../data/application_draft.dart';
 import '../data/options.dart';
 import '../data/registration_api.dart';
@@ -135,9 +136,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
         // this, an applicant reaches step 4, submits, and gets the server's
         // "dateOfBirth: Required" three screens away from the field it means.
         final textValid = _formKeys[0].currentState?.validate() ?? false;
-        if (_draft.dateOfBirth.isEmpty) {
-          _require({'a date of birth': null});
+
+        // Both dates are checked HERE for the same reason: DateField is a
+        // tappable InputDecorator, not a FormField, so Form.validate() walks
+        // straight past it however many validators it is given.
+        final dobProblem = dateOfBirthError(_draft.dateOfBirth);
+        if (dobProblem != null) {
+          _say(dobProblem);
           return false;
+        }
+        if (_draft.isMarried) {
+          // Only asked of somebody who says they are married - and then it is
+          // required, which the picker alone never enforced.
+          final weddingProblem = weddingDateError(
+            _draft.weddingDate,
+            _draft.dateOfBirth,
+          );
+          if (weddingProblem != null) {
+            _say(weddingProblem);
+            return false;
+          }
         }
         return textValid;
       case 1:
@@ -157,6 +175,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
       default:
         return true;
     }
+  }
+
+  /// One problem, in the snack bar this form already uses for them.
+  void _say(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   bool _require(Map<String, String?> fields) {

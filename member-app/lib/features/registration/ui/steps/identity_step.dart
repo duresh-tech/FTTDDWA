@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../shared/widgets/date_field.dart';
 import '../../../../shared/widgets/labelled_field.dart';
+import '../../../../shared/validation.dart';
 import '../../../../shared/widgets/photo_field.dart';
 import '../../data/application_draft.dart';
 
@@ -48,6 +49,10 @@ class IdentityStep extends StatelessWidget {
           label: 'Your name in Tamil',
           initialValue: draft.memberNameTamil,
           onChanged: (v) => draft.memberNameTamil = v,
+          // Optional, but Tamil when given. Checked on submit rather than per
+          // keystroke: a transliteration keyboard shows Latin while it is
+          // composing, and filtering input would break it.
+          validator: (v) => tamilOnly(v, 'Your Tamil name'),
         ),
         LabelledField(
           label: 'Business name',
@@ -61,12 +66,16 @@ class IdentityStep extends StatelessWidget {
           label: 'Business name in Tamil',
           initialValue: draft.businessNameTamil,
           onChanged: (v) => draft.businessNameTamil = v,
+          validator: (v) => tamilOnly(v, 'The Tamil business name'),
         ),
 
         DateField(
           label: 'Date of birth',
           required: true,
           value: draft.dateOfBirth,
+          // The picker cannot offer a date that fails the age floor. The step
+          // checks it again, because `value` could be set from elsewhere.
+          lastDate: latestBirthDate(),
           onChanged: (v) {
             draft.dateOfBirth = v;
             onChanged();
@@ -89,7 +98,11 @@ class IdentityStep extends StatelessWidget {
         if (draft.isMarried)
           DateField(
             label: 'Wedding date',
+            required: true,
             value: draft.weddingDate,
+            // Never before the applicant was born, and never in the future.
+            // `firstDate` only binds once a birth date is chosen.
+            firstDate: DateTime.tryParse(draft.dateOfBirth),
             onChanged: (v) {
               draft.weddingDate = v;
               onChanged();

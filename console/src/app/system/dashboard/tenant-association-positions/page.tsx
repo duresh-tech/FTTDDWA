@@ -43,6 +43,8 @@ interface TenantAssociationPositionRow {
   remark: string | null;
   /** Whether a public APPLICANT may claim this position. */
   showOnApplicationForm: boolean;
+  /** How many members may hold it. 0 means unlimited. */
+  maxMembers: number;
   status: PositionStatus;
   tenantBusiness?: { id: string; systemCode: string; name: string };
 }
@@ -58,6 +60,8 @@ interface PositionFormValues {
   positionNameTamil: string;
   remark: string;
   showOnApplicationForm: boolean;
+  /** A string, as the number input gives it. "" reads as 0, i.e. unlimited. */
+  maxMembers: string;
   status: "ACTIVE" | "INACTIVE" | "BLOCKED";
 }
 
@@ -69,6 +73,8 @@ const EMPTY_FORM: PositionFormValues = {
   // Offered on the application form unless somebody says otherwise,
   // matching the column default.
   showOnApplicationForm: true,
+  // Unlimited until somebody says otherwise, matching the column default.
+  maxMembers: "",
   status: "ACTIVE",
 };
 
@@ -129,6 +135,9 @@ export default function TenantAssociationPositionsPage() {
       positionNameTamil: row.positionNameTamil ?? "",
       remark: row.remark ?? "",
       showOnApplicationForm: row.showOnApplicationForm,
+      // 0 is "unlimited", and an empty box says that more plainly than
+      // a zero does.
+      maxMembers: row.maxMembers > 0 ? String(row.maxMembers) : "",
       status: row.status === "DELETED" ? "ACTIVE" : row.status,
     });
     setFormOpen(true);
@@ -145,6 +154,7 @@ export default function TenantAssociationPositionsPage() {
         positionNameTamil: form.positionNameTamil || undefined,
         remark: form.remark || undefined,
         showOnApplicationForm: form.showOnApplicationForm,
+        maxMembers: form.maxMembers === "" ? 0 : Number(form.maxMembers),
         ...(editing ? { status: form.status } : {}),
       };
       if (editing) {
@@ -202,6 +212,12 @@ export default function TenantAssociationPositionsPage() {
     {
       header: "On application form",
       cell: (row) => (row.showOnApplicationForm ? "Yes" : "No"),
+    },
+    {
+      header: "Max members",
+      // The word, not the number: "0" in this column would read as "nobody
+      // may hold this", which is the opposite of what it means.
+      cell: (row) => (row.maxMembers > 0 ? String(row.maxMembers) : "Unlimited"),
     },
     { header: "Status", cell: (row) => <StatusBadgeText status={row.status} /> },
   ];
@@ -384,6 +400,28 @@ export default function TenantAssociationPositionsPage() {
                     enrolling a member directly always see every position.
                   </p>
                 </div>
+              </div>
+
+
+              {/* 0 = unlimited. The cap counts ACTIVE members only, so a
+                  suspended holder frees a seat and a pending enrolment takes
+                  none. */}
+              <div className="grid gap-2">
+                <Label htmlFor="maxMembers">Maximum members</Label>
+                <Input
+                  id="maxMembers"
+                  type="number"
+                  min={0}
+                  placeholder="0"
+                  value={form.maxMembers}
+                  onChange={(e) => setForm((f) => ({ ...f, maxMembers: e.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  How many members may hold this position. <strong>0 means no
+                  limit.</strong> Only active members count, and lowering the
+                  limit below the number already holding it removes nobody - it
+                  only refuses the next one.
+                </p>
               </div>
 
               {editing && (

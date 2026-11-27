@@ -1,8 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { CreditCard, Download, History, LoaderCircle, Pencil, Printer, ShieldCheck, Trash2, Upload, UserPlus } from "lucide-react";
+import { CreditCard, Download, History, KeyRound, LoaderCircle, Pencil, Printer, ShieldCheck, Trash2, Upload, UserPlus } from "lucide-react";
 import { toast } from "sonner";
+
+import {
+  latestBirthDateIso,
+  memberFormError,
+  todayIso,
+} from "@/lib/validation";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -182,6 +188,10 @@ export default function TenantMembersPage() {
   const canUpdate = hasPermission("tenant-members:update");
   const canDelete = hasPermission("tenant-members:delete");
   const canChangeStatus = hasPermission("tenant-members:change_status");
+  // The position is LOCKED when the business fixes one. This key is the
+  // only way out, which is why it is split from tenant-members:update.
+  const canUpdatePosition = hasPermission("tenant-members:position_update");
+  const canResetPassword = hasPermission("tenant-members:password_reset");
   const canGenerateCard = hasPermission("tenant-member-id-cards:generate");
   // `print` is the PDF, `view` is the record - see the permission catalogue.
   const canPrintCard = hasPermission("tenant-member-id-cards:print");
@@ -213,7 +223,27 @@ export default function TenantMembersPage() {
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<MemberRow | null>(null);
   const [form, setForm] = React.useState<FormValues>(EMPTY_FORM);
+  /**
+   * The position this business files every member under, when it sets one.
+   *
+   * Held separately from `form.associationPositionId` because the form
+   * value alone cannot tell a DEFAULT from a CHOICE, and the difference is
+   * what decides whether the field is editable.
+   */
+  const [fixedPositionId, setFixedPositionId] = React.useState("");
+
+  /**
+   * Read-only unless the caller may override the business's choice.
+   *
+   * Advisory only on its own - the server refuses a different position
+   * from a caller without the key, which is what actually enforces this.
+   */
+  const positionLocked = Boolean(fixedPositionId) && !canUpdatePosition;
   const [saving, setSaving] = React.useState(false);
+  const [passwordFor, setPasswordFor] = React.useState<MemberRow | null>(null);
+  const [password, setPassword] = React.useState("");
+  const [passwordConfirm, setPasswordConfirm] = React.useState("");
+  const [savingPassword, setSavingPassword] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const photoInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -243,6 +273,11 @@ export default function TenantMembersPage() {
     setStateOptions(null);
     setDistrictOptions(null);
     setTalukOptions(null);
+    // RTOs were missing here, so switching business kept the previous one's
+    // list on screen and selectable.
+    setRtoOptions(null);
+    // And the lock belongs to the business that set it.
+    setFixedPositionId("");
   }
 
   /** Loads the four lists that hang directly off a business. */
@@ -279,6 +314,11 @@ export default function TenantMembersPage() {
       .then((rows) => {
         const fixed = rows.find((r) => r.settingKey === DEFAULT_POSITION_KEY)?.settingValue;
         if (!fixed) return;
+        setFixedPositionId(fixed);
+        // Still fill-if-empty, never override. On EDIT the member's stored
+        // position wins: somebody enrolled as Secretary before the setting was
+        // fixed must not be silently reclassified by an edit to their phone
+        // number - see the PATCH body, which omits the field when locked.
         setForm((f) => (f.associationPositionId ? f : { ...f, associationPositionId: fixed }));
       })
       .catch(() => {});
@@ -336,6 +376,9 @@ export default function TenantMembersPage() {
       stateId: "",
       districtId: "",
       talukId: "",
+      // rtoId was missing, so a stale RTO from the previous business survived
+      // the switch and was only rejected later by the server's chain check.
+      rtoId: "",
     }));
     resetCascade();
     loadForBusiness(tenantBusinessId);
@@ -420,6 +463,17 @@ export default function TenantMembersPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    // Checked here rather than per field: this screen has no inline errors
+    // anywhere, and one toast naming the first problem matches how every
+    // other failure on it is reported. The server enforces all of these
+    // again - this only saves a round trip and names the field.
+    const problem = memberFormError(form);
+    if (problem) {
+      toast.error(problem);
+      return;
+    }
+
     setSaving(true);
     try {
       const body = {
@@ -428,7 +482,14 @@ export default function TenantMembersPage() {
         memberNameTamil: form.memberNameTamil || undefined,
         businessName: form.businessName,
         businessNameTamil: form.businessNameTamil || undefined,
-        associationPositionId: form.associationPositionId,
+        // Omitted entirely when the field is locked AND we are editing: the
+        // member's stored position stays theirs. Sending the fixed id instead
+        // would silently reclassify a Secretary enrolled before the business
+        // fixed its position, on an edit that only meant to correct a phone
+        // number.
+        ...(positionLocked && editing
+          ? {}
+          : { associationPositionId: form.associationPositionId }),
         industryId: form.industryId,
         // Omitted entirely when blank, so an edit leaves the stored number be.
         ...(form.aadhaarNumber ? { aadhaarNumber: form.aadhaarNumber } : {}),
@@ -462,6 +523,42 @@ export default function TenantMembersPage() {
       toast.error(error instanceof TenantApiError ? error.message : "Save failed");
     } finally {
       setSaving(false);
+    }
+  }
+
+  /**
+   * Sets a member's portal password.
+   *
+   * Separate from the main form on purpose: it is a different act with its
+   * own permission, and mixing it into the member edit would mean every save
+   * of a phone number carried a password field somebody could fill by
+   * accident.
+   */
+  async function onResetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!passwordFor) return;
+    if (password !== passwordConfirm) {
+      toast.error("The two passwords do not match");
+      return;
+    }
+    if (password.length < 8) {
+      toast.error("A password must be at least 8 characters");
+      return;
+    }
+    setSavingPassword(true);
+    try {
+      await tenantApi(`/tenant/members/${passwordFor.id}/password`, {
+        method: "PATCH",
+        body: { newPassword: password },
+      });
+      toast.success("Password set. The member's open sessions have ended.");
+      setPasswordFor(null);
+      setPassword("");
+      setPasswordConfirm("");
+    } catch (error) {
+      toast.error(error instanceof TenantApiError ? error.message : "Could not set the password");
+    } finally {
+      setSavingPassword(false);
     }
   }
 
@@ -747,6 +844,19 @@ export default function TenantMembersPage() {
                           ...(canUpdate
                             ? [{ label: "Edit", icon: Pencil, onClick: () => openEdit(row) }]
                             : []),
+                          ...(canResetPassword
+                            ? [
+                                {
+                                  label: "Set portal password",
+                                  icon: KeyRound,
+                                  onClick: () => {
+                                    setPasswordFor(row);
+                                    setPassword("");
+                                    setPasswordConfirm("");
+                                  },
+                                },
+                              ]
+                            : []),
                           ...(canChangeStatus
                             ? [
                                 {
@@ -872,14 +982,38 @@ export default function TenantMembersPage() {
 
               <div className="grid gap-2">
                 <Label required>Association Position</Label>
-                <Combobox
-                  options={positionOptions?.map((o) => ({ value: o.id, label: o.name })) ?? null}
-                  value={form.associationPositionId}
-                  onValueChange={(v) => setForm((f) => ({ ...f, associationPositionId: v }))}
-                  placeholder={form.tenantBusinessId ? "Select a position" : "Select a business first"}
-                  searchPlaceholder="Search positions..."
-                  emptyText="No positions found."
-                />
+                {positionLocked ? (
+                  <>
+                    {/* Fixed by this business's "Position for applicants"
+                        setting, and this user does not hold
+                        tenant-members:position_update. Read-only rather than
+                        hidden: staff should see what the member is filed AS.
+                        Same shape as the public registration form. */}
+                    <Input
+                      readOnly
+                      // No invented fallback. A miss means the fixed id names a
+                      // position this form could not load, and a plausible
+                      // name would hide that.
+                      value={
+                        positionOptions?.find((o) => o.id === form.associationPositionId)?.name ??
+                        ""
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Set by this association for every member. Changing it needs
+                      the position-update permission.
+                    </p>
+                  </>
+                ) : (
+                  <Combobox
+                    options={positionOptions?.map((o) => ({ value: o.id, label: o.name })) ?? null}
+                    value={form.associationPositionId}
+                    onValueChange={(v) => setForm((f) => ({ ...f, associationPositionId: v }))}
+                    placeholder={form.tenantBusinessId ? "Select a position" : "Select a business first"}
+                    searchPlaceholder="Search positions..."
+                    emptyText="No positions found."
+                  />
+                )}
               </div>
               <div className="grid gap-2">
                 <Label required>Industry</Label>
@@ -907,7 +1041,10 @@ export default function TenantMembersPage() {
                 <Input
                   id="aadhaarNumber"
                   inputMode="numeric"
-                  required={!editing}
+                  // NOT required. The label says optional, the server says
+                  // optional, and this attribute said otherwise - so an
+                  // enrolment without one was blocked by the browser before
+                  // anything could even be sent.
                   placeholder="12 digits"
                   value={form.aadhaarNumber}
                   onChange={(e) => setForm((f) => ({ ...f, aadhaarNumber: e.target.value }))}
@@ -996,6 +1133,10 @@ export default function TenantMembersPage() {
                   id="dateOfBirth"
                   type="date"
                   required
+                  // The picker will not offer a future date, or one that fails
+                  // the age floor. Checked again on submit, because a date can
+                  // still be typed straight into the box.
+                  max={latestBirthDateIso()}
                   value={form.dateOfBirth}
                   onChange={(e) => setForm((f) => ({ ...f, dateOfBirth: e.target.value }))}
                 />
@@ -1043,6 +1184,10 @@ export default function TenantMembersPage() {
                   <Input
                     id="weddingDate"
                     type="date"
+                    // Not in the future, and not before the birth date. The
+                    // second bound only exists once a birth date is entered.
+                    max={todayIso()}
+                    min={form.dateOfBirth || undefined}
                     value={form.weddingDate}
                     onChange={(e) => setForm((f) => ({ ...f, weddingDate: e.target.value }))}
                   />
@@ -1274,6 +1419,81 @@ export default function TenantMembersPage() {
         loading={deleting}
         onConfirm={onDelete}
       />
+
+      {/* Setting a member's portal password. Deliberately its own dialog
+          rather than a field on the member form: it is a different act, with
+          its own permission, and nobody should set a password by accident
+          while correcting an address. */}
+      <Dialog
+        open={Boolean(passwordFor)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPasswordFor(null);
+            setPassword("");
+            setPasswordConfirm("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <form onSubmit={onResetPassword}>
+            <DialogHeader>
+              <DialogTitle>Set portal password</DialogTitle>
+              <DialogDescription>
+                {passwordFor?.memberName} signs in to the member portal with
+                their membership number and this password. Members enrolled by
+                staff have none until one is set here.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label required htmlFor="newPassword">New password</Label>
+                <Input
+                  id="newPassword"
+                  type="password"
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">At least 8 characters.</p>
+              </div>
+              <div className="grid gap-2">
+                <Label required htmlFor="newPasswordConfirm">Confirm password</Label>
+                <Input
+                  id="newPasswordConfirm"
+                  type="password"
+                  required
+                  autoComplete="new-password"
+                  value={passwordConfirm}
+                  onChange={(e) => setPasswordConfirm(e.target.value)}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                This ends every session the member currently has open, and
+                nothing is emailed or texted - tell them the password yourself.
+              </p>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={savingPassword}
+                onClick={() => setPasswordFor(null)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={savingPassword}>
+                {savingPassword && <LoaderCircle className="size-4 animate-spin" />}
+                Set password
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
     </>
   );
 }

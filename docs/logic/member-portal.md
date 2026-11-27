@@ -115,6 +115,12 @@ themselves — which is usually "Member" and nothing else.
 Where `memberRegister.positionId` is also set, that wins outright: the business
 named exactly one position, and that answer does not depend on a flag.
 
+A position that has run out of seats is not offered either - see
+[Members](/logic/members). When the FIXED position is full the register
+reports itself **closed** rather than showing an empty picker, because there
+is no other position an applicant could be filed under, and every client
+already renders a closed register.
+
 ## Applications
 
 `tenant_member_applications` mirrors every field of `tenant_members`, so the

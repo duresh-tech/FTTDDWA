@@ -99,8 +99,8 @@ export class TenantBusinessSettingsController {
       'Narrows a ref that is only meaningful under a parent - the catalogue ' +
       'names it with `refParent`. A ref that NEEDS a parent and is given none ' +
       'returns an empty array rather than the unfiltered list. `districts` ' +
-      'takes a state, `taluks` a district, `streets` a PLACE (not a taluk), ' +
-      'and `places` takes none.',
+      'takes a state and `taluks` a district. `states` and ' +
+      '`associationPositions` take no parent.',
   })
   @ApiResponse({
     status: 200,

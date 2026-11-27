@@ -1,8 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { LoaderCircle, Pencil, RotateCcw, ShieldCheck, Trash2, Upload, UserPlus } from "lucide-react";
+import { KeyRound, LoaderCircle, Pencil, RotateCcw, ShieldCheck, Trash2, Upload, UserPlus } from "lucide-react";
 import { toast } from "sonner";
+
+import {
+  latestBirthDateIso,
+  memberFormError,
+  todayIso,
+} from "@/lib/validation";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -77,6 +83,8 @@ interface MemberRow {
   stateId: string;
   districtId: string;
   talukId: string;
+  /** The RTO, which hangs off the DISTRICT - not the taluk above it. */
+  rtoId: string;
   addressLine1: string;
   addressLine2: string | null;
   dateOfBirth: string;
@@ -114,6 +122,7 @@ interface FormValues {
   stateId: string;
   districtId: string;
   talukId: string;
+  rtoId: string;
   addressLine1: string;
   addressLine2: string;
   dateOfBirth: string;
@@ -138,6 +147,7 @@ const EMPTY_FORM: FormValues = {
   stateId: "",
   districtId: "",
   talukId: "",
+  rtoId: "",
   addressLine1: "",
   addressLine2: "",
   dateOfBirth: "",
@@ -154,6 +164,10 @@ export default function SystemMembersPage() {
   const canUpdate = hasPermission("tenant-members:update");
   const canDelete = hasPermission("tenant-members:delete");
   const canChangeStatus = hasPermission("tenant-members:change_status");
+  // The position is LOCKED when the business fixes one. This key is the
+  // only way out, which is why it is split from tenant-members:update.
+  const canUpdatePosition = hasPermission("tenant-members:position_update");
+  const canResetPassword = hasPermission("tenant-members:password_reset");
   const canRestore = hasPermission("tenant-members:restore");
 
   const [statusFilter, setStatusFilter] = React.useState<string>("");
@@ -165,11 +179,27 @@ export default function SystemMembersPage() {
   const [stateOptions, setStateOptions] = React.useState<Opt[] | null>(null);
   const [districtOptions, setDistrictOptions] = React.useState<Opt[] | null>(null);
   const [talukOptions, setTalukOptions] = React.useState<Opt[] | null>(null);
+  const [rtoOptions, setRtoOptions] = React.useState<Opt[] | null>(null);
 
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<MemberRow | null>(null);
   const [form, setForm] = React.useState<FormValues>(EMPTY_FORM);
+  /**
+   * The position this business files every member under, when it sets one.
+   *
+   * Held apart from `form.associationPositionId`, which cannot tell a
+   * DEFAULT from a CHOICE - and that difference is what decides whether
+   * the field is editable.
+   */
+  const [fixedPositionId, setFixedPositionId] = React.useState("");
+
+  /** Advisory on its own; the server refuses the change independently. */
+  const positionLocked = Boolean(fixedPositionId) && !canUpdatePosition;
   const [saving, setSaving] = React.useState(false);
+  const [passwordFor, setPasswordFor] = React.useState<MemberRow | null>(null);
+  const [password, setPassword] = React.useState("");
+  const [passwordConfirm, setPasswordConfirm] = React.useState("");
+  const [savingPassword, setSavingPassword] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const photoInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -189,6 +219,9 @@ export default function SystemMembersPage() {
 
   /** Everything below the business, cleared together. */
   function resetCascade() {
+    // The lock belongs to the business that set it.
+    setFixedPositionId("");
+    setRtoOptions(null);
     setPositionOptions(null);
     setIndustryOptions(null);
     setStateOptions(null);
@@ -230,6 +263,11 @@ export default function SystemMembersPage() {
       .then((d) => {
         const fixed = d.items.find((r) => r.settingKey === DEFAULT_POSITION_KEY)?.settingValue;
         if (!fixed) return;
+        setFixedPositionId(fixed);
+        // Fill-if-empty, never override. On EDIT the member's stored position
+        // wins: somebody enrolled as Secretary before the setting was fixed
+        // must not be reclassified by an edit to their phone number - see the
+        // PATCH body, which omits the field entirely when locked.
         setForm((f) => (f.associationPositionId ? f : { ...f, associationPositionId: fixed }));
       })
       .catch(() => {});
@@ -262,6 +300,25 @@ export default function SystemMembersPage() {
   // Each change clears everything beneath it, so the form can never hold a
   // district from one state next to a taluk from another - which the API
   // would reject anyway, but far later and less legibly.
+  // RTOs hang off the DISTRICT, not the taluk that sits above them on the
+  // form. Filtering by talukId here would silently return nothing - and the
+  // API's own field name invites the mistake, since every other lookup names
+  // its parent `stateId` or `districtId` while this one wants
+  // `tenantDistrictId`.
+  function loadRtos(tenantBusinessId: string, districtId: string) {
+    if (!(tenantBusinessId && districtId)) {
+      setRtoOptions([]);
+      return;
+    }
+    api<{ items: { id: string; rtoName: string; rtoCode: string }[] }>(
+      `/system/tenant-rtos?tenantBusinessId=${tenantBusinessId}&tenantDistrictId=${districtId}&limit=200&status=ACTIVE`,
+    )
+      .then((d) =>
+        setRtoOptions(d.items.map((x) => ({ id: x.id, name: `${x.rtoCode} — ${x.rtoName}` }))),
+      )
+      .catch(() => toast.error("Failed to load RTOs"));
+  }
+
   function onBusinessChange(tenantBusinessId: string) {
     setForm((f) => ({
       ...f,
@@ -271,20 +328,24 @@ export default function SystemMembersPage() {
       stateId: "",
       districtId: "",
       talukId: "",
+      rtoId: "",
     }));
     resetCascade();
     loadForBusiness(tenantBusinessId);
   }
 
   function onStateChange(stateId: string) {
-    setForm((f) => ({ ...f, stateId, districtId: "", talukId: "" }));
+    // The RTO goes with the district it hung off, not just the taluk.
+    setForm((f) => ({ ...f, stateId, districtId: "", talukId: "", rtoId: "" }));
     setTalukOptions(null);
+    setRtoOptions(null);
     loadDistricts(form.tenantBusinessId, stateId);
   }
 
   function onDistrictChange(districtId: string) {
-    setForm((f) => ({ ...f, districtId, talukId: "" }));
+    setForm((f) => ({ ...f, districtId, talukId: "", rtoId: "" }));
     loadTaluks(form.tenantBusinessId, districtId);
+    loadRtos(form.tenantBusinessId, districtId);
   }
 
   function openCreate() {
@@ -315,6 +376,7 @@ export default function SystemMembersPage() {
       stateId: row.stateId,
       districtId: row.districtId,
       talukId: row.talukId,
+      rtoId: row.rtoId,
       addressLine1: row.addressLine1,
       addressLine2: row.addressLine2 ?? "",
       dateOfBirth: row.dateOfBirth,
@@ -326,6 +388,9 @@ export default function SystemMembersPage() {
     loadForBusiness(row.tenantBusinessId);
     loadDistricts(row.tenantBusinessId, row.stateId);
     loadTaluks(row.tenantBusinessId, row.districtId);
+    // Off the DISTRICT, so the stored RTO resolves to a label rather than
+    // showing an empty picker over a value that is actually set.
+    loadRtos(row.tenantBusinessId, row.districtId);
     setFormOpen(true);
   }
 
@@ -345,8 +410,52 @@ export default function SystemMembersPage() {
     }
   }
 
+  /**
+   * Sets a member's portal password.
+   *
+   * Its own dialog, not a field on the member form: a different act with its
+   * own permission, and nobody should set a password by accident while
+   * correcting an address.
+   */
+  async function onResetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!passwordFor) return;
+    if (password !== passwordConfirm) {
+      toast.error("The two passwords do not match");
+      return;
+    }
+    if (password.length < 8) {
+      toast.error("A password must be at least 8 characters");
+      return;
+    }
+    setSavingPassword(true);
+    try {
+      await api(`/system/tenant-members/${passwordFor.id}/password`, {
+        method: "PATCH",
+        body: { newPassword: password },
+      });
+      toast.success("Password set. The member's open sessions have ended.");
+      setPasswordFor(null);
+      setPassword("");
+      setPasswordConfirm("");
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Could not set the password");
+    } finally {
+      setSavingPassword(false);
+    }
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    // One toast naming the first problem, matching how this screen reports
+    // every other failure. The server enforces all of it again.
+    const problem = memberFormError(form);
+    if (problem) {
+      toast.error(problem);
+      return;
+    }
+
     setSaving(true);
     try {
       const body = {
@@ -355,7 +464,11 @@ export default function SystemMembersPage() {
         memberNameTamil: form.memberNameTamil || undefined,
         businessName: form.businessName,
         businessNameTamil: form.businessNameTamil || undefined,
-        associationPositionId: form.associationPositionId,
+        // Omitted when locked AND editing: the member's stored position
+        // stays theirs rather than being quietly rewritten to the fixed one.
+        ...(positionLocked && editing
+          ? {}
+          : { associationPositionId: form.associationPositionId }),
         industryId: form.industryId,
         // Omitted entirely when blank, so an edit leaves the stored number be.
         ...(form.aadhaarNumber ? { aadhaarNumber: form.aadhaarNumber } : {}),
@@ -365,6 +478,7 @@ export default function SystemMembersPage() {
         stateId: form.stateId,
         districtId: form.districtId,
         talukId: form.talukId,
+        rtoId: form.rtoId,
         addressLine1: form.addressLine1,
         addressLine2: form.addressLine2 || undefined,
         dateOfBirth: form.dateOfBirth,
@@ -532,6 +646,19 @@ export default function SystemMembersPage() {
                           ...(canUpdate
                             ? [{ label: "Edit", icon: Pencil, onClick: () => openEdit(row) }]
                             : []),
+                          ...(canResetPassword
+                            ? [
+                                {
+                                  label: "Set portal password",
+                                  icon: KeyRound,
+                                  onClick: () => {
+                                    setPasswordFor(row);
+                                    setPassword("");
+                                    setPasswordConfirm("");
+                                  },
+                                },
+                              ]
+                            : []),
                           ...(canChangeStatus
                             ? [
                                 {
@@ -634,6 +761,27 @@ export default function SystemMembersPage() {
 
               <div className="grid gap-2">
                 <Label required>Association Position</Label>
+                {positionLocked ? (
+                  <>
+                    {/* Fixed by this business's "Position for applicants"
+                        setting, and this user does not hold
+                        tenant-members:position_update. Read-only rather than
+                        hidden: staff should see what the member is filed AS. */}
+                    <Input
+                      readOnly
+                      // No invented fallback: a miss means the fixed id names
+                      // a position this form could not load.
+                      value={
+                        positionOptions?.find((o) => o.id === form.associationPositionId)?.name ??
+                        ""
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Set by this association for every member. Changing it
+                      needs the position-update permission.
+                    </p>
+                  </>
+                ) : (
                 <Combobox
                   options={positionOptions?.map((o) => ({ value: o.id, label: o.name })) ?? null}
                   value={form.associationPositionId}
@@ -642,6 +790,7 @@ export default function SystemMembersPage() {
                   searchPlaceholder="Search positions..."
                   emptyText="No positions found."
                 />
+                )}
               </div>
               <div className="grid gap-2">
                 <Label required>Industry</Label>
@@ -667,7 +816,10 @@ export default function SystemMembersPage() {
                 <Input
                   id="aadhaarNumber"
                   inputMode="numeric"
-                  required={!editing}
+                  // NOT required. The label says optional, the server says
+                  // optional, and this attribute said otherwise - so the
+                  // browser blocked an enrolment without one before anything
+                  // could be sent.
                   placeholder="12 digits"
                   value={form.aadhaarNumber}
                   onChange={(e) => setForm((f) => ({ ...f, aadhaarNumber: e.target.value }))}
@@ -739,11 +891,30 @@ export default function SystemMembersPage() {
                 />
               </div>
               <div className="grid gap-2">
+                <Label required>RTO</Label>
+                <Combobox
+                  options={rtoOptions?.map((o) => ({ value: o.id, label: o.name })) ?? null}
+                  value={form.rtoId}
+                  onValueChange={(v) => setForm((f) => ({ ...f, rtoId: v }))}
+                  // Narrowed by the DISTRICT, not the taluk above it.
+                  placeholder={form.districtId ? "Select an RTO" : "Select a district first"}
+                  searchPlaceholder="Search RTOs..."
+                  emptyText="No RTOs found for this district."
+                />
+                <p className="text-xs text-muted-foreground">
+                  The membership number is issued from this RTO and never
+                  changes afterwards.
+                </p>
+              </div>
+              <div className="grid gap-2">
                 <Label required htmlFor="dateOfBirth">Date of Birth</Label>
                 <Input
                   id="dateOfBirth"
                   type="date"
                   required
+                  // No future date, and no date that fails the age floor.
+                  // Checked again on submit, since one can still be typed.
+                  max={latestBirthDateIso()}
                   value={form.dateOfBirth}
                   onChange={(e) => setForm((f) => ({ ...f, dateOfBirth: e.target.value }))}
                 />
@@ -791,6 +962,9 @@ export default function SystemMembersPage() {
                   <Input
                     id="weddingDate"
                     type="date"
+                    // Not in the future, and not before the birth date.
+                    max={todayIso()}
+                    min={form.dateOfBirth || undefined}
                     value={form.weddingDate}
                     onChange={(e) => setForm((f) => ({ ...f, weddingDate: e.target.value }))}
                   />
@@ -854,7 +1028,8 @@ export default function SystemMembersPage() {
                   !form.industryId ||
                   !form.stateId ||
                   !form.districtId ||
-                  !form.talukId
+                  !form.talukId ||
+                  !form.rtoId
                 }
               >
                 {saving && <LoaderCircle className="size-4 animate-spin" />}
@@ -914,6 +1089,80 @@ export default function SystemMembersPage() {
         loading={deleting}
         onConfirm={onDelete}
       />
+
+      {/* Setting a member's portal password. Members enrolled by staff have
+          none at all until this is used, so it is both a reset and a grant of
+          first-time access. */}
+      <Dialog
+        open={Boolean(passwordFor)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPasswordFor(null);
+            setPassword("");
+            setPasswordConfirm("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <form onSubmit={onResetPassword}>
+            <DialogHeader>
+              <DialogTitle>Set portal password</DialogTitle>
+              <DialogDescription>
+                {passwordFor?.memberName} signs in to the member portal with
+                their membership number and this password. Members enrolled by
+                staff have none until one is set here.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label required htmlFor="newPassword">New password</Label>
+                <Input
+                  id="newPassword"
+                  type="password"
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">At least 8 characters.</p>
+              </div>
+              <div className="grid gap-2">
+                <Label required htmlFor="newPasswordConfirm">Confirm password</Label>
+                <Input
+                  id="newPasswordConfirm"
+                  type="password"
+                  required
+                  autoComplete="new-password"
+                  value={passwordConfirm}
+                  onChange={(e) => setPasswordConfirm(e.target.value)}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                This ends every session the member currently has open, and
+                nothing is emailed or texted - tell them the password yourself.
+              </p>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={savingPassword}
+                onClick={() => setPasswordFor(null)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={savingPassword}>
+                {savingPassword && <LoaderCircle className="size-4 animate-spin" />}
+                Set password
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
     </>
   );
 }

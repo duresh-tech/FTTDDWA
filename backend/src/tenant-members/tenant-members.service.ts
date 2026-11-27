@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import * as argon2 from 'argon2';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { encryptValue } from '../common/utils/encryption.util';
@@ -15,6 +16,7 @@ import {
   CreateTenantMemberDto,
   UpdateTenantMemberDto,
 } from './dto/tenant-member.dto';
+import { ResetTenantMemberPasswordDto } from './dto/tenant-member.dto';
 import { TenantMemberListQueryDto } from './dto/tenant-member-query.dto';
 import { TenantBusinessSettingsService } from '../tenant-business-settings/tenant-business-settings.service';
 
@@ -99,7 +101,7 @@ export class TenantMembersService {
     return mask(row);
   }
 
-  async create(dto: CreateTenantMemberDto) {
+  async create(dto: CreateTenantMemberDto, mayMovePosition = false) {
     await this.assertBusinessExists(dto.tenantBusinessId);
     await this.assertChain(
       dto.tenantBusinessId,
@@ -109,6 +111,19 @@ export class TenantMembersService {
       dto.rtoId,
     );
     await this.assertRefs(dto.tenantBusinessId, dto.associationPositionId, dto.industryId);
+    await this.assertPositionAllowed(
+      dto.tenantBusinessId,
+      dto.associationPositionId,
+      mayMovePosition,
+    );
+
+    // NOTE on capacity: there is deliberately no seat check here. A member
+    // enrolled by staff starts PENDING - `status` is absent from the create
+    // schema - and a seat is held by an ACTIVE member only. So enrolling
+    // into a full position is allowed and takes nothing; changeStatus() is
+    // where the seat is actually claimed, and where the cap is enforced.
+    // Refusing here would also break the obvious handover: enrol the
+    // incoming President, retire the outgoing one, then activate.
 
     // OPTIONAL. With no number there is nothing to hash and nothing to match
     // on, so the uniqueness check is skipped rather than run against a null -
@@ -165,7 +180,7 @@ export class TenantMembersService {
     return mask(row);
   }
 
-  async update(id: string, dto: UpdateTenantMemberDto) {
+  async update(id: string, dto: UpdateTenantMemberDto, mayMovePosition = false) {
     const row = await this.prisma.tenantMember.findFirst({
       where: { id, status: { not: 'DELETED' } },
     });
@@ -193,6 +208,29 @@ export class TenantMembersService {
       );
     }
 
+    // Only when the position actually MOVES. `!== undefined` rather than
+    // truthiness, matching the PATCH semantics the rest of this method uses:
+    // an absent field means "leave it alone", not "set it to nothing".
+    //
+    // Without this condition, correcting a phone number on a member who
+    // already sits in a full position would be refused - against a seat that
+    // is their own.
+    const positionChanged =
+      dto.associationPositionId !== undefined &&
+      dto.associationPositionId !== row.associationPositionId;
+    // Moving a member to another business moves the register their seat is
+    // counted in, so it is the same question even when the id is unchanged.
+    const businessChanged =
+      dto.tenantBusinessId !== undefined && dto.tenantBusinessId !== row.tenantBusinessId;
+
+    if (positionChanged) {
+      await this.assertPositionAllowed(
+        tenantBusinessId,
+        dto.associationPositionId as string,
+        mayMovePosition,
+      );
+    }
+
     const { aadhaarNumber, aadhaarHash, aadhaarLast4 } = await this.resolveAadhaar(
       dto,
       row,
@@ -213,18 +251,38 @@ export class TenantMembersService {
       memberIdNumber?: string;
     };
 
-    const updated = await this.prisma.tenantMember.update({
-      where: { id },
-      data: {
-        ...safeDto,
-        aadhaarNumber,
-        aadhaarHash,
-        aadhaarLast4,
-        isMarried,
-        weddingDate,
-        updatedAt: now(),
-      },
-      include: INCLUDE,
+    // A transaction now, where there was none: a seat check is worth nothing
+    // unless it is atomic with the write it guards. Only the check and the
+    // update are inside it - every read above is a reference check, and a
+    // reference that moves between check and write is caught by the foreign
+    // key.
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // Only an ACTIVE member occupies a seat, so a move that leaves a
+      // PENDING or suspended member where they are costs nothing.
+      if ((positionChanged || businessChanged) && row.status === 'ACTIVE') {
+        await this.assertPositionHasRoom(
+          tx,
+          tenantBusinessId,
+          dto.associationPositionId ?? row.associationPositionId,
+          // Never counted against the seat it is competing for. A no-op when
+          // the position changed (the row still holds the OLD one), which is
+          // why it is passed rather than reasoned about.
+          id,
+        );
+      }
+      return tx.tenantMember.update({
+        where: { id },
+        data: {
+          ...safeDto,
+          aadhaarNumber,
+          aadhaarHash,
+          aadhaarLast4,
+          isMarried,
+          weddingDate,
+          updatedAt: now(),
+        },
+        include: INCLUDE,
+      });
     });
     return mask(updated);
   }
@@ -285,14 +343,37 @@ export class TenantMembersService {
     });
     if (!row) throw new NotFoundException('Member not found');
 
-    const updated = await this.prisma.tenantMember.update({
-      where: { id },
-      data: {
-        status: dto.status,
-        ...(dto.remark !== undefined ? { remark: dto.remark } : {}),
-        updatedAt: now(),
-      },
-      include: INCLUDE,
+    // THIS is where a seat is claimed.
+    //
+    // A position's cap counts ACTIVE members, and a member enrolled by staff
+    // starts PENDING - so enrolment never fills a position and activation
+    // always does. Checking only on create would have made the cap
+    // decorative: any number of PENDING members could be filed under a full
+    // position and then activated one by one.
+    //
+    // Only the transition INTO active is checked. Re-saving an already
+    // ACTIVE member with a remark must not fail, and no other status takes
+    // a seat.
+    const claimingSeat = dto.status === 'ACTIVE' && row.status !== 'ACTIVE';
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (claimingSeat) {
+        await this.assertPositionHasRoom(
+          tx,
+          row.tenantBusinessId,
+          row.associationPositionId,
+          id,
+        );
+      }
+      return tx.tenantMember.update({
+        where: { id },
+        data: {
+          status: dto.status,
+          ...(dto.remark !== undefined ? { remark: dto.remark } : {}),
+          updatedAt: now(),
+        },
+        include: INCLUDE,
+      });
     });
     return mask(updated);
   }
@@ -414,6 +495,18 @@ export class TenantMembersService {
   ) {
     void actorId;
     const timestamp = now();
+    // Approval creates an ACTIVE member outright, so this is the one path
+    // where the seat is taken at creation. A pending application holds
+    // nothing, which is why the check belongs here and not at submit.
+    //
+    // Before allocateMemberIdNumber, because the position is always locked
+    // before the RTO - see assertPositionHasRoom on lock order.
+    await this.assertPositionHasRoom(
+      tx,
+      application.tenantBusinessId,
+      application.associationPositionId,
+    );
+
     const memberIdNumber = await this.allocateMemberIdNumber(tx, application.rtoId);
 
     const row = await tx.tenantMember.create({
@@ -647,15 +740,24 @@ export class TenantMembersService {
     return mask(row);
   }
 
-  async createForTenantUser(tenantUserId: string, dto: CreateTenantMemberDto) {
+  async createForTenantUser(
+    tenantUserId: string,
+    dto: CreateTenantMemberDto,
+    mayMovePosition = false,
+  ) {
     await this.assertBusinessOwned(tenantUserId, dto.tenantBusinessId);
-    return this.create(dto);
+    return this.create(dto, mayMovePosition);
   }
 
-  async updateForTenantUser(tenantUserId: string, id: string, dto: UpdateTenantMemberDto) {
+  async updateForTenantUser(
+    tenantUserId: string,
+    id: string,
+    dto: UpdateTenantMemberDto,
+    mayMovePosition = false,
+  ) {
     await this.findOneForTenantUser(tenantUserId, id);
     if (dto.tenantBusinessId) await this.assertBusinessOwned(tenantUserId, dto.tenantBusinessId);
-    return this.update(id, dto);
+    return this.update(id, dto, mayMovePosition);
   }
 
   async changeStatusForTenantUser(
@@ -721,5 +823,178 @@ export class TenantMembersService {
     });
     const closedIds = new Set(closed.map((row) => row.tenantBusinessId));
     return businessIds.filter((id) => !closedIds.has(id));
+  }
+
+  // ---------- The position a member holds ----------
+
+  /**
+   * The permission that overrides a business's fixed position.
+   *
+   * Named once: the string appears in the catalogue, in two controllers and
+   * here, and only this copy fails CLOSED if it is mistyped.
+   */
+  static readonly POSITION_UPDATE_KEY = 'tenant-members:position_update';
+
+  /**
+   * Whether a position has room for one more ACTIVE member.
+   *
+   * Lock-free, for callers that only need to DISPLAY the answer - the public
+   * picker, and the register-open flag. Anything that writes a member row
+   * uses assertPositionHasRoom() instead, because an answer read outside a
+   * transaction is stale the moment it returns.
+   */
+  async positionHasRoom(
+    client: Prisma.TransactionClient | PrismaService,
+    tenantBusinessId: string,
+    associationPositionId: string,
+    exceptMemberId?: string,
+  ): Promise<boolean> {
+    const position = await client.tenantAssociationPosition.findUnique({
+      where: { id: associationPositionId },
+      select: { maxMembers: true },
+    });
+    // A missing position is a REFERENCE fault, which assertRefs and the
+    // foreign key both speak to. Answering "no room" would report it as a
+    // capacity problem and send somebody looking in the wrong place.
+    if (!position || position.maxMembers <= 0) return true;
+
+    const seated = await client.tenantMember.count({
+      where: {
+        tenantBusinessId,
+        associationPositionId,
+        // ACTIVE only. A PENDING enrolment is not yet a member and a
+        // suspended one has given the seat back, so neither holds one.
+        status: 'ACTIVE',
+        ...(exceptMemberId ? { id: { not: exceptMemberId } } : {}),
+      },
+    });
+    return seated < position.maxMembers;
+  }
+
+  /**
+   * The same question, asked where the answer must STAY true until commit.
+   *
+   * MUST run inside a transaction, for the reason allocateMemberIdNumber
+   * must: it takes a row lock on the POSITION with SELECT ... FOR UPDATE,
+   * which serialises everybody competing for that position's last seat while
+   * leaving every other position uncontended. There is no row to lock for a
+   * member who does not exist yet, which is why the parent is locked instead.
+   *
+   * Unlike the membership number there is NO constraint behind this lock. A
+   * unique index enforces at most ONE row per key and SQL has no "at most N"
+   * form, so above a cap of 1 the lock is the whole guarantee.
+   *
+   * LOCK ORDER: the position is always locked BEFORE the RTO. Two paths
+   * taking the same two locks in opposite orders deadlock under exactly the
+   * concurrency this exists for.
+   */
+  private async assertPositionHasRoom(
+    tx: Prisma.TransactionClient,
+    tenantBusinessId: string,
+    associationPositionId: string,
+    exceptMemberId?: string,
+  ): Promise<void> {
+    // Raw, because Prisma has no FOR UPDATE. Parameterised, not interpolated.
+    await tx.$queryRaw`SELECT id FROM tenant_association_positions WHERE id = ${associationPositionId} FOR UPDATE`;
+
+    if (await this.positionHasRoom(tx, tenantBusinessId, associationPositionId, exceptMemberId)) {
+      return;
+    }
+
+    const position = await tx.tenantAssociationPosition.findUnique({
+      where: { id: associationPositionId },
+      select: { positionName: true, maxMembers: true },
+    });
+    throw new BadRequestException(
+      `${position?.positionName ?? 'That position'} is full: it allows ` +
+        `${position?.maxMembers} active member(s). Deactivate the current ` +
+        `holder, or raise the limit on the position.`,
+    );
+  }
+
+  /**
+   * Refuses a position other than the one this business has fixed.
+   *
+   * `memberRegister.positionId` fixes the position members are filed under.
+   * On the PUBLIC path the server simply overrides what was sent - the
+   * applicant was never offered the choice, so a mismatch is not a mistake
+   * they could act on. Here it is a refusal instead, because staff DID see
+   * the field, and silently filing a Treasurer as a Member would be worse
+   * than saying no.
+   *
+   * `tenant-members:position_update` is the way out, and the reason that key
+   * exists: an association still has to be able to record its own Secretary.
+   */
+  private async assertPositionAllowed(
+    tenantBusinessId: string,
+    associationPositionId: string,
+    mayMovePosition: boolean,
+  ): Promise<void> {
+    if (mayMovePosition) return;
+    const fixed = await this.settings.resolveApplicantPositionId(tenantBusinessId);
+    if (fixed && fixed !== associationPositionId) {
+      throw new ForbiddenException(
+        'This business files every member under a fixed position. Changing it ' +
+          'needs the "Position_update Tenant Members" permission.',
+      );
+    }
+  }
+
+  // ---------- Portal password, set by staff ----------
+
+  /**
+   * Sets a member's portal password on their behalf.
+   *
+   * One thing separates this from the member's own change in
+   * MemberAuthService: there is no currentPassword to verify. That is the
+   * whole point, and the reason it carries its own permission rather than
+   * riding on `update`.
+   *
+   * It also does NOT require an existing hash. `passwordHash` is nullable and
+   * every staff-enrolled member has none, so this is equally how such a
+   * member gets portal access for the first time.
+   */
+  async resetPassword(id: string, dto: ResetTenantMemberPasswordDto) {
+    const row = await this.prisma.tenantMember.findFirst({
+      where: { id, status: { not: 'DELETED' } },
+      select: { id: true },
+    });
+    if (!row) throw new NotFoundException('Member not found');
+
+    // Hashed OUTSIDE the transaction. Argon2id is deliberately slow, and
+    // holding a write transaction open across it would serialise unrelated
+    // work for no benefit.
+    const passwordHash = await argon2.hash(dto.newPassword, { type: argon2.argon2id });
+
+    const timestamp = now();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.tenantMember.update({
+        where: { id },
+        data: { passwordHash, updatedAt: timestamp },
+      });
+      // Every refresh token dies with the old password. A staff reset is what
+      // somebody asks for after a lost phone or a shared password, and
+      // leaving those sessions alive would defeat the reason for asking. Same
+      // mechanism the member's own password change uses.
+      await tx.tenantMemberRefreshToken.updateMany({
+        where: { tenantMemberId: id, revokedAt: null },
+        data: { revokedAt: timestamp },
+      });
+    });
+
+    // The ACCESS token is a JWT and cannot be revoked: an app already open
+    // keeps working until it expires and then cannot refresh. There is no
+    // deny-list anywhere in this system, deliberately.
+    return { success: true };
+  }
+
+  async resetPasswordForTenantUser(
+    tenantUserId: string,
+    id: string,
+    dto: ResetTenantMemberPasswordDto,
+  ) {
+    // Ownership and the register flag, both, in one existing call.
+    await this.findOneForTenantUser(tenantUserId, id);
+    return this.resetPassword(id, dto);
   }
 }

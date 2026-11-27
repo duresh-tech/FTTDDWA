@@ -48,7 +48,16 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   // change_status is split from update on purpose: suspending a member is
   // a different act from correcting their phone number, and you would
   // plausibly grant one without the other.
-  { module: 'tenant-members', label: 'Tenant Members', actions: ['create', 'view', 'update', 'delete', 'list', 'restore', 'change_status'] },
+  //
+  // position_update is split for a stronger reason: when a business sets
+  // `memberRegister.positionId` the position is LOCKED, and this key is the
+  // only thing that unlocks it. Folding it into `update` would mean anybody
+  // who may correct a phone number may also promote a member to President.
+  //
+  // password_reset sets a member's portal password without knowing the old
+  // one. That is an impersonation risk by nature - it hands somebody the
+  // ability to sign in AS a member - so it is never implied by `update`.
+  { module: 'tenant-members', label: 'Tenant Members', actions: ['create', 'view', 'update', 'delete', 'list', 'restore', 'change_status', 'position_update', 'password_reset'] },
   // The card DESIGN. A template holds tokens, not member data, so editing one
   // is a configuration act.
   { module: 'tenant-id-card-templates', label: 'Tenant ID Card Templates', actions: ['create', 'view', 'update', 'delete', 'list', 'restore'] },
@@ -162,6 +171,8 @@ export const TENANT_ROLE_PERMISSION_KEYS: string[] = [
   'tenant-members:update',
   'tenant-members:delete',
   'tenant-members:change_status',
+  'tenant-members:position_update',
+  'tenant-members:password_reset',
   // Listed longhand rather than through the loop above, because `generate`
   // is not one of the five actions that loop emits.
   'tenant-member-applications:list',

@@ -190,3 +190,124 @@ set again, and has no filter chip of its own.
 > give two sources of truth that drift. Memberships now agree with it, for a
 > simpler reason: there is no membership-expiry column, so nothing was deriving
 > it and nothing was setting it on time.
+
+
+## A position can run out of seats
+
+`tenant_association_positions.maxMembers` is how many members may hold a
+position. **0 means unlimited**, and 0 is the default, so adding the column
+capped nothing that already existed.
+
+**Only ACTIVE members occupy a seat.** That single rule decides everything
+else about it:
+
+- A member enrolled by staff starts `PENDING`, so **enrolment never fills a
+  position** and is never refused by the cap. The seat is claimed when they
+  are **activated**, which is where the check lives. Checking at enrolment
+  instead would have been both wrong and useless: wrong because a pending row
+  holds nothing, and useless because the obvious handover — enrol the incoming
+  President, retire the outgoing one, then activate — would have been
+  impossible.
+- A suspended member gives their seat back. An association does not have to
+  delete a retired President to appoint the next one.
+- A pending **application** holds nothing either, which is why the cap is
+  enforced at approval rather than at submission. Submission still refuses a
+  full position, but only as a courtesy: it saves somebody waiting for a
+  decision that could only go one way.
+
+**Lowering the cap below the number already seated is allowed and evicts
+nobody.** An association that decides on one Vice-President while three are
+serving must be able to record that decision; the cap then simply refuses the
+next one. Refusing the edit would leave them unable to express it at all.
+
+### Why a lock, and not a constraint
+
+A unique index enforces at most **one** row per key, and SQL has no "at most
+N" form. So unlike the membership number — where the lock is the mechanism and
+the constraint is the guarantee — here the lock is the whole guarantee.
+
+`assertPositionHasRoom()` takes `SELECT ... FOR UPDATE` on the **position**
+row before counting, which serialises everybody competing for its last seat
+while leaving every other position uncontended. The position is locked
+**before** the RTO, always: two paths taking the same two locks in opposite
+orders would deadlock under exactly the concurrency this exists for.
+
+There is no row to lock for a member who does not exist yet, which is the same
+argument `allocateMemberIdNumber()` makes for locking the RTO.
+
+## The position can be locked to the business's choice
+
+When a business sets `memberRegister.positionId`, that position is **fixed for
+staff too**, not merely offered as a default.
+
+- `tenant-members:position_update` is the only way to change it. It is split
+  from `tenant-members:update` deliberately: anybody who may correct a phone
+  number should not thereby be able to promote a member to President.
+- The server refuses the change, not just the form. A read-only field in the
+  console is advisory — the route is reachable with a tenant JWT and an API
+  key, and the console's settings read is allowed to fail silently, so a
+  caller who cannot read settings would otherwise see no lock at all.
+- **An existing member is never reclassified.** Editing somebody enrolled as
+  Secretary before the setting was fixed omits the position from the request
+  entirely, so correcting their phone number does not quietly make them a
+  Member.
+
+The public path differs on purpose: there the server **overrides** silently,
+because the applicant was never shown the field and could not act on a
+mismatch.
+
+## Staff can set a member's portal password
+
+`PATCH system/tenant-members/:id/password` and `PATCH tenant/members/:id/password`,
+guarded by `tenant-members:password_reset`.
+
+It is split from `update` because it is an impersonation risk by nature: it
+hands somebody the ability to sign in **as** a member.
+
+Two things about it are easy to miss:
+
+- **It is also how portal access is granted for the first time.**
+  `passwordHash` is nullable, and a member enrolled by staff has none — they
+  cannot sign in at all until this route is used. Only applicants who
+  registered themselves arrive with a password.
+- **Every refresh token is revoked.** A reset is what somebody asks for after
+  a lost phone or a shared password, so leaving those sessions alive would
+  defeat the reason for asking. The **access** token is a JWT and cannot be
+  revoked: an app already open keeps working until it expires, and then cannot
+  refresh.
+
+Nothing is emailed or texted. The password is handed over out of band, and the
+member is not forced to change it on next sign-in.
+
+## Tamil fields refuse English letters
+
+`memberNameTamil` and `businessNameTamil` reject any `[A-Za-z]`.
+
+The rule is narrower than "must be Tamil" on purpose. What it catches is the
+mistake people actually make — typing the English name into the Tamil box, so
+a membership card prints the same name twice — while a numeral or an `&` in a
+business name stays legal, because those are written the same way in both
+scripts. A name written only in digits would pass, and that is the accepted
+cost of not refusing a legally registered name.
+
+**Validated on submit, never per keystroke.** Tamil is commonly typed on a
+transliteration keyboard, where Latin letters are the intermediate state
+before the Tamil is committed — filtering input would break exactly the people
+the field exists for.
+
+## Dates have bounds, not just a format
+
+A date of birth must be in the past and **at least 18 years** ago; a wedding
+date may be today but not later, and never before the date of birth.
+
+The age floor is not about turning teenagers away. The failure it catches is a
+typo — a year entered as 2019 instead of 1979, or today's date tabbed into the
+wrong box — which otherwise reaches a printed membership card. `18` lives in
+one place, `MINIMUM_AGE_YEARS` in
+`backend/src/common/validation/field-rules.ts`, which the console and the
+Flutter app mirror when bounding their pickers.
+
+The rules are shared by the register and the application form, from that one
+module. They have to be: approval **copies** an application into a member, so
+a date the application accepted and the register would not is a row that could
+never be approved.

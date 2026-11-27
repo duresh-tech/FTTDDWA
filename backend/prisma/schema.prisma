@@ -351,7 +351,6 @@ model AppSetting {
   @@map("app_settings")
 }
 
-
 // ------------------------------------------------------------------
 // API keys: machine credentials for external apps.
 //
@@ -712,7 +711,7 @@ model TenantAssociationPosition {
   /// Tamil characters fit exactly as 100 Latin ones do.
   positionNameTamil String? @db.VarChar(100)
 
-  remark String?                         @db.VarChar(255)
+  remark String? @db.VarChar(255)
 
   /// Whether a public APPLICANT may claim this position.
   ///
@@ -724,14 +723,30 @@ model TenantAssociationPosition {
   /// Defaults true so adding it changes nothing for an existing business.
   showOnApplicationForm Boolean @default(true)
 
+  /// How many members may hold this position. **0 means unlimited.**
+  ///
+  /// A committee has one President and one Treasurer; it has as many ordinary
+  /// Members as it can recruit. Both are expressed here rather than in code,
+  /// because which positions are scarce is an association's decision.
+  ///
+  /// Only ACTIVE members occupy a seat. A resigned President sitting at
+  /// INACTIVE must not block appointing the next one, and a PENDING
+  /// application holds nothing until it is approved.
+  ///
+  /// Defaults 0 so adding it changes nothing for an existing business: every
+  /// position stays unlimited until somebody sets a number. No database
+  /// constraint can enforce "at most N rows", so the rule lives in the
+  /// service behind a row lock - see assertPositionHasRoom().
+  maxMembers Int @default(0)
+
   status TenantAssociationPositionStatus @default(ACTIVE)
 
   createdAt BigInt
   updatedAt BigInt
   deletedAt BigInt?
 
-  tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
-  members        TenantMember[]
+  tenantBusiness     TenantBusiness            @relation(fields: [tenantBusinessId], references: [id])
+  members            TenantMember[]
   memberApplications TenantMemberApplication[]
 
   @@index([status])
@@ -823,11 +838,11 @@ model TenantState {
   updatedAt BigInt
   deletedAt BigInt?
 
-  tenantBusiness TenantBusiness   @relation(fields: [tenantBusinessId], references: [id])
-  country        TenantCountry    @relation(fields: [countryId], references: [id])
-  districts      TenantDistrict[]
-  taluks         TenantTaluk[]
-  members        TenantMember[]
+  tenantBusiness     TenantBusiness            @relation(fields: [tenantBusinessId], references: [id])
+  country            TenantCountry             @relation(fields: [countryId], references: [id])
+  districts          TenantDistrict[]
+  taluks             TenantTaluk[]
+  members            TenantMember[]
   memberApplications TenantMemberApplication[]
 
   /// Applies to every row regardless of soft-delete state, so a code held by a
@@ -854,12 +869,12 @@ model TenantDistrict {
   updatedAt BigInt
   deletedAt BigInt?
 
-  tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
-  state          TenantState    @relation(fields: [stateId], references: [id])
-  taluks         TenantTaluk[]
-  members        TenantMember[]
+  tenantBusiness     TenantBusiness            @relation(fields: [tenantBusinessId], references: [id])
+  state              TenantState               @relation(fields: [stateId], references: [id])
+  taluks             TenantTaluk[]
+  members            TenantMember[]
   memberApplications TenantMemberApplication[]
-  rtos           TenantRto[]
+  rtos               TenantRto[]
 
   @@unique([tenantBusinessId, districtCode])
   @@index([status])
@@ -883,10 +898,10 @@ model TenantTaluk {
   updatedAt BigInt
   deletedAt BigInt?
 
-  tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
-  state          TenantState    @relation(fields: [stateId], references: [id])
-  district       TenantDistrict @relation(fields: [districtId], references: [id])
-  members        TenantMember[]
+  tenantBusiness     TenantBusiness            @relation(fields: [tenantBusinessId], references: [id])
+  state              TenantState               @relation(fields: [stateId], references: [id])
+  district           TenantDistrict            @relation(fields: [districtId], references: [id])
+  members            TenantMember[]
   memberApplications TenantMemberApplication[]
 
   @@index([status])
@@ -909,8 +924,8 @@ model TenantIndustry {
   updatedAt BigInt
   deletedAt BigInt?
 
-  tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
-  members        TenantMember[]
+  tenantBusiness     TenantBusiness            @relation(fields: [tenantBusinessId], references: [id])
+  members            TenantMember[]
   memberApplications TenantMemberApplication[]
 
   @@index([status])
@@ -1015,13 +1030,13 @@ model TenantMember {
   updatedAt BigInt
   deletedAt BigInt?
 
-  tenantBusiness      TenantBusiness            @relation(fields: [tenantBusinessId], references: [id])
-  associationPosition TenantAssociationPosition @relation(fields: [associationPositionId], references: [id])
-  industry            TenantIndustry            @relation(fields: [industryId], references: [id])
-  state               TenantState               @relation(fields: [stateId], references: [id])
-  district            TenantDistrict            @relation(fields: [districtId], references: [id])
-  taluk               TenantTaluk               @relation(fields: [talukId], references: [id])
-  rto                 TenantRto                 @relation(fields: [rtoId], references: [id])
+  tenantBusiness      TenantBusiness             @relation(fields: [tenantBusinessId], references: [id])
+  associationPosition TenantAssociationPosition  @relation(fields: [associationPositionId], references: [id])
+  industry            TenantIndustry             @relation(fields: [industryId], references: [id])
+  state               TenantState                @relation(fields: [stateId], references: [id])
+  district            TenantDistrict             @relation(fields: [districtId], references: [id])
+  taluk               TenantTaluk                @relation(fields: [talukId], references: [id])
+  rto                 TenantRto                  @relation(fields: [rtoId], references: [id])
   /// Every issue, newest first when read. The CURRENT one is whichever has
   /// status ACTIVE - there is no pointer column, because that would be a
   /// second source of truth about which card is current.
@@ -1072,9 +1087,9 @@ model TenantRto {
   updatedAt BigInt
   deletedAt BigInt?
 
-  tenantBusiness TenantBusiness @relation(fields: [tenantBusinessId], references: [id])
-  district       TenantDistrict @relation(fields: [tenantDistrictId], references: [id])
-  members        TenantMember[]
+  tenantBusiness     TenantBusiness            @relation(fields: [tenantBusinessId], references: [id])
+  district           TenantDistrict            @relation(fields: [tenantDistrictId], references: [id])
+  members            TenantMember[]
   memberApplications TenantMemberApplication[]
 
   /// Scoped per business, and applying to every row regardless of soft-delete

@@ -19,6 +19,19 @@ const CreateTenantAssociationPositionSchema = z.object({
    * association has to be able to record a Treasurer.
    */
   showOnApplicationForm: z.coerce.boolean().optional(),
+  /**
+   * How many members may hold this position. **0 means unlimited.**
+   *
+   * Only ACTIVE members occupy a seat, so a resigned President at INACTIVE
+   * does not block appointing the next one.
+   *
+   * Lowering it below the number already seated is ALLOWED and does not evict
+   * anybody: an association that decides on two vice-presidents when it has
+   * three must be able to record that intention, and the cap then simply
+   * refuses the next one. Refusing the edit instead would leave them unable
+   * to express the decision at all.
+   */
+  maxMembers: z.coerce.number().int().min(0).optional(),
 });
 
 /**

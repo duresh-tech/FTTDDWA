@@ -5,7 +5,7 @@ publish_to: "none"
 
 # Its own version stream. The backend and console do not move in lockstep with
 # each other and this app moves with neither -- see CHANGELOG.md.
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: ^3.12.2

@@ -112,6 +112,29 @@ export class TenantMemberApplicationsService {
 
     await this.assertChain(tenantBusinessId, dto);
 
+    // A position with no seats left cannot usefully be applied for: approval
+    // would refuse it, and the applicant would wait for a decision that can
+    // only go one way.
+    //
+    // Lock-free on purpose. A pending application holds NO seat - the cap
+    // counts ACTIVE members - so there is nothing here to serialise and
+    // nothing a lock would protect. This is a courtesy; approve() is the gate.
+    if (
+      !(await this.members.positionHasRoom(
+        this.prisma,
+        tenantBusinessId,
+        dto.associationPositionId,
+      ))
+    ) {
+      throw new BadRequestException(
+        fixedPositionId
+          ? // The applicant never chose this position and cannot choose
+            // another, so the message must not read as their mistake.
+            'This association is not accepting new applications at the moment'
+          : 'That position is full. Choose another.',
+      );
+    }
+
     // `passportPhotoPath` arrives from the public form as a plain string, so
     // it is confined to files the photo endpoint itself created. Without this
     // an applicant could submit ANY storage path they could guess - another
