@@ -64,22 +64,28 @@ changing the backend image, run
 
 ## Reference geography
 
-Country, State, District, Taluk and RTO rows are tenant-scoped. To load the
-bundled Tamil Nadu catalogue into an existing business:
+Country, State, District, Taluk and RTO rows are tenant-scoped. With no
+argument, the bundled Tamil Nadu catalogue is loaded into every **ACTIVE**,
+non-deleted business:
 
 ```bash
 cd backend
 npm run seed:geography
-# or, for a different business:
+# `--all` is the explicit form; a UUID limits the load to one business:
+npm run seed:geography -- --all
 npm run seed:geography -- <tenant-business-uuid>
 ```
 
-The script is idempotent: existing rows are matched by their business-scoped
-codes (and taluk name within a district), so rerunning refreshes names without
-duplicating anything. It never creates a business and never clears a row's
-status or `deletedAt`. Only Tamil Nadu is bundled; an all-India load needs a
-source dataset. Provenance and caveats are documented at the top of
-`backend/prisma/data/tamil-nadu-geography.ts`.
+`SEED_GEOGRAPHY_BUSINESS_ID=<uuid>` is the single-business alternative to the
+UUID argument. The script is idempotent: existing rows are matched by their
+business-scoped codes (and taluk name within a district), so rerunning refreshes
+names and parent links without duplicating anything. It never creates a
+business and never clears a row's `status` or `deletedAt`. Each business is
+loaded in its own transaction, so a failure cannot leave one business
+half-filled while the remaining businesses still run. No industry catalogue is
+bundled, so `tenant_industries` is left alone. Only Tamil Nadu is bundled; an
+all-India load needs a source dataset. Provenance and caveats are documented at
+the top of `backend/prisma/data/tamil-nadu-geography.ts`.
 
 ## Case sensitivity
 

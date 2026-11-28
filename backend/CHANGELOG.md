@@ -117,6 +117,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`npm run seed:geography` now fills every ACTIVE business.** It previously
+  targeted a hardcoded dev UUID, so a fresh install looked unseeded until
+  somebody copied an id out of the source. With no UUID argument (or with
+  `--all`) the loader walks `tenantBusiness` where `status = ACTIVE` and
+  `deletedAt IS NULL`; a UUID or `SEED_GEOGRAPHY_BUSINESS_ID` still narrows it
+  to one. Each business is loaded in its own transaction and a failure is
+  reported per business instead of aborting the rest. Reruns still key on
+  business-scoped codes, refresh names and parent links, and preserve `status`
+  and `deletedAt`; industries remain unseeded because no catalogue ships.
 - **`memberRegister.positionId` now LOCKS the staff path**, where it was only
   a default. The server refuses a different position from a caller without
   `tenant-members:position_update` - a read-only field in the console alone

@@ -1,6 +1,6 @@
 {
   "name": "fttddwa-backend",
-  "version": "3.10.0",
+  "version": "3.10.1",
   "description": "System API - NestJS + Prisma + Passport JWT + RBAC",
   "private": true,
   "scripts": {
