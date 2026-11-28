@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../../l10n/app_localizations.dart';
 import '../../data/id_card.dart';
 
 /// The member's membership card: its state, and a way to get the PDF.
@@ -31,7 +32,11 @@ class CardPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final dates = DateFormat.yMMMd();
+    final l = L.of(context);
+    // Formatted in the ACTIVE locale, not the default one. Without the
+    // argument intl falls back to en_US, so a Tamil screen printed its
+    // one date in English.
+    final dates = DateFormat.yMMMd(Localizations.localeOf(context).toString());
 
     return Card(
       margin: EdgeInsets.zero,
@@ -49,7 +54,7 @@ class CardPanel extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Membership card',
+                  l.membershipCard,
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -57,7 +62,7 @@ class CardPanel extends StatelessWidget {
                 const Spacer(),
                 if (!loading && card != null)
                   _StatusPill(
-                    label: card!.expired ? 'Expired' : 'Valid',
+                    label: card!.expired ? l.cardExpired : l.cardValid,
                     // Not `error`: an expired card is a thing to renew, not a
                     // fault. The console uses the same amber for it.
                     colour: card!.expired
@@ -69,11 +74,10 @@ class CardPanel extends StatelessWidget {
             const SizedBox(height: 12),
 
             if (loading)
-              Text('Checking…', style: theme.textTheme.bodySmall)
+              Text(l.cardChecking, style: theme.textTheme.bodySmall)
             else if (card == null)
               Text(
-                'None issued yet. Your association issues these — ask them if '
-                'you need one.',
+                l.cardNoneIssued,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -86,18 +90,20 @@ class CardPanel extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Issue ${card!.issueNumber}',
+                          l.cardIssueNumber(card!.issueNumber),
                           style: theme.textTheme.bodyMedium,
                         ),
                         Text(
                           card!.expiresOn == null
-                              ? 'No expiry'
+                              ? l.cardNoExpiry
                               : card!.expired
                               // `expired` is computed server-side from the
                               // date and the clock -- there is no EXPIRED
                               // status to read, deliberately.
-                              ? 'Expired ${dates.format(card!.expiresOn!)}'
-                              : 'Valid until ${dates.format(card!.expiresOn!)}',
+                              ? l.cardExpiredOn(dates.format(card!.expiresOn!))
+                              : l.cardValidUntil(
+                                  dates.format(card!.expiresOn!),
+                                ),
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: card!.expired
                                 ? AppStatusColors.of(context).warning
@@ -116,7 +122,7 @@ class CardPanel extends StatelessWidget {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.download, size: 18),
-                    label: const Text('Download'),
+                    label: Text(l.cardDownload),
                   ),
                 ],
               ),
@@ -124,9 +130,7 @@ class CardPanel extends StatelessWidget {
                 const SizedBox(height: 10),
                 _Notice(
                   colour: AppStatusColors.of(context).warning,
-                  message:
-                      'This card has expired. Contact your association for a '
-                      'new one.',
+                  message: l.cardExpiredNotice,
                 ),
               ],
             ],

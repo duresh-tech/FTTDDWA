@@ -174,6 +174,9 @@ class PublicSite {
   String? get name => association['association.name'];
   String? get nameTamil => association['association.nameTamil'];
   String? get shortName => association['association.shortName'];
+  // The server has always sent this; nothing read it until the login
+  // masthead had a Tamil mode to render.
+  String? get shortNameTamil => association['association.shortNameTamil'];
   String? get tagline => association['association.tagline'];
   String? get taglineTamil => association['association.taglineTamil'];
   String? get logoPath => association['association.logo1Path'];

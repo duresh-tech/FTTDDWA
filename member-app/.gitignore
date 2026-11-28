@@ -47,3 +47,8 @@ app.*.map.json
 # Configuration. Holds a real API key, and is bundled into the binary as an
 # asset -- see .env.example, which IS committed as the template.
 .env
+
+# `flutter gen-l10n` writes this list of keys app_ta.arb has not translated.
+# A build artefact of the translation state, not the translation state itself
+# - the .arb files are that.
+l10n-missing.txt

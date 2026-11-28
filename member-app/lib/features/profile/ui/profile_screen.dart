@@ -4,6 +4,8 @@ import 'package:open_filex/open_filex.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/config/env.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../l10n/app_localizations.dart';
+import '../../../shared/widgets/language_toggle.dart';
 import '../../../shared/widgets/bilingual_row.dart';
 import '../../auth/data/member.dart';
 import '../../auth/member_session.dart';
@@ -97,9 +99,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (result.type != ResultType.done) {
         // Saved, but nothing on the device claims PDFs. Say where it went
         // rather than reporting a failure that did not happen.
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Saved to $path')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(L.of(context).cardSavedTo(path))),
+        );
       }
     } on ApiException catch (error) {
       if (!mounted) return;
@@ -129,11 +131,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l = L.of(context);
     final member = _member;
 
     if (_loadError != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Your membership')),
+        appBar: AppBar(title: Text(l.yourMembership)),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(32),
@@ -147,10 +150,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 OutlinedButton.icon(
                   onPressed: _load,
                   icon: const Icon(Icons.refresh),
-                  label: const Text('Try again'),
+                  label: Text(l.tryAgain),
                 ),
                 const SizedBox(height: 8),
-                TextButton(onPressed: _signOut, child: const Text('Sign out')),
+                TextButton(onPressed: _signOut, child: Text(l.signOut)),
               ],
             ),
           ),
@@ -164,10 +167,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.site.shortName ?? 'Your membership'),
+        title: Text(widget.site.shortName ?? l.yourMembership),
         actions: [
           IconButton(
-            tooltip: 'Sign out',
+            tooltip: l.signOut,
             onPressed: _signingOut ? null : _signOut,
             icon: _signingOut
                 ? const SizedBox(
@@ -202,7 +205,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
                     child: Text(
-                      'Your details',
+                      l.yourDetails,
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -212,62 +215,68 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   // a list of what is actually recorded rather than a grid of
                   // dashes.
                   BilingualRow(
-                    label: 'Name',
+                    label: l.fieldName,
                     value: member.memberName,
                     tamil: member.memberNameTamil,
                   ),
                   BilingualRow(
-                    label: 'Business',
+                    label: l.fieldBusiness,
                     value: member.businessName,
                     tamil: member.businessNameTamil,
                   ),
                   BilingualRow(
-                    label: 'Position',
+                    label: l.fieldPosition,
                     value: member.associationPosition?.name,
                     tamil: member.associationPosition?.tamil,
                   ),
                   BilingualRow(
-                    label: 'Trade',
+                    label: l.fieldTrade,
                     value: member.industry?.name,
                     tamil: member.industry?.tamil,
                   ),
-                  BilingualRow(label: 'Phone', value: member.phoneNumber),
-                  BilingualRow(label: 'WhatsApp', value: member.whatsappNumber),
-                  BilingualRow(label: 'Email', value: member.email),
+                  BilingualRow(label: l.fieldPhone, value: member.phoneNumber),
                   BilingualRow(
-                    label: 'Date of birth',
+                    label: l.fieldWhatsapp,
+                    value: member.whatsappNumber,
+                  ),
+                  BilingualRow(label: l.fieldEmail, value: member.email),
+                  BilingualRow(
+                    label: l.fieldDateOfBirth,
                     value: member.dateOfBirth,
                   ),
                   if (member.isMarried)
                     BilingualRow(
-                      label: 'Wedding date',
+                      label: l.fieldWeddingDate,
                       value: member.weddingDate,
                     ),
-                  BilingualRow(label: 'Aadhaar', value: member.maskedAadhaar),
                   BilingualRow(
-                    label: 'Address',
+                    label: l.fieldAadhaar,
+                    value: member.maskedAadhaar,
+                  ),
+                  BilingualRow(
+                    label: l.fieldAddress,
                     value: [
                       member.addressLine1,
                       member.addressLine2,
                     ].where((p) => p != null && p.isNotEmpty).join(', '),
                   ),
                   BilingualRow(
-                    label: 'Taluk',
+                    label: l.fieldTaluk,
                     value: member.taluk?.name,
                     tamil: member.taluk?.tamil,
                   ),
                   BilingualRow(
-                    label: 'District',
+                    label: l.fieldDistrict,
                     value: member.district?.name,
                     tamil: member.district?.tamil,
                   ),
                   BilingualRow(
-                    label: 'State',
+                    label: l.fieldState,
                     value: member.state?.name,
                     tamil: member.state?.tamil,
                   ),
                   BilingualRow(
-                    label: 'RTO',
+                    label: l.fieldRto,
                     value: member.rto?.labelled,
                     tamil: member.rto?.tamil,
                   ),
@@ -276,10 +285,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
 
+            const SizedBox(height: 16),
+            // The second place the language can be changed - the first is
+            // the login screen, which a signed-in member never sees again.
+            Card(
+              margin: EdgeInsets.zero,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.language,
+                      size: 20,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        l.languageLabel,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const LanguageToggle(),
+                  ],
+                ),
+              ),
+            ),
+
             const SizedBox(height: 20),
             Text(
-              'Something wrong? Contact your association — members cannot edit '
-              'their own record here.',
+              l.cannotEditHere,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,

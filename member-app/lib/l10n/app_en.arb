@@ -1,0 +1,201 @@
+{
+  "@@locale": "en",
+
+  "languageName": "English",
+  "@languageName": {
+    "description": "This language, written in itself, for the language picker."
+  },
+  "languageChoose": "Choose your language",
+  "languageSubtitle": "You can change this later.",
+  "languageEnglish": "English",
+  "languageTamil": "தமிழ்",
+  "@languageTamil": {
+    "description": "Always Tamil script, in both locales: somebody who cannot read English has to recognise it."
+  },
+  "languageContinue": "Continue",
+  "languageLabel": "Language",
+
+  "appFallbackName": "Membership",
+  "configProblem": "Configuration problem",
+  "tryAgain": "Try again",
+  "cancel": "Cancel",
+  "back": "Back",
+  "next": "Next",
+  "close": "Close",
+
+  "signIn": "Sign in",
+  "signOut": "Sign out",
+  "membershipNumber": "Membership number",
+  "membershipNumberHelper": "Printed on your membership card",
+  "membershipNumberRequired": "Enter your membership number",
+  "password": "Password",
+  "passwordRequired": "Enter your password",
+  "applyForMembership": "Apply for membership",
+  "registerClosed": "This association is not accepting new applications at the moment.",
+  "siteUnreachable": "Could not reach the association, so applying is unavailable. Signing in may still work.",
+  "noPasswordYet": "No password yet? Your association sets one up for you.",
+
+  "stepIdentity": "Identity",
+  "stepContact": "Contact & sign-in",
+  "stepAssociation": "Association",
+  "stepLocation": "Location",
+  "stepIdentityShort": "Identity",
+  "stepContactShort": "Contact",
+  "stepAssociationShort": "Association",
+  "stepLocationShort": "Location",
+  "stepIdentityBlurb": "Your name, date of birth and photo.",
+  "stepContactBlurb": "How the association reaches you, and the password you will sign in with.",
+  "stepAssociationBlurb": "What you do, and the position you are applying for.",
+  "stepLocationBlurb": "Where your business is, for your district association.",
+
+  "submitApplication": "Submit application",
+  "discardTitle": "Discard this application?",
+  "discardBody": "What you have filled in will not be kept.",
+  "discardKeep": "Keep filling it in",
+  "discardConfirm": "Discard",
+
+  "yourName": "Your name",
+  "yourNameRequired": "Enter your name",
+  "yourNameTamil": "Your name in Tamil",
+  "businessName": "Business name",
+  "businessNameRequired": "Enter your business name",
+  "businessNameTamil": "Business name in Tamil",
+  "dateOfBirth": "Date of birth",
+  "married": "Married",
+  "weddingDate": "Wedding date",
+  "aadhaarOptional": "Aadhaar number (optional)",
+  "aadhaarHint": "1234 5678 9012",
+  "aadhaarHelper": "Stored encrypted. Only the last four digits are ever shown.",
+  "yourPhoto": "Your photo",
+  "photoHelper": "Optional. Printed on your membership card.",
+  "photoCamera": "Camera",
+  "photoGallery": "Gallery",
+  "photoAttached": "Photo attached",
+  "photoTooLarge": "That photo is too large. Try another.",
+  "photoUnreadable": "Could not open the photo.",
+
+  "phoneNumber": "Phone number",
+  "phoneRequired": "Enter a phone number",
+  "phoneTooShort": "That looks too short",
+  "whatsappNumber": "WhatsApp number",
+  "whatsappHelper": "Leave blank if it is the same as your phone number",
+  "email": "Email",
+  "emailRequired": "Enter an email address",
+  "emailInvalid": "Enter a valid email address",
+  "addressLine1": "Address line 1",
+  "addressRequired": "Enter an address",
+  "addressLine2": "Address line 2",
+  "signingInHeading": "Signing in",
+  "signingInBlurb": "Once your application is approved you will sign in with your membership number and this password.",
+  "passwordHelper": "At least 8 characters",
+  "passwordTooShort": "Use at least 8 characters",
+  "confirmPassword": "Confirm password",
+  "passwordsDoNotMatch": "The passwords do not match",
+
+  "position": "Position",
+  "positionFixedNote": "Set by the association for everyone applying.",
+  "noPositions": "This association has no positions set up yet",
+  "trade": "Trade",
+  "noTrades": "This association has no trades set up yet",
+  "chooseAPosition": "Choose a position",
+  "chooseATrade": "Choose a trade",
+
+  "state": "State",
+  "noStates": "This association has no states set up yet",
+  "district": "District",
+  "chooseStateFirst": "Choose a state first",
+  "noDistrictsInState": "No districts in that state",
+  "taluk": "Taluk",
+  "chooseDistrictFirst": "Choose a district first",
+  "noTaluksInDistrict": "No taluks in that district",
+  "rto": "RTO",
+  "noRtosInDistrict": "No RTOs in that district",
+  "rtoNote": "Your membership number is issued from this RTO, so it cannot be changed later.",
+  "chooseAState": "Choose a state",
+  "chooseADistrict": "Choose a district",
+  "chooseATaluk": "Choose a taluk",
+  "chooseAnRto": "Choose an RTO",
+
+  "selectHint": "Select",
+  "nothingAvailable": "Nothing available",
+
+  "applicationReceived": "Application received",
+  "yourApplicationNumber": "Your application number",
+  "keepThisNumber": "Keep this number. {association} will review your application, and you will be able to sign in once it is approved.",
+  "@keepThisNumber": {
+    "placeholders": { "association": { "type": "String" } }
+  },
+  "theAssociation": "The association",
+  "numberIssuedOnApproval": "Your membership number is issued on approval, not now.",
+  "backToSignIn": "Back to sign in",
+  "questionsContact": "Questions? {contacts}",
+  "@questionsContact": {
+    "placeholders": { "contacts": { "type": "String" } }
+  },
+
+  "yourMembership": "Your membership",
+  "yourDetails": "Your details",
+  "fieldName": "Name",
+  "fieldBusiness": "Business",
+  "fieldPosition": "Position",
+  "fieldTrade": "Trade",
+  "fieldPhone": "Phone",
+  "fieldWhatsapp": "WhatsApp",
+  "fieldEmail": "Email",
+  "fieldDateOfBirth": "Date of birth",
+  "fieldWeddingDate": "Wedding date",
+  "fieldAadhaar": "Aadhaar",
+  "fieldAddress": "Address",
+  "fieldTaluk": "Taluk",
+  "fieldDistrict": "District",
+  "fieldState": "State",
+  "fieldRto": "RTO",
+  "cannotEditHere": "Something wrong? Contact your association — members cannot edit their own record here.",
+
+  "membershipCard": "Membership card",
+  "cardValid": "Valid",
+  "cardExpired": "Expired",
+  "cardChecking": "Checking…",
+  "cardNoneIssued": "None issued yet. Your association issues these — ask them if you need one.",
+  "cardIssueNumber": "Issue {number}",
+  "@cardIssueNumber": {
+    "placeholders": { "number": { "type": "int" } }
+  },
+  "cardNoExpiry": "No expiry",
+  "cardExpiredOn": "Expired {date}",
+  "@cardExpiredOn": {
+    "placeholders": { "date": { "type": "String" } }
+  },
+  "cardValidUntil": "Valid until {date}",
+  "@cardValidUntil": {
+    "placeholders": { "date": { "type": "String" } }
+  },
+  "cardDownload": "Download",
+  "cardExpiredNotice": "This card has expired. Contact your association for a new one.",
+  "cardSavedTo": "Saved to {path}",
+  "@cardSavedTo": {
+    "placeholders": { "path": { "type": "String" } }
+  },
+
+  "errorNetwork": "Could not reach the server. Check your connection.",
+  "validationTamilOnly": "{field} must be in Tamil, not English letters",
+  "@validationTamilOnly": {
+    "placeholders": { "field": { "type": "String" } }
+  },
+  "fieldYourTamilName": "Your Tamil name",
+  "fieldTamilBusinessName": "The Tamil business name",
+  "validationChooseDateOfBirth": "Choose a date of birth",
+  "validationDateOfBirthUnreal": "That date of birth is not a real date",
+  "validationTooYoung": "You must be at least {years} years old to apply",
+  "@validationTooYoung": {
+    "placeholders": { "years": { "type": "int" } }
+  },
+  "validationChooseWeddingDate": "Choose a wedding date",
+  "validationWeddingDateUnreal": "That wedding date is not a real date",
+  "validationWeddingInFuture": "A wedding date cannot be in the future",
+  "validationWeddingBeforeBirth": "A wedding date cannot be before your date of birth",
+  "validationAadhaarDigits": "An Aadhaar number has 12 digits (you entered {count})",
+  "@validationAadhaarDigits": {
+    "placeholders": { "count": { "type": "int" } }
+  }
+}

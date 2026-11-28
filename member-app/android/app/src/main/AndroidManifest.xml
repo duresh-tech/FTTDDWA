@@ -4,8 +4,11 @@
          channel, which would leave a store build with no network at all. -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
+    <!-- android:label is the launcher caption. Static, unlike the in-app
+         title, which the splash replaces with the association's own name once
+         it has been fetched - an OS label cannot wait for a network call. -->
     <application
-        android:label="Membership"
+        android:label="FTTDDWA"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

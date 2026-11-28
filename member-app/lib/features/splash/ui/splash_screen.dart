@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/config/env.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../auth/member_session.dart';
 import '../../auth/ui/login_screen.dart';
 import '../../profile/ui/profile_screen.dart';
@@ -97,76 +98,76 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l = L.of(context);
 
-    // The one purely-brand screen, so it carries the console's own header
-    // gradient rather than a flat surface.
+    // WHITE, not the header gradient it used to carry.
+    //
+    // The native splash Android draws before Flutter starts is white with
+    // this same emblem on it. A gradient here meant the launch flashed white
+    // then indigo in the first half second, which reads as a glitch. One
+    // background across both, and the handover is invisible.
     return Scaffold(
-      body: DecoratedBox(
-        decoration: const BoxDecoration(gradient: AppColors.headerGradient),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 88,
-                  height: 88,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.28),
-                    ),
+      backgroundColor: Colors.white,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Fades and scales in over the 600ms the splash is held for
+              // anyway, so the pause reads as deliberate rather than slow.
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 520),
+                curve: Curves.easeOutCubic,
+                builder: (context, t, child) => Opacity(
+                  opacity: t.clamp(0, 1),
+                  child: Transform.scale(
+                    scale: 0.92 + (0.08 * t),
+                    child: child,
                   ),
-                  child: const Icon(
-                    Icons.badge_outlined,
-                    size: 44,
-                    color: Colors.white,
+                ),
+                child: Image.asset(
+                  'assets/images/fttddwa-logo.webp',
+                  width: 168,
+                  height: 168,
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                // Env may throw if .env is unusable, and this widget has to be
+                // able to render the error that says so.
+                _fatal == null ? _safeAppName() : l.configProblem,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.lightForeground,
+                ),
+              ),
+              const SizedBox(height: 28),
+              if (_fatal == null)
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                )
+              else ...[
+                Text(
+                  _fatal!,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.destructive,
                   ),
                 ),
                 const SizedBox(height: 20),
-                Text(
-                  // Env may throw if .env is unusable, and this widget has to be
-                  // able to render the error that says so.
-                  _fatal == null ? _safeAppName() : 'Configuration problem',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+                OutlinedButton.icon(
+                  onPressed: _boot,
+                  icon: const Icon(Icons.refresh),
+                  label: Text(l.tryAgain),
                 ),
-                const SizedBox(height: 28),
-                if (_fatal == null)
-                  const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: Colors.white,
-                    ),
-                  )
-                else ...[
-                  Text(
-                    _fatal!,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  OutlinedButton.icon(
-                    onPressed: _boot,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Try again'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.white54),
-                    ),
-                  ),
-                ],
               ],
-            ),
+            ],
           ),
         ),
       ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../l10n/app_localizations.dart';
 import '../../../../shared/widgets/picker_field.dart';
 import '../../data/application_draft.dart';
 import '../../data/options.dart';
@@ -27,17 +28,18 @@ class LocationStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = L.of(context);
     final theme = Theme.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         PickerField(
-          label: 'State',
+          label: l.state,
           required: true,
           items: options.states,
           value: draft.stateId,
-          emptyHint: 'This association has no states set up yet',
+          emptyHint: l.noStates,
           onChanged: (value) {
             // Clears district, taluk and RTO together: a stale child under a
             // new parent fails the server's chain check with a message that
@@ -47,48 +49,43 @@ class LocationStep extends StatelessWidget {
           },
         ),
         PickerField(
-          label: 'District',
+          label: l.district,
           required: true,
           items: options.districtsOf(draft.stateId),
           value: draft.districtId,
-          disabledHint: draft.stateId == null ? 'Choose a state first' : null,
-          emptyHint: 'No districts in that state',
+          disabledHint: draft.stateId == null ? l.chooseStateFirst : null,
+          emptyHint: l.noDistrictsInState,
           onChanged: (value) {
             draft.setDistrict(value);
             onChanged();
           },
         ),
         PickerField(
-          label: 'Taluk',
+          label: l.taluk,
           required: true,
           items: options.taluksOf(draft.districtId),
           value: draft.talukId,
-          disabledHint: draft.districtId == null
-              ? 'Choose a district first'
-              : null,
-          emptyHint: 'No taluks in that district',
+          disabledHint: draft.districtId == null ? l.chooseDistrictFirst : null,
+          emptyHint: l.noTaluksInDistrict,
           onChanged: (value) {
             draft.talukId = value;
             onChanged();
           },
         ),
         PickerField(
-          label: 'RTO',
+          label: l.rto,
           required: true,
           items: options.rtosOf(draft.districtId),
           value: draft.rtoId,
-          disabledHint: draft.districtId == null
-              ? 'Choose a district first'
-              : null,
-          emptyHint: 'No RTOs in that district',
+          disabledHint: draft.districtId == null ? l.chooseDistrictFirst : null,
+          emptyHint: l.noRtosInDistrict,
           onChanged: (value) {
             draft.rtoId = value;
             onChanged();
           },
         ),
         Text(
-          'Your membership number is issued from this RTO, so it cannot be '
-          'changed later.',
+          l.rtoNote,
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),

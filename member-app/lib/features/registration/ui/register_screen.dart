@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/api/api_exception.dart';
 import '../../auth/member_session.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/validation.dart';
 import '../data/application_draft.dart';
 import '../data/options.dart';
@@ -35,21 +36,31 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  static const _titles = [
-    'Identity',
-    'Contact & sign-in',
-    'Association',
-    'Location',
+  /// The step headings, short rail labels and one-line blurbs.
+  ///
+  /// Built from the localisations rather than held as `const`: a translated
+  /// string is not known until there is a BuildContext, and the rail's labels
+  /// are deliberately SHORTER than the headings - "Contact & sign-in" does not
+  /// fit a quarter of a phone, in either language.
+  List<String> _titles(L l) => [
+    l.stepIdentity,
+    l.stepContact,
+    l.stepAssociation,
+    l.stepLocation,
   ];
 
-  /// One line per step. The console's form carries the same explanatory text
-  /// under each section heading, and on a phone - where only one step is ever
-  /// on screen - it matters more, not less.
-  static const _blurbs = [
-    'Your name, date of birth and photo.',
-    'How the association reaches you, and the password you will sign in with.',
-    'What you do, and the position you are applying for.',
-    'Where your business is, for your district association.',
+  List<String> _shortTitles(L l) => [
+    l.stepIdentityShort,
+    l.stepContactShort,
+    l.stepAssociationShort,
+    l.stepLocationShort,
+  ];
+
+  List<String> _blurbs(L l) => [
+    l.stepIdentityBlurb,
+    l.stepContactBlurb,
+    l.stepAssociationBlurb,
+    l.stepLocationBlurb,
   ];
 
   final _draft = ApplicationDraft();
@@ -135,6 +146,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         // InputDecorator -- so Form.validate() walks straight past it. Without
         // this, an applicant reaches step 4, submits, and gets the server's
         // "dateOfBirth: Required" three screens away from the field it means.
+        final l = L.of(context);
         final textValid = _formKeys[0].currentState?.validate() ?? false;
 
         // Both dates are checked HERE for the same reason: DateField is a
@@ -142,7 +154,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         // straight past it however many validators it is given.
         final dobProblem = dateOfBirthError(_draft.dateOfBirth);
         if (dobProblem != null) {
-          _say(dobProblem);
+          _say(describeDateProblem(l, dobProblem));
           return false;
         }
         if (_draft.isMarried) {
@@ -153,7 +165,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             _draft.dateOfBirth,
           );
           if (weddingProblem != null) {
-            _say(weddingProblem);
+            _say(describeDateProblem(l, weddingProblem, wedding: true));
             return false;
           }
         }
@@ -161,16 +173,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
       case 1:
         return _formKeys[_step].currentState?.validate() ?? false;
       case 2:
+        // Whole sentences, not fragments slotted into "Choose ___": Tamil
+        // word order does not survive that kind of assembly.
         return _require({
-          'a position': _draft.associationPositionId,
-          'a trade': _draft.industryId,
+          L.of(context).chooseAPosition: _draft.associationPositionId,
+          L.of(context).chooseATrade: _draft.industryId,
         });
       case 3:
         return _require({
-          'a state': _draft.stateId,
-          'a district': _draft.districtId,
-          'a taluk': _draft.talukId,
-          'an RTO': _draft.rtoId,
+          L.of(context).chooseAState: _draft.stateId,
+          L.of(context).chooseADistrict: _draft.districtId,
+          L.of(context).chooseATaluk: _draft.talukId,
+          L.of(context).chooseAnRto: _draft.rtoId,
         });
       default:
         return true;
@@ -187,15 +201,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _require(Map<String, String?> fields) {
     final missing = fields.entries.where((e) => e.value == null).toList();
     if (missing.isEmpty) return true;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Choose ${missing.first.key}')));
+    _say(missing.first.key);
     return false;
   }
 
   void _next() {
     if (!_validateStep()) return;
-    if (_step < _titles.length - 1) {
+    if (_step < 3) {
       setState(() => _step++);
       _toTop();
     } else {
@@ -222,6 +234,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   /// `_draft` is held by this State, so popping discards it - worth one
   /// question when somebody is three steps in.
   Future<void> _cancel() async {
+    final l = L.of(context);
     if (_draft.isEmpty) {
       Navigator.of(context).pop();
       return;
@@ -229,16 +242,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final leave = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Discard this application?'),
-        content: const Text('What you have filled in will not be kept.'),
+        title: Text(l.discardTitle),
+        content: Text(l.discardBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Keep filling it in'),
+            child: Text(l.discardKeep),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Discard'),
+            child: Text(l.discardConfirm),
           ),
         ],
       ),
@@ -318,14 +331,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l = L.of(context);
     final options = _options;
-    final isLast = _step == _titles.length - 1;
+    final isLast = _step == 3;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Apply for membership')),
+      appBar: AppBar(title: Text(l.applyForMembership)),
       body: SafeArea(
         child: _loadError != null
-            ? _ErrorState(message: _loadError!, onRetry: _loadOptions)
+            ? _ErrorState(l: l, message: _loadError!, onRetry: _loadOptions)
             : options == null
             ? const Center(child: CircularProgressIndicator())
             : Column(
@@ -339,7 +353,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            _StepRail(titles: _titles, current: _step),
+                            _StepRail(titles: _shortTitles(l), current: _step),
                             const SizedBox(height: 16),
                             Card(
                               child: Padding(
@@ -354,7 +368,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       CrossAxisAlignment.stretch,
                                   children: [
                                     Text(
-                                      _titles[_step],
+                                      _titles(l)[_step],
                                       style: theme.textTheme.titleMedium
                                           ?.copyWith(
                                             fontWeight: FontWeight.bold,
@@ -366,7 +380,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         bottom: 16,
                                       ),
                                       child: Text(
-                                        _blurbs[_step],
+                                        _blurbs(l)[_step],
                                         style: theme.textTheme.bodySmall
                                             ?.copyWith(
                                               color: theme
@@ -397,6 +411,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
                   _Controls(
+                    l: l,
                     canGoBack: _step > 0 && !_saving,
                     saving: _saving,
                     isLast: isLast,
@@ -416,6 +431,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
 class _Controls extends StatelessWidget {
   const _Controls({
+    required this.l,
     required this.canGoBack,
     required this.saving,
     required this.isLast,
@@ -424,6 +440,7 @@ class _Controls extends StatelessWidget {
     required this.onCancel,
   });
 
+  final L l;
   final bool canGoBack;
   final bool saving;
   final bool isLast;
@@ -447,11 +464,8 @@ class _Controls extends StatelessWidget {
           // all beyond the system back gesture.
           Expanded(
             child: canGoBack
-                ? OutlinedButton(onPressed: onBack, child: const Text('Back'))
-                : OutlinedButton(
-                    onPressed: onCancel,
-                    child: const Text('Cancel'),
-                  ),
+                ? OutlinedButton(onPressed: onBack, child: Text(l.back))
+                : OutlinedButton(onPressed: onCancel, child: Text(l.cancel)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -464,7 +478,7 @@ class _Controls extends StatelessWidget {
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2.5),
                     )
-                  : Text(isLast ? 'Submit application' : 'Next'),
+                  : Text(isLast ? l.submitApplication : l.next),
             ),
           ),
         ],
@@ -474,7 +488,13 @@ class _Controls extends StatelessWidget {
 }
 
 class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.message, required this.onRetry});
+  const _ErrorState({
+    required this.l,
+    required this.message,
+    required this.onRetry,
+  });
+
+  final L l;
 
   final String message;
   final VoidCallback onRetry;
@@ -498,7 +518,7 @@ class _ErrorState extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh),
-              label: const Text('Try again'),
+              label: Text(l.tryAgain),
             ),
           ],
         ),
@@ -520,9 +540,13 @@ class _ErrorState extends StatelessWidget {
 class _StepRail extends StatelessWidget {
   const _StepRail({required this.titles, required this.current});
 
-  /// Short names, not the step headings: "Contact & sign-in" does not fit a
-  /// quarter of a phone, and the card below already carries the full title.
-  static const _short = ['Identity', 'Contact', 'Association', 'Location'];
+  /// `titles` holds SHORT names, not the step headings: "Contact & sign-in"
+  /// does not fit a quarter of a phone in either language, and the card below
+  /// already carries the full title.
+  ///
+  /// They arrive as a parameter rather than a `const` list in here. They were
+  /// a const list, and it silently outranked the localised names the caller
+  /// passed - the rail stayed English while the rest of the form was Tamil.
 
   final List<String> titles;
   final int current;
@@ -592,7 +616,7 @@ class _StepRail extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                _short[index],
+                titles[index],
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,

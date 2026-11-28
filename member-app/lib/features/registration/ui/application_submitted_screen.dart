@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../l10n/app_localizations.dart';
 import '../data/application_draft.dart';
 import '../data/options.dart';
 
@@ -24,6 +25,7 @@ class ApplicationSubmittedScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final status = AppStatusColors.of(context);
+    final l = L.of(context);
 
     return Scaffold(
       body: SafeArea(
@@ -56,7 +58,7 @@ class ApplicationSubmittedScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    'Application received',
+                    l.applicationReceived,
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -79,7 +81,7 @@ class ApplicationSubmittedScreen extends StatelessWidget {
                     child: Column(
                       children: [
                         Text(
-                          'Your application number',
+                          l.yourApplicationNumber,
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -98,15 +100,13 @@ class ApplicationSubmittedScreen extends StatelessWidget {
 
                   const SizedBox(height: 20),
                   Text(
-                    'Keep this number. ${site.shortName ?? 'The association'} '
-                    'will review your application, and you will be able to '
-                    'sign in once it is approved.',
+                    l.keepThisNumber(site.shortName ?? l.theAssociation),
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Your membership number is issued on approval, not now.',
+                    l.numberIssuedOnApproval,
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
@@ -118,13 +118,18 @@ class ApplicationSubmittedScreen extends StatelessWidget {
                     // Back to login: this screen replaced the form, so popping
                     // returns to where Apply was tapped.
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Back to sign in'),
+                    child: Text(l.backToSignIn),
                   ),
 
                   if (site.phoneNumber != null || site.email != null) ...[
                     const SizedBox(height: 20),
                     Text(
-                      'Questions? ${[site.phoneNumber, site.email].where((v) => v != null).join('  ·  ')}',
+                      l.questionsContact(
+                        [
+                          site.phoneNumber,
+                          site.email,
+                        ].where((v) => v != null).join('  ·  '),
+                      ),
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,

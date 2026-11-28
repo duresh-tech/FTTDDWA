@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../app.dart';
 import '../../../core/api/api_exception.dart';
-import '../../../core/config/env.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../l10n/app_localizations.dart';
+import '../../../shared/widgets/brand_header.dart';
 import '../../../shared/widgets/labelled_field.dart';
+import '../../../shared/widgets/language_toggle.dart';
 import '../../profile/ui/profile_screen.dart';
 import '../../registration/data/options.dart';
 import '../../registration/ui/register_screen.dart';
@@ -63,8 +66,9 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l = L.of(context);
     final site = widget.site;
-    final logo = site.logoPath;
+    final tamil = LocaleScope.of(context).locale.languageCode == 'ta';
 
     return Scaffold(
       body: SafeArea(
@@ -78,43 +82,16 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const SizedBox(height: 12),
-                    if (logo != null)
-                      // /uploads is served outside the guard pipeline, so a
-                      // plain network image needs no key and no token.
-                      Image.network(
-                        Env.uploadUrl(logo),
-                        height: 72,
-                        errorBuilder: (_, _, _) => _fallbackMark(theme),
-                      )
-                    else
-                      _fallbackMark(theme),
-                    const SizedBox(height: 16),
-
-                    if (site.shortName != null)
-                      Text(
-                        site.shortName!,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.labelLarge,
-                      ),
-                    Text(
-                      site.name ?? Env.appName,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                    // The switcher sits ABOVE the fold and before the
+                    // form: somebody who opened the app in the wrong language
+                    // should not have to read anything to fix it.
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: LanguageToggle(),
                     ),
-                    if (site.nameTamil != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        site.nameTamil!,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 8),
+                    BrandHeader(site: site, tamil: tamil),
+                    const SizedBox(height: 24),
 
                     Card(
                       child: Padding(
@@ -123,25 +100,29 @@ class _LoginScreenState extends State<LoginScreen> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             LabelledField(
-                              label: 'Membership number',
+                              label: l.membershipNumber,
                               required: true,
-                              hint: 'TN72001',
-                              helper: 'Printed on your membership card',
+                              // No example number. The helper below says where
+                              // to find the real one, which is the part that
+                              // helps - a sample in the box is one more thing
+                              // to read past, and reads as a filled field at a
+                              // glance.
+                              helper: l.membershipNumberHelper,
                               textCapitalization: TextCapitalization.characters,
                               onChanged: (value) => _memberIdNumber = value,
                               validator: (value) =>
                                   (value == null || value.trim().isEmpty)
-                                  ? 'Enter your membership number'
+                                  ? l.membershipNumberRequired
                                   : null,
                             ),
                             LabelledField(
-                              label: 'Password',
+                              label: l.password,
                               required: true,
                               obscureText: true,
                               onChanged: (value) => _password = value,
                               validator: (value) =>
                                   (value == null || value.isEmpty)
-                                  ? 'Enter your password'
+                                  ? l.passwordRequired
                                   : null,
                             ),
 
@@ -156,7 +137,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                         strokeWidth: 2.5,
                                       ),
                                     )
-                                  : const Text('Sign in'),
+                                  : Text(l.signIn),
                             ),
                           ],
                         ),
@@ -182,29 +163,19 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                         icon: const Icon(Icons.person_add_alt),
-                        label: const Text('Apply for membership'),
+                        label: Text(l.applyForMembership),
                       ),
                     ] else if (site.loaded) ...[
                       const SizedBox(height: 12),
-                      _Note(
-                        icon: Icons.info_outline,
-                        text:
-                            'This association is not accepting new '
-                            'applications at the moment.',
-                      ),
+                      _Note(icon: Icons.info_outline, text: l.registerClosed),
                     ] else ...[
                       const SizedBox(height: 12),
-                      _Note(
-                        icon: Icons.cloud_off,
-                        text:
-                            'Could not reach the association, so applying is '
-                            'unavailable. Signing in may still work.',
-                      ),
+                      _Note(icon: Icons.cloud_off, text: l.siteUnreachable),
                     ],
 
                     const SizedBox(height: 24),
                     Text(
-                      'No password yet? Your association sets one up for you.',
+                      l.noPasswordYet,
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
@@ -219,22 +190,6 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-
-  Widget _fallbackMark(ThemeData theme) => Center(
-    child: Container(
-      width: 64,
-      height: 64,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primary,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Icon(
-        Icons.badge_outlined,
-        size: 32,
-        color: theme.colorScheme.onPrimary,
-      ),
-    ),
-  );
 }
 
 /// A quiet, bordered line of explanation beneath the sign-in form.

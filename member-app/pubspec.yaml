@@ -5,13 +5,19 @@ publish_to: "none"
 
 # Its own version stream. The backend and console do not move in lockstep with
 # each other and this app moves with neither -- see CHANGELOG.md.
-version: 1.1.0+2
+version: 1.2.0+3
 
 environment:
   sdk: ^3.12.2
 
 dependencies:
   flutter:
+    sdk: flutter
+  # Tamil and English. From the SDK, not pub - so the short list below
+  # gains no third-party entry, and Flutter's own Material translations
+  # come with it: the date picker and every built-in control speak Tamil
+  # without a string of ours.
+  flutter_localizations:
     sdk: flutter
 
   # Deliberately short. There is no state-management package and no form
@@ -24,7 +30,10 @@ dependencies:
   flutter_secure_storage: ^11.2.0
   path_provider: ^2.1.6
   open_filex: ^5.0.0
-  intl: ^0.20.3
+  # ^0.20.2, not ^0.20.3: flutter_localizations pins intl to exactly
+  # 0.20.2, and a floor above that is an unsolvable conflict rather
+  # than a newer package.
+  intl: ^0.20.2
   # Camera and gallery for the applicant's photo. Its camera goes through
   # the system intent, so the app still declares only INTERNET - no CAMERA
   # permission to justify on a store listing.
@@ -34,14 +43,32 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  # All three are BUILD-time only and ship nothing into the app.
+  #
+  # `image` is here for tool/make_brand_assets.dart, which turns the
+  # association's WebP emblem into the PNGs the two generators below
+  # demand - neither reads WebP, and converting it is otherwise a native
+  # toolchain this project does not want to require.
+  image: ^4.5.4
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.6
 
 flutter:
   uses-material-design: true
+
+  # Generates lib/l10n/app_localizations.dart from the .arb files, per
+  # l10n.yaml. The output is build-time and gitignored, so a fresh clone
+  # runs `flutter pub get` and has it.
+  generate: true
 
   assets:
     # Bundled as an asset, which is why its values are BUILD-time -- see
     # .env.example. Committed as .env.example only; .env is gitignored.
     - .env
+    # The association's emblems. Bundled rather than fetched: they are the
+    # first thing on screen, and a logo that arrives late is worse than
+    # one that cannot change without a release.
+    - assets/images/
 
   fonts:
     # The same two families the backend uses to render a card, so a name looks
@@ -60,3 +87,51 @@ flutter:
         - asset: assets/fonts/NotoSansTamil-Regular.ttf
         - asset: assets/fonts/NotoSansTamil-Bold.ttf
           weight: 700
+
+# ---------------------------------------------------------------------------
+# The launcher icon, generated from the association's emblem.
+#
+# Input is assets/branding/, which is NOT a bundled asset: these PNGs exist to
+# feed the generators and are produced by tool/make_brand_assets.dart from the
+# WebP artwork. Re-run that, then `dart run flutter_launcher_icons`, only when
+# the artwork itself changes.
+# ---------------------------------------------------------------------------
+flutter_launcher_icons:
+  image_path: assets/branding/icon.png
+  android: true
+  ios: true
+  remove_alpha_ios: true
+
+  # Adaptive icon: white behind, the emblem inset into the safe zone in front.
+  # A launcher may mask this to a circle or a squircle, and the emblem's own
+  # rim text is the first thing a mask would cut - hence the inset foreground
+  # rather than the full-bleed square.
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: assets/branding/icon_foreground.png
+
+  # The monochrome layer Android 13+ uses for themed icons. Same artwork; the
+  # system recolours it, so only its silhouette matters.
+  adaptive_icon_monochrome: assets/branding/icon_foreground.png
+
+# ---------------------------------------------------------------------------
+# The native splash - what the OS draws before Flutter has started.
+#
+# White in both themes on purpose. The Flutter splash that follows is white
+# too, so the handover is invisible; a dark native splash followed by a white
+# Dart one is a flash that reads as a bug. In dark mode the emblem carries its
+# own white disc so it never sits as a bare white square on a dark screen.
+# ---------------------------------------------------------------------------
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: assets/branding/splash.png
+  color_dark: "#0B0F19"
+  image_dark: assets/branding/splash_dark.png
+
+  # Android 12+ draws its own splash from these, ignoring the legacy
+  # windowBackground. Without the android_12 block the new API shows a bare
+  # icon on a system colour instead.
+  android_12:
+    color: "#FFFFFF"
+    image: assets/branding/splash.png
+    color_dark: "#0B0F19"
+    image_dark: assets/branding/splash_dark.png

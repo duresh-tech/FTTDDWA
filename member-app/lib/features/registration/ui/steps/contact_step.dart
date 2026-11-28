@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../l10n/app_localizations.dart';
 import '../../../../shared/widgets/labelled_field.dart';
 import '../../data/application_draft.dart';
 
@@ -17,61 +18,62 @@ class ContactStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = L.of(context);
     final theme = Theme.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         LabelledField(
-          label: 'Phone number',
+          label: l.phoneNumber,
           required: true,
           keyboardType: TextInputType.phone,
           initialValue: draft.phoneNumber,
           onChanged: (v) => draft.phoneNumber = v,
           validator: (value) {
             final trimmed = (value ?? '').trim();
-            if (trimmed.isEmpty) return 'Enter your phone number';
-            if (trimmed.length < 5) return 'That looks too short';
+            if (trimmed.isEmpty) return l.phoneRequired;
+            if (trimmed.length < 5) return l.phoneTooShort;
             return null;
           },
         ),
         LabelledField(
-          label: 'WhatsApp number',
-          helper: 'Leave blank if it is the same as your phone number',
+          label: l.whatsappNumber,
+          helper: l.whatsappHelper,
           keyboardType: TextInputType.phone,
           initialValue: draft.whatsappNumber,
           onChanged: (v) => draft.whatsappNumber = v,
         ),
         LabelledField(
-          label: 'Email',
+          label: l.email,
           required: true,
           keyboardType: TextInputType.emailAddress,
           initialValue: draft.email,
           onChanged: (v) => draft.email = v,
           validator: (value) {
             final trimmed = (value ?? '').trim();
-            if (trimmed.isEmpty) return 'Enter your email';
+            if (trimmed.isEmpty) return l.emailRequired;
             // Deliberately loose. The server validates properly; this is only
             // here to catch an obvious slip before a round trip.
             if (!trimmed.contains('@') || !trimmed.contains('.')) {
-              return 'Enter a valid email address';
+              return l.emailInvalid;
             }
             return null;
           },
         ),
         LabelledField(
-          label: 'Address line 1',
+          label: l.addressLine1,
           required: true,
           maxLines: 2,
           textCapitalization: TextCapitalization.words,
           initialValue: draft.addressLine1,
           onChanged: (v) => draft.addressLine1 = v,
           validator: (value) => (value == null || value.trim().isEmpty)
-              ? 'Enter your address'
+              ? l.addressRequired
               : null,
         ),
         LabelledField(
-          label: 'Address line 2',
+          label: l.addressLine2,
           maxLines: 2,
           textCapitalization: TextCapitalization.words,
           initialValue: draft.addressLine2,
@@ -82,7 +84,7 @@ class ContactStep extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: Text(
-            'Signing in',
+            l.signingInHeading,
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.bold,
             ),
@@ -91,8 +93,7 @@ class ContactStep extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(bottom: 16),
           child: Text(
-            'Once your application is approved you will sign in with your '
-            'membership number and this password.',
+            l.signingInBlurb,
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -100,29 +101,29 @@ class ContactStep extends StatelessWidget {
         ),
 
         LabelledField(
-          label: 'Password',
+          label: l.password,
           required: true,
           obscureText: true,
-          helper: 'At least 8 characters',
+          helper: l.passwordHelper,
           onChanged: (v) {
             draft.password = v;
             onChanged();
           },
           validator: (value) {
-            if (value == null || value.isEmpty) return 'Choose a password';
+            if (value == null || value.isEmpty) return l.passwordRequired;
             // The server's minimum, so a shorter one is a guaranteed 400.
-            if (value.length < 8) return 'Use at least 8 characters';
+            if (value.length < 8) return l.passwordTooShort;
             return null;
           },
         ),
         LabelledField(
-          label: 'Confirm password',
+          label: l.confirmPassword,
           required: true,
           obscureText: true,
           onChanged: (v) => draft.confirmPassword = v,
           validator: (value) {
-            if (value == null || value.isEmpty) return 'Repeat your password';
-            if (value != draft.password) return 'The passwords do not match';
+            if (value == null || value.isEmpty) return l.passwordRequired;
+            if (value != draft.password) return l.passwordsDoNotMatch;
             return null;
           },
         ),

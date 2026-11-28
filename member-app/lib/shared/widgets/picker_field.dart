@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../features/registration/data/options.dart';
+import '../../l10n/app_localizations.dart';
 import 'required_label.dart';
 
 /// A dropdown fed by one of the lookup lists.
@@ -35,6 +36,7 @@ class PickerField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = L.of(context);
     final enabled = disabledHint == null;
     // A value no longer in the list (the parent changed) must not be handed to
     // DropdownButtonFormField -- it asserts on a value with no matching item.
@@ -94,8 +96,8 @@ class PickerField extends StatelessWidget {
               hintText: !enabled
                   ? disabledHint
                   : items.isEmpty
-                  ? (emptyHint ?? 'Nothing available')
-                  : 'Select',
+                  ? (emptyHint ?? l.nothingAvailable)
+                  : l.selectHint,
             ),
           ),
         ],

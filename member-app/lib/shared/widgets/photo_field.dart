@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../core/config/env.dart';
 import '../../core/theme/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 import 'required_label.dart';
 
 /// Picks the applicant's photo, from the camera or the gallery.
@@ -71,20 +72,21 @@ class _PhotoFieldState extends State<PhotoField> {
 
       final bytes = await file.readAsBytes();
       if (bytes.length > _maxBytes) {
-        setState(() => _error = 'That photo is too large. Try another.');
+        setState(() => _error = L.of(context).photoTooLarge);
         return;
       }
 
       setState(() => _preview = File(file.path));
       await widget.onPicked(bytes, file.name);
     } catch (error) {
-      if (mounted) setState(() => _error = 'Could not open the photo.');
+      if (mounted) setState(() => _error = L.of(context).photoUnreadable);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l = L.of(context);
     final status = AppStatusColors.of(context);
     final stored = widget.storedPath;
     final hasPhoto = _preview != null || (stored != null && stored.isNotEmpty);
@@ -118,7 +120,7 @@ class _PhotoFieldState extends State<PhotoField> {
                               Icons.photo_camera_outlined,
                               size: 18,
                             ),
-                            label: const Text('Camera'),
+                            label: Text(l.photoCamera),
                             style: OutlinedButton.styleFrom(
                               minimumSize: const Size.fromHeight(42),
                             ),
@@ -131,7 +133,7 @@ class _PhotoFieldState extends State<PhotoField> {
                                 ? null
                                 : () => _pick(ImageSource.gallery),
                             icon: const Icon(Icons.image_outlined, size: 18),
-                            label: const Text('Gallery'),
+                            label: Text(l.photoGallery),
                             style: OutlinedButton.styleFrom(
                               minimumSize: const Size.fromHeight(42),
                             ),
@@ -161,7 +163,7 @@ class _PhotoFieldState extends State<PhotoField> {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              'Photo attached',
+                              l.photoAttached,
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: status.success,
                               ),

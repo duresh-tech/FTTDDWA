@@ -1,0 +1,15 @@
+# Where `flutter gen-l10n` reads from and writes to.
+#
+# `flutter pub get` regenerates lib/l10n/app_localizations*.dart from the .arb
+# files (pubspec's `generate: true`). Those outputs sit in lib/ and ARE
+# committed - Flutter no longer ships them in a synthetic package - but they
+# are still generated: edit the .arb, never the .dart.
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+output-class: L
+# English is the template, so a key missing from app_ta.arb falls back to it
+# rather than failing the build - a half-translated release still runs, and
+# `flutter gen-l10n` lists what is missing.
+untranslated-messages-file: l10n-missing.txt
+nullable-getter: false

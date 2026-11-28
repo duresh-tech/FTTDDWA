@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../l10n/app_localizations.dart';
 import '../../../../shared/widgets/picker_field.dart';
 import '../../../../shared/widgets/required_label.dart';
 import '../../data/application_draft.dart';
@@ -28,6 +29,7 @@ class AssociationStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = L.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -38,7 +40,7 @@ class AssociationStep extends StatelessWidget {
           // one-item dropdown would be an interaction over a decision they
           // were never given.
           _FixedPosition(
-            label: 'Position',
+            label: l.position,
             name: options.positions
                 .where((p) => p.id == fixedPositionId)
                 .map((p) => p.label)
@@ -46,22 +48,22 @@ class AssociationStep extends StatelessWidget {
           )
         else
           PickerField(
-            label: 'Position',
+            label: l.position,
             required: true,
             items: options.positions,
             value: draft.associationPositionId,
-            emptyHint: 'This association has no positions set up yet',
+            emptyHint: l.noPositions,
             onChanged: (value) {
               draft.associationPositionId = value;
               onChanged();
             },
           ),
         PickerField(
-          label: 'Trade',
+          label: l.trade,
           required: true,
           items: options.industries,
           value: draft.industryId,
-          emptyHint: 'This association has no trades set up yet',
+          emptyHint: l.noTrades,
           onChanged: (value) {
             draft.industryId = value;
             onChanged();
@@ -106,7 +108,7 @@ class _FixedPosition extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(
-              'Set by the association for everyone applying.',
+              L.of(context).positionFixedNote,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
